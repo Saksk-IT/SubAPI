@@ -31,13 +31,34 @@ func NewRedeemHandler(adminService service.AdminService, redeemService *service.
 	}
 }
 
+type CreateRedeemCodeRequest struct {
+	Code         string  `json:"code" binding:"omitempty,max=32"`
+	Type         string  `json:"type" binding:"required,oneof=balance concurrency subscription invitation"`
+	Value        float64 `json:"value"`
+	Status       string  `json:"status" binding:"omitempty,oneof=unused expired"`
+	GroupID      *int64  `json:"group_id"`
+	ValidityDays int     `json:"validity_days"`
+	Notes        string  `json:"notes"`
+}
+
+type UpdateRedeemCodeRequest struct {
+	Code         *string  `json:"code" binding:"omitempty,max=32"`
+	Type         *string  `json:"type" binding:"omitempty,oneof=balance concurrency subscription invitation"`
+	Value        *float64 `json:"value"`
+	Status       *string  `json:"status" binding:"omitempty,oneof=unused expired"`
+	GroupID      *int64   `json:"group_id"`
+	ClearGroupID bool     `json:"clear_group_id"`
+	ValidityDays *int     `json:"validity_days"`
+	Notes        *string  `json:"notes"`
+}
+
 // GenerateRedeemCodesRequest represents generate redeem codes request
 type GenerateRedeemCodesRequest struct {
-	Count        int     `json:"count" binding:"required,min=1,max=100"`
+	Count        int     `json:"count" binding:"required,min=1,max=1000"`
 	Type         string  `json:"type" binding:"required,oneof=balance concurrency subscription invitation"`
 	Value        float64 `json:"value"`
 	GroupID      *int64  `json:"group_id"`      // 订阅类型必填
-	ValidityDays int     `json:"validity_days"` // 订阅类型使用，正数增加/负数退款扣减
+	ValidityDays int     `json:"validity_days"` // 订阅类型使用
 }
 
 // CreateAndRedeemCodeRequest represents creating a fixed code and redeeming it for a target user.
@@ -96,6 +117,76 @@ func (h *RedeemHandler) GetByID(c *gin.Context) {
 	}
 
 	response.Success(c, dto.RedeemCodeFromServiceAdmin(code))
+}
+
+// Create handles creating a single redeem code.
+// POST /api/v1/admin/redeem-codes
+func (h *RedeemHandler) Create(c *gin.Context) {
+	var req CreateRedeemCodeRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "Invalid request: "+err.Error())
+		return
+	}
+
+	input := &service.CreateRedeemCodeInput{
+		Code:         req.Code,
+		Type:         req.Type,
+		Value:        req.Value,
+		Status:       req.Status,
+		Notes:        req.Notes,
+		GroupID:      req.GroupID,
+		ValidityDays: req.ValidityDays,
+	}
+
+	executeAdminIdempotentJSON(c, "admin.redeem_codes.create", req, service.DefaultWriteIdempotencyTTL(), func(ctx context.Context) (any, error) {
+		code, execErr := h.adminService.CreateRedeemCode(ctx, input)
+		if execErr != nil {
+			return nil, execErr
+		}
+		return dto.RedeemCodeFromServiceAdmin(code), nil
+	})
+}
+
+// Update handles updating a redeem code.
+// PUT /api/v1/admin/redeem-codes/:id
+func (h *RedeemHandler) Update(c *gin.Context) {
+	codeID, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	if err != nil {
+		response.BadRequest(c, "Invalid redeem code ID")
+		return
+	}
+
+	var req UpdateRedeemCodeRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "Invalid request: "+err.Error())
+		return
+	}
+
+	input := &service.UpdateRedeemCodeInput{
+		Code:         req.Code,
+		Type:         req.Type,
+		Value:        req.Value,
+		Status:       req.Status,
+		Notes:        req.Notes,
+		GroupID:      req.GroupID,
+		ClearGroupID: req.ClearGroupID,
+		ValidityDays: req.ValidityDays,
+	}
+	idempotencyPayload := struct {
+		ID int64 `json:"id"`
+		UpdateRedeemCodeRequest
+	}{
+		ID:                      codeID,
+		UpdateRedeemCodeRequest: req,
+	}
+
+	executeAdminIdempotentJSON(c, "admin.redeem_codes.update", idempotencyPayload, service.DefaultWriteIdempotencyTTL(), func(ctx context.Context) (any, error) {
+		code, execErr := h.adminService.UpdateRedeemCode(ctx, codeID, input)
+		if execErr != nil {
+			return nil, execErr
+		}
+		return dto.RedeemCodeFromServiceAdmin(code), nil
+	})
 }
 
 // Generate handles generating new redeem codes

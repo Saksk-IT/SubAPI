@@ -6,6 +6,8 @@
 import { apiClient } from '../client'
 import type {
   RedeemCode,
+  CreateRedeemCodeRequest,
+  UpdateRedeemCodeRequest,
   GenerateRedeemCodesRequest,
   RedeemCodeType,
   PaginatedResponse
@@ -54,6 +56,22 @@ export async function getById(id: number): Promise<RedeemCode> {
 }
 
 /**
+ * Create a single redeem code. Code is optional; backend auto-generates when omitted.
+ */
+export async function create(request: CreateRedeemCodeRequest): Promise<RedeemCode> {
+  const { data } = await apiClient.post<RedeemCode>('/admin/redeem-codes', request)
+  return data
+}
+
+/**
+ * Update an existing redeem code.
+ */
+export async function update(id: number, request: UpdateRedeemCodeRequest): Promise<RedeemCode> {
+  const { data } = await apiClient.put<RedeemCode>(`/admin/redeem-codes/${id}`, request)
+  return data
+}
+
+/**
  * Generate new redeem codes
  * @param count - Number of codes to generate
  * @param type - Type of redeem code
@@ -75,12 +93,11 @@ export async function generate(
     value
   }
 
-  // 订阅类型专用字段
-  if (type === 'subscription') {
+  if (groupId !== undefined) {
     payload.group_id = groupId
-    if (validityDays && validityDays > 0) {
-      payload.validity_days = validityDays
-    }
+  }
+  if (validityDays !== undefined) {
+    payload.validity_days = validityDays
   }
 
   const { data } = await apiClient.post<RedeemCode[]>('/admin/redeem-codes/generate', payload)
@@ -168,6 +185,8 @@ export async function exportCodes(filters?: {
 export const redeemAPI = {
   list,
   getById,
+  create,
+  update,
   generate,
   delete: deleteCode,
   batchDelete,

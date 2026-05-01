@@ -139,3 +139,60 @@ func TestCreateAndRedeem_BalanceIgnoresSubscriptionFields(t *testing.T) {
 	assert.NotEqual(t, http.StatusBadRequest, code,
 		"balance type should not require group_id or validity_days")
 }
+
+func setupRedeemManagementRouter() (*gin.Engine, *stubAdminService) {
+	gin.SetMode(gin.TestMode)
+	router := gin.New()
+	adminSvc := newStubAdminService()
+	h := NewRedeemHandler(adminSvc, nil)
+	router.POST("/api/v1/admin/redeem-codes", h.Create)
+	router.PUT("/api/v1/admin/redeem-codes/:id", h.Update)
+	return router, adminSvc
+}
+
+func TestRedeemManagementCreatePassesPayload(t *testing.T) {
+	router, adminSvc := setupRedeemManagementRouter()
+	body, err := json.Marshal(map[string]any{
+		"code":          " SUB-CODE ",
+		"type":          "subscription",
+		"value":         0,
+		"group_id":      12,
+		"validity_days": 45,
+		"notes":         "partner generated",
+	})
+	require.NoError(t, err)
+
+	w := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/admin/redeem-codes", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	router.ServeHTTP(w, req)
+
+	require.Equal(t, http.StatusOK, w.Code)
+	require.NotNil(t, adminSvc.lastCreateRedeemCode)
+	require.Equal(t, " SUB-CODE ", adminSvc.lastCreateRedeemCode.Code)
+	require.Equal(t, service.RedeemTypeSubscription, adminSvc.lastCreateRedeemCode.Type)
+	require.NotNil(t, adminSvc.lastCreateRedeemCode.GroupID)
+	require.Equal(t, int64(12), *adminSvc.lastCreateRedeemCode.GroupID)
+	require.Equal(t, 45, adminSvc.lastCreateRedeemCode.ValidityDays)
+}
+
+func TestRedeemManagementUpdatePassesPayload(t *testing.T) {
+	router, adminSvc := setupRedeemManagementRouter()
+	body, err := json.Marshal(map[string]any{
+		"status":         "expired",
+		"clear_group_id": true,
+	})
+	require.NoError(t, err)
+
+	w := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPut, "/api/v1/admin/redeem-codes/5", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	router.ServeHTTP(w, req)
+
+	require.Equal(t, http.StatusOK, w.Code)
+	require.Equal(t, int64(5), adminSvc.lastUpdateRedeemCode.id)
+	require.NotNil(t, adminSvc.lastUpdateRedeemCode.input)
+	require.NotNil(t, adminSvc.lastUpdateRedeemCode.input.Status)
+	require.Equal(t, "expired", *adminSvc.lastUpdateRedeemCode.input.Status)
+	require.True(t, adminSvc.lastUpdateRedeemCode.input.ClearGroupID)
+}

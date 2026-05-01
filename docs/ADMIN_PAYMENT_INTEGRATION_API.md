@@ -1,4 +1,4 @@
-﻿# ADMIN_PAYMENT_INTEGRATION_API
+# ADMIN_PAYMENT_INTEGRATION_API
 
 > 单文件中英双语文档 / Single-file bilingual documentation (Chinese + English)
 
@@ -117,6 +117,85 @@ https://pay.example.com/pay?user_id=123&token=<jwt>&theme=light&lang=zh&ui_mode=
 - 回调验签成功后立即标记“支付成功”
 - 支付成功但充值失败的订单允许后续重试
 - 重试保持相同 `code`，并使用新的 `Idempotency-Key`
+
+
+### 7) 兑换码管理 API
+
+外部服务也可以直接管理兑换码，均使用 Admin API Key 认证。写接口建议传 `Idempotency-Key` 便于安全重试。
+
+#### 新增兑换码
+`POST /api/v1/admin/redeem-codes`
+
+```json
+{
+  "code": "VIP-2026-0001",
+  "type": "subscription",
+  "value": 0,
+  "status": "unused",
+  "group_id": 12,
+  "validity_days": 30,
+  "notes": "partner import"
+}
+```
+
+- `code` 可选，不传时后端自动生成。
+- `type`: `balance` / `concurrency` / `subscription` / `invitation`。
+- `subscription` 必须传 `group_id`，分组必须是订阅分组；`validity_days` 不传默认 30 天。
+- `balance` / `concurrency` 的 `value` 不能为 0；`invitation` 的 `value` 按 0 处理。
+
+#### 修改兑换码
+`PUT /api/v1/admin/redeem-codes/:id`
+
+```json
+{
+  "code": "VIP-2026-0001-UPDATED",
+  "type": "subscription",
+  "value": 0,
+  "status": "unused",
+  "group_id": 12,
+  "validity_days": 60,
+  "notes": "extend validity"
+}
+```
+
+清除分组：
+
+```json
+{
+  "clear_group_id": true
+}
+```
+
+#### 删除兑换码
+`DELETE /api/v1/admin/redeem-codes/:id`
+
+批量删除：
+
+`POST /api/v1/admin/redeem-codes/batch-delete`
+
+```json
+{
+  "ids": [1, 2, 3]
+}
+```
+
+#### 生成兑换码
+`POST /api/v1/admin/redeem-codes/generate`
+
+可自由选择类型、分组、有效天数、数量：
+
+```json
+{
+  "type": "subscription",
+  "group_id": 12,
+  "validity_days": 30,
+  "count": 10,
+  "value": 0
+}
+```
+
+- `count` 范围：1～1000。
+- 其他类型按同样规则设置 `type` / `value`；非订阅类型会忽略分组和有效天数。
 
 ### 6) `doc_url` 配置建议
 - 查看链接：`https://github.com/Wei-Shaw/sub2api/blob/main/ADMIN_PAYMENT_INTEGRATION_API.md`
