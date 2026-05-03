@@ -461,14 +461,11 @@ func (r *accountRepository) List(ctx context.Context, params pagination.Paginati
 }
 
 func normalizeAccountPlanTypeFilter(planType string) []string {
-	switch strings.ToLower(strings.TrimSpace(planType)) {
-	case "":
+	normalized := strings.ToLower(strings.TrimSpace(planType))
+	if normalized == "" {
 		return nil
-	case "plus_team":
-		return []string{"plus", "team"}
-	default:
-		return []string{planType}
 	}
+	return []string{normalized}
 }
 
 func (r *accountRepository) ListWithFilters(ctx context.Context, params pagination.PaginationParams, platform, accountType, planType, status, search string, groupID int64, privacyMode string) ([]service.Account, *pagination.PaginationResult, error) {

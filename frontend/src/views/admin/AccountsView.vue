@@ -1334,12 +1334,9 @@ const accountMatchesCurrentFilters = (account: Account) => {
   if (filters.platform && account.platform !== filters.platform) return false
   if (filters.type && account.type !== filters.type) return false
   if (filters.plan_type) {
+    const planFilter = filters.plan_type.toLowerCase()
     const planType = typeof account.credentials?.plan_type === 'string' ? account.credentials.plan_type.toLowerCase() : ''
-    if (filters.plan_type === 'plus_team') {
-      if (account.platform !== 'openai' || account.type !== 'oauth' || !['plus', 'team'].includes(planType)) return false
-    } else if (planType !== filters.plan_type) {
-      return false
-    }
+    if (account.platform !== 'openai' || account.type !== 'oauth' || planType !== planFilter) return false
   }
   if (filters.status) {
     const now = Date.now()

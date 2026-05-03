@@ -249,7 +249,7 @@ func (s *AccountRepoSuite) TestListWithFilters() {
 			},
 		},
 		{
-			name: "filter_by_plan_type_plus_team",
+			name: "filter_by_plan_type_plus",
 			setup: func(client *dbent.Client) {
 				mustCreateAccount(s.T(), client, &service.Account{
 					Name:        "openai-plus",
@@ -276,11 +276,38 @@ func (s *AccountRepoSuite) TestListWithFilters() {
 					Credentials: map[string]any{"plan_type": "plus"},
 				})
 			},
-			planType:  "plus_team",
-			wantCount: 2,
+			planType:  "plus",
+			wantCount: 1,
 			validate: func(accounts []service.Account) {
-				names := []string{accounts[0].Name, accounts[1].Name}
-				s.ElementsMatch([]string{"openai-plus", "openai-team"}, names)
+				s.Require().Equal("openai-plus", accounts[0].Name)
+			},
+		},
+		{
+			name: "filter_by_plan_type_team",
+			setup: func(client *dbent.Client) {
+				mustCreateAccount(s.T(), client, &service.Account{
+					Name:        "openai-plus",
+					Platform:    service.PlatformOpenAI,
+					Type:        service.AccountTypeOAuth,
+					Credentials: map[string]any{"plan_type": "plus"},
+				})
+				mustCreateAccount(s.T(), client, &service.Account{
+					Name:        "openai-team",
+					Platform:    service.PlatformOpenAI,
+					Type:        service.AccountTypeOAuth,
+					Credentials: map[string]any{"plan_type": "team"},
+				})
+				mustCreateAccount(s.T(), client, &service.Account{
+					Name:        "anthropic-team",
+					Platform:    service.PlatformAnthropic,
+					Type:        service.AccountTypeOAuth,
+					Credentials: map[string]any{"plan_type": "team"},
+				})
+			},
+			planType:  "team",
+			wantCount: 1,
+			validate: func(accounts []service.Account) {
+				s.Require().Equal("openai-team", accounts[0].Name)
 			},
 		},
 		{

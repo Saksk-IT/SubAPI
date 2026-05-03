@@ -210,11 +210,11 @@ func TestAdminService_ListAccounts_WithPlanType(t *testing.T) {
 		}
 		svc := &adminServiceImpl{accountRepo: repo}
 
-		accounts, total, err := svc.ListAccounts(context.Background(), 1, 20, PlatformOpenAI, AccountTypeOAuth, "plus_team", StatusActive, "", 0, "", "", "")
+		accounts, total, err := svc.ListAccounts(context.Background(), 1, 20, PlatformOpenAI, AccountTypeOAuth, "plus", StatusActive, "", 0, "", "", "")
 		require.NoError(t, err)
 		require.Equal(t, int64(1), total)
 		require.Equal(t, []Account{{ID: 3, Name: "plus-team"}}, accounts)
-		require.Equal(t, "plus_team", repo.listWithFiltersPlanType)
+		require.Equal(t, "plus", repo.listWithFiltersPlanType)
 	})
 }
 
