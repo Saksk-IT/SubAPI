@@ -457,10 +457,21 @@ func (r *accountRepository) Delete(ctx context.Context, id int64) error {
 }
 
 func (r *accountRepository) List(ctx context.Context, params pagination.PaginationParams) ([]service.Account, *pagination.PaginationResult, error) {
-	return r.ListWithFilters(ctx, params, "", "", "", "", 0, "")
+	return r.ListWithFilters(ctx, params, "", "", "", "", "", 0, "")
 }
 
-func (r *accountRepository) ListWithFilters(ctx context.Context, params pagination.PaginationParams, platform, accountType, status, search string, groupID int64, privacyMode string) ([]service.Account, *pagination.PaginationResult, error) {
+func normalizeAccountPlanTypeFilter(planType string) []string {
+	switch strings.ToLower(strings.TrimSpace(planType)) {
+	case "":
+		return nil
+	case "plus_team":
+		return []string{"plus", "team"}
+	default:
+		return []string{planType}
+	}
+}
+
+func (r *accountRepository) ListWithFilters(ctx context.Context, params pagination.PaginationParams, platform, accountType, planType, status, search string, groupID int64, privacyMode string) ([]service.Account, *pagination.PaginationResult, error) {
 	q := r.client.Account.Query()
 
 	if platform != "" {
@@ -468,6 +479,31 @@ func (r *accountRepository) ListWithFilters(ctx context.Context, params paginati
 	}
 	if accountType != "" {
 		q = q.Where(dbaccount.TypeEQ(accountType))
+	}
+	if planTypes := normalizeAccountPlanTypeFilter(planType); len(planTypes) > 0 {
+		q = q.Where(
+			dbaccount.PlatformEQ(service.PlatformOpenAI),
+			dbaccount.TypeEQ(service.AccountTypeOAuth),
+			dbpredicate.Account(func(s *entsql.Selector) {
+				path := sqljson.Path("plan_type")
+				preds := make([]*entsql.Predicate, 0, len(planTypes))
+				for _, plan := range planTypes {
+					plan = strings.TrimSpace(plan)
+					if plan == "" {
+						continue
+					}
+					preds = append(preds, sqljson.ValueEQ(dbaccount.FieldCredentials, plan, path))
+				}
+				switch len(preds) {
+				case 0:
+					s.Where(entsql.EQ("1", 0))
+				case 1:
+					s.Where(preds[0])
+				default:
+					s.Where(entsql.Or(preds...))
+				}
+			}),
+		)
 	}
 	if status != "" {
 		switch status {

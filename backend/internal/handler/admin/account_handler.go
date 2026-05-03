@@ -153,6 +153,7 @@ type BulkUpdateAccountsRequest struct {
 type BulkUpdateAccountFilters struct {
 	Platform    string `json:"platform"`
 	Type        string `json:"type"`
+	PlanType    string `json:"plan_type"`
 	Status      string `json:"status"`
 	Group       string `json:"group"`
 	Search      string `json:"search"`
@@ -228,6 +229,7 @@ func (h *AccountHandler) List(c *gin.Context) {
 	page, pageSize := response.ParsePagination(c)
 	platform := c.Query("platform")
 	accountType := c.Query("type")
+	planType := strings.TrimSpace(c.Query("plan_type"))
 	status := c.Query("status")
 	search := c.Query("search")
 	privacyMode := strings.TrimSpace(c.Query("privacy_mode"))
@@ -258,7 +260,7 @@ func (h *AccountHandler) List(c *gin.Context) {
 		}
 	}
 
-	accounts, total, err := h.adminService.ListAccounts(c.Request.Context(), page, pageSize, platform, accountType, status, search, groupID, privacyMode, sortBy, sortOrder)
+	accounts, total, err := h.adminService.ListAccounts(c.Request.Context(), page, pageSize, platform, accountType, planType, status, search, groupID, privacyMode, sortBy, sortOrder)
 	if err != nil {
 		response.ErrorFrom(c, err)
 		return
@@ -1451,6 +1453,7 @@ func toServiceBulkUpdateAccountFilters(filters *BulkUpdateAccountFilters) *servi
 	return &service.BulkUpdateAccountFilters{
 		Platform:    filters.Platform,
 		Type:        filters.Type,
+		PlanType:    filters.PlanType,
 		Status:      filters.Status,
 		Group:       filters.Group,
 		Search:      filters.Search,
@@ -2067,7 +2070,7 @@ func (h *AccountHandler) BatchRefreshTier(c *gin.Context) {
 	accounts := make([]*service.Account, 0)
 
 	if len(req.AccountIDs) == 0 {
-		allAccounts, _, err := h.adminService.ListAccounts(ctx, 1, 10000, "gemini", "oauth", "", "", 0, "", "name", "asc")
+		allAccounts, _, err := h.adminService.ListAccounts(ctx, 1, 10000, "gemini", "oauth", "", "", "", 0, "", "name", "asc")
 		if err != nil {
 			response.ErrorFrom(c, err)
 			return

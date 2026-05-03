@@ -1,8 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
 
-import AccountsView from '../AccountsView.vue'
-
 const {
   listAccounts,
   listWithEtag,
@@ -61,6 +59,16 @@ vi.mock('vue-i18n', async () => {
   }
 })
 
+Object.defineProperty(globalThis, 'localStorage', {
+  value: {
+    getItem: vi.fn(() => null),
+    setItem: vi.fn(),
+    removeItem: vi.fn(),
+    clear: vi.fn()
+  },
+  configurable: true
+})
+
 const DataTableStub = {
   props: ['columns', 'data'],
   template: '<div data-test="data-table"></div>'
@@ -105,6 +113,7 @@ describe('admin AccountsView bulk edit scope', () => {
   })
 
   it('opens bulk edit in filtered-results mode from the bulk actions dropdown', async () => {
+    const { default: AccountsView } = await import('../AccountsView.vue')
     const wrapper = mount(AccountsView, {
       global: {
         stubs: {
