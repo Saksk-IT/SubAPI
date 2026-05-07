@@ -230,7 +230,7 @@ curl -sSL https://raw.githubusercontent.com/Wei-Shaw/sub2api/main/deploy/install
 mkdir -p sub2api-deploy && cd sub2api-deploy
 
 # 下载并运行部署准备脚本
-curl -sSL https://raw.githubusercontent.com/Wei-Shaw/sub2api/main/deploy/docker-deploy.sh | bash
+curl -sSL https://raw.githubusercontent.com/Saksk-IT/SubAPI/main/deploy/docker-deploy.sh | bash
 
 # 启动服务
 docker compose up -d
@@ -252,8 +252,8 @@ docker compose logs -f sub2api
 
 ```bash
 # 1. 克隆仓库
-git clone https://github.com/Wei-Shaw/sub2api.git
-cd sub2api/deploy
+git clone https://github.com/Saksk-IT/SubAPI.git
+cd SubAPI/deploy
 
 # 2. 复制环境配置文件
 cp .env.example .env
@@ -403,8 +403,8 @@ rm -rf data/ postgres_data/ redis_data/
 
 ```bash
 # 1. 克隆仓库
-git clone https://github.com/Wei-Shaw/sub2api.git
-cd sub2api
+git clone https://github.com/Saksk-IT/SubAPI.git
+cd SubAPI
 
 # 2. 安装 pnpm（如果还没有安装）
 npm install -g pnpm
