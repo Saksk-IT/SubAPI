@@ -325,11 +325,3 @@ func (s *adminServiceImpl) ensureSubscriptionGroup(ctx context.Context, groupID 
 	}
 	return nil
 }
-
-func cloneInt64Ptr(v *int64) *int64 {
-	if v == nil {
-		return nil
-	}
-	out := *v
-	return &out
-}

@@ -1951,14 +1951,6 @@ func cloneFloatMap(in map[string]float64) map[string]float64 {
 	return out
 }
 
-func cloneInt64Ptr(in *int64) *int64 {
-	if in == nil {
-		return nil
-	}
-	v := *in
-	return &v
-}
-
 func trimRunes(text string, max int) string {
 	if max <= 0 {
 		return ""
