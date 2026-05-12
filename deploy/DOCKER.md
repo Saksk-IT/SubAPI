@@ -10,7 +10,8 @@ docker run -d \
   -p 8080:8080 \
   -e DATABASE_URL="postgres://user:pass@host:5432/sub2api" \
   -e REDIS_URL="redis://host:6379" \
-  weishaw/sub2api:latest
+  --platform linux/amd64 \
+  ghcr.io/saksk-it/subapi:latest
 ```
 
 ## Docker Compose
@@ -20,7 +21,8 @@ version: '3.8'
 
 services:
   sub2api:
-    image: weishaw/sub2api:latest
+    image: ghcr.io/saksk-it/subapi:latest
+    platform: linux/amd64
     ports:
       - "8080:8080"
     environment:
@@ -61,7 +63,6 @@ volumes:
 ## Supported Architectures
 
 - `linux/amd64`
-- `linux/arm64`
 
 ## Tags
 
@@ -72,5 +73,5 @@ volumes:
 
 ## Links
 
-- [GitHub Repository](https://github.com/weishaw/sub2api)
-- [Documentation](https://github.com/weishaw/sub2api#readme)
+- [GitHub Repository](https://github.com/Saksk-IT/SubAPI)
+- [Documentation](https://github.com/Saksk-IT/SubAPI#readme)

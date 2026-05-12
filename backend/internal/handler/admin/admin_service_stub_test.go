@@ -36,6 +36,7 @@ type stubAdminService struct {
 	lastListAccounts struct {
 		platform    string
 		accountType string
+		planType    string
 		status      string
 		search      string
 		groupID     int64
@@ -67,6 +68,11 @@ type stubAdminService struct {
 		sortBy    string
 		sortOrder string
 		calls     int
+	}
+	lastCreateRedeemCode *service.CreateRedeemCodeInput
+	lastUpdateRedeemCode struct {
+		id    int64
+		input *service.UpdateRedeemCodeInput
 	}
 	mu sync.Mutex
 }
@@ -299,9 +305,10 @@ func (s *stubAdminService) BatchSetGroupRPMOverrides(_ context.Context, _ int64,
 	return nil
 }
 
-func (s *stubAdminService) ListAccounts(ctx context.Context, page, pageSize int, platform, accountType, status, search string, groupID int64, privacyMode string, sortBy, sortOrder string) ([]service.Account, int64, error) {
+func (s *stubAdminService) ListAccounts(ctx context.Context, page, pageSize int, platform, accountType, planType, status, search string, groupID int64, privacyMode string, sortBy, sortOrder string) ([]service.Account, int64, error) {
 	s.lastListAccounts.platform = platform
 	s.lastListAccounts.accountType = accountType
+	s.lastListAccounts.planType = planType
 	s.lastListAccounts.status = status
 	s.lastListAccounts.search = search
 	s.lastListAccounts.groupID = groupID
@@ -522,7 +529,54 @@ func (s *stubAdminService) ListRedeemCodes(ctx context.Context, page, pageSize i
 }
 
 func (s *stubAdminService) GetRedeemCode(ctx context.Context, id int64) (*service.RedeemCode, error) {
-	code := service.RedeemCode{ID: id, Code: "R-TEST", Status: service.StatusUnused}
+	code := service.RedeemCode{ID: id, Code: "R-TEST", Type: service.RedeemTypeBalance, Value: 10, Status: service.StatusUnused}
+	return &code, nil
+}
+
+func (s *stubAdminService) CreateRedeemCode(ctx context.Context, input *service.CreateRedeemCodeInput) (*service.RedeemCode, error) {
+	s.lastCreateRedeemCode = input
+	code := service.RedeemCode{
+		ID:           100,
+		Code:         input.Code,
+		Type:         input.Type,
+		Value:        input.Value,
+		Status:       service.StatusUnused,
+		Notes:        input.Notes,
+		GroupID:      input.GroupID,
+		ValidityDays: input.ValidityDays,
+	}
+	if code.Code == "" {
+		code.Code = "R-CREATED"
+	}
+	if code.Status == "" {
+		code.Status = service.StatusUnused
+	}
+	return &code, nil
+}
+
+func (s *stubAdminService) UpdateRedeemCode(ctx context.Context, id int64, input *service.UpdateRedeemCodeInput) (*service.RedeemCode, error) {
+	s.lastUpdateRedeemCode.id = id
+	s.lastUpdateRedeemCode.input = input
+	code := service.RedeemCode{ID: id, Code: "R-UPDATED", Type: service.RedeemTypeBalance, Value: 10, Status: service.StatusUnused}
+	if input.Code != nil {
+		code.Code = *input.Code
+	}
+	if input.Type != nil {
+		code.Type = *input.Type
+	}
+	if input.Value != nil {
+		code.Value = *input.Value
+	}
+	if input.Status != nil {
+		code.Status = *input.Status
+	}
+	if input.Notes != nil {
+		code.Notes = *input.Notes
+	}
+	code.GroupID = input.GroupID
+	if input.ValidityDays != nil {
+		code.ValidityDays = *input.ValidityDays
+	}
 	return &code, nil
 }
 

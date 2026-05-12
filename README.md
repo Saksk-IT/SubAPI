@@ -231,7 +231,7 @@ Use the automated deployment script for easy setup:
 mkdir -p sub2api-deploy && cd sub2api-deploy
 
 # Download and run deployment preparation script
-curl -sSL https://raw.githubusercontent.com/Wei-Shaw/sub2api/main/deploy/docker-deploy.sh | bash
+curl -sSL https://raw.githubusercontent.com/Saksk-IT/SubAPI/main/deploy/docker-deploy.sh | bash
 
 # Start services
 docker compose up -d
@@ -253,8 +253,8 @@ If you prefer manual setup:
 
 ```bash
 # 1. Clone the repository
-git clone https://github.com/Wei-Shaw/sub2api.git
-cd sub2api/deploy
+git clone https://github.com/Saksk-IT/SubAPI.git
+cd SubAPI/deploy
 
 # 2. Copy environment configuration
 cp .env.example .env
@@ -392,8 +392,8 @@ Build and run from source code for development or customization.
 
 ```bash
 # 1. Clone the repository
-git clone https://github.com/Wei-Shaw/sub2api.git
-cd sub2api
+git clone https://github.com/Saksk-IT/SubAPI.git
+cd SubAPI
 
 # 2. Install pnpm (if not already installed)
 npm install -g pnpm

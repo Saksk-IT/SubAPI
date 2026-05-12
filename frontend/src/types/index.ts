@@ -1226,6 +1226,27 @@ export interface RedeemCode {
   group?: Group // 关联的分组
 }
 
+export interface CreateRedeemCodeRequest {
+  code?: string
+  type: RedeemCodeType
+  value: number
+  status?: 'unused' | 'expired'
+  group_id?: number | null
+  validity_days?: number
+  notes?: string
+}
+
+export interface UpdateRedeemCodeRequest {
+  code?: string
+  type?: RedeemCodeType
+  value?: number
+  status?: 'unused' | 'expired'
+  group_id?: number | null
+  clear_group_id?: boolean
+  validity_days?: number
+  notes?: string
+}
+
 export interface GenerateRedeemCodesRequest {
   count: number
   type: RedeemCodeType
