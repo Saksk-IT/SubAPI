@@ -197,6 +197,37 @@ describe('BulkEditAccountModal', () => {
     })
   })
 
+  it('OpenAI 账号批量编辑应显示并提交 Codex 图片生成桥接覆盖', async () => {
+    const wrapper = mountModal({
+      selectedPlatforms: ['openai'],
+      selectedTypes: ['oauth', 'apikey']
+    })
+
+    expect(wrapper.find('#bulk-edit-openai-codex-image-bridge-enabled').exists()).toBe(true)
+
+    await wrapper.get('#bulk-edit-openai-codex-image-bridge-enabled').setValue(true)
+    await wrapper.get('[data-testid="bulk-edit-codex-image-bridge-enabled"]').trigger('click')
+    await wrapper.get('#bulk-edit-account-form').trigger('submit.prevent')
+    await flushPromises()
+
+    expect(adminAPI.accounts.bulkUpdate).toHaveBeenCalledTimes(1)
+    expect(adminAPI.accounts.bulkUpdate).toHaveBeenCalledWith([1, 2], {
+      extra: {
+        codex_image_generation_bridge: true,
+        codex_image_generation_bridge_enabled: null
+      }
+    })
+  })
+
+  it('非全 OpenAI 账号批量编辑不显示 Codex 图片生成桥接覆盖', () => {
+    const wrapper = mountModal({
+      selectedPlatforms: ['openai', 'anthropic'],
+      selectedTypes: ['oauth', 'apikey']
+    })
+
+    expect(wrapper.find('#bulk-edit-openai-codex-image-bridge-enabled').exists()).toBe(false)
+  })
+
   it('OpenAI API Key 批量编辑应提交 API Key 专属 WS mode 字段', async () => {
     const wrapper = mountModal({
       selectedPlatforms: ['openai'],
