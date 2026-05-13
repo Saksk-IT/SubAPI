@@ -78,6 +78,7 @@ type codexImportAccount struct {
 	IDToken        string
 	Email          string
 	AccountID      string
+	AccountUserID  string
 	UserID         string
 	PlanType       string
 	Organization   string
@@ -94,15 +95,21 @@ type codexJWTClaims struct {
 	Exp        int64                 `json:"exp"`
 	Iat        int64                 `json:"iat"`
 	OpenAIAuth *codexJWTOpenAIClaims `json:"https://api.openai.com/auth,omitempty"`
+	Profile    *codexJWTProfileClaim `json:"https://api.openai.com/profile,omitempty"`
 }
 
 type codexJWTOpenAIClaims struct {
-	ChatGPTAccountID string                     `json:"chatgpt_account_id"`
-	ChatGPTUserID    string                     `json:"chatgpt_user_id"`
-	ChatGPTPlanType  string                     `json:"chatgpt_plan_type"`
-	UserID           string                     `json:"user_id"`
-	POID             string                     `json:"poid"`
-	Organizations    []openai.OrganizationClaim `json:"organizations"`
+	ChatGPTAccountID     string                     `json:"chatgpt_account_id"`
+	ChatGPTAccountUserID string                     `json:"chatgpt_account_user_id"`
+	ChatGPTUserID        string                     `json:"chatgpt_user_id"`
+	ChatGPTPlanType      string                     `json:"chatgpt_plan_type"`
+	UserID               string                     `json:"user_id"`
+	POID                 string                     `json:"poid"`
+	Organizations        []openai.OrganizationClaim `json:"organizations"`
+}
+
+type codexJWTProfileClaim struct {
+	Email string `json:"email"`
 }
 
 type codexAccountIndex struct {
@@ -501,6 +508,15 @@ func normalizeCodexImportEntry(entry codexImportEntry) (*codexImportAccount, err
 			[]string{"account", "account_id"},
 			[]string{"account", "chatgpt_account_id"},
 		)
+		item.AccountUserID = firstCodexString(raw,
+			[]string{"chatgpt_account_user_id"},
+			[]string{"chatgptAccountUserId"},
+			[]string{"account_user_id"},
+			[]string{"accountUserId"},
+			[]string{"account", "user_id"},
+			[]string{"account", "userId"},
+			[]string{"account", "chatgpt_account_user_id"},
+		)
 		item.UserID = firstCodexString(raw,
 			[]string{"chatgpt_user_id"},
 			[]string{"chatgptUserId"},
@@ -519,6 +535,10 @@ func normalizeCodexImportEntry(entry codexImportEntry) (*codexImportAccount, err
 			[]string{"organizationId"},
 			[]string{"org_id"},
 			[]string{"orgId"},
+			[]string{"account", "organization_id"},
+			[]string{"account", "organizationId"},
+			[]string{"account", "org_id"},
+			[]string{"account", "orgId"},
 		)
 		item.Name = firstCodexString(raw, []string{"name"}, []string{"user", "name"})
 		authProvider := firstCodexString(raw, []string{"auth_provider"}, []string{"authProvider"})
@@ -577,13 +597,14 @@ func normalizeCodexImportEntry(entry codexImportEntry) (*codexImportAccount, err
 
 	setCodexCredentialIfNotEmpty(item.Credentials, "email", item.Email)
 	setCodexCredentialIfNotEmpty(item.Credentials, "chatgpt_account_id", item.AccountID)
+	setCodexCredentialIfNotEmpty(item.Credentials, "chatgpt_account_user_id", item.AccountUserID)
 	setCodexCredentialIfNotEmpty(item.Credentials, "chatgpt_user_id", item.UserID)
 	setCodexCredentialIfNotEmpty(item.Credentials, "organization_id", item.Organization)
 	setCodexCredentialIfNotEmpty(item.Credentials, "plan_type", item.PlanType)
 
 	fingerprint := codexTokenFingerprint(item.AccessToken)
 	item.Extra["access_token_sha256"] = fingerprint
-	item.IdentityKeys = buildCodexIdentityKeys(item.AccountID, item.UserID, item.Email, item.AccessToken)
+	item.IdentityKeys = buildCodexIdentityKeys(item.AccountID, item.AccountUserID, item.UserID, item.Organization, item.Email, item.AccessToken, item.RefreshToken)
 	item.Name = buildCodexImportAccountName(item, entry.Index)
 
 	return item, nil
@@ -608,6 +629,9 @@ func enrichCodexImportAccountFromJWT(item *codexImportAccount, token string, val
 	if item.Email == "" {
 		item.Email = strings.TrimSpace(claims.Email)
 	}
+	if item.Email == "" && claims.Profile != nil {
+		item.Email = strings.TrimSpace(claims.Profile.Email)
+	}
 	if claims.OpenAIAuth == nil {
 		if item.UserID == "" {
 			item.UserID = strings.TrimSpace(claims.Sub)
@@ -616,6 +640,9 @@ func enrichCodexImportAccountFromJWT(item *codexImportAccount, token string, val
 	}
 	if item.AccountID == "" {
 		item.AccountID = strings.TrimSpace(claims.OpenAIAuth.ChatGPTAccountID)
+	}
+	if item.AccountUserID == "" {
+		item.AccountUserID = strings.TrimSpace(claims.OpenAIAuth.ChatGPTAccountUserID)
 	}
 	if item.UserID == "" {
 		item.UserID = strings.TrimSpace(claims.OpenAIAuth.ChatGPTUserID)
@@ -774,16 +801,17 @@ func sanitizeCodexImportCredentialExtras(input map[string]any) map[string]any {
 		return nil
 	}
 	protected := map[string]struct{}{
-		"access_token":       {},
-		"refresh_token":      {},
-		"id_token":           {},
-		"expires_at":         {},
-		"email":              {},
-		"chatgpt_account_id": {},
-		"chatgpt_user_id":    {},
-		"organization_id":    {},
-		"plan_type":          {},
-		"client_id":          {},
+		"access_token":            {},
+		"refresh_token":           {},
+		"id_token":                {},
+		"expires_at":              {},
+		"email":                   {},
+		"chatgpt_account_id":      {},
+		"chatgpt_account_user_id": {},
+		"chatgpt_user_id":         {},
+		"organization_id":         {},
+		"plan_type":               {},
+		"client_id":               {},
 	}
 	out := make(map[string]any, len(input))
 	for key, value := range input {
@@ -802,20 +830,27 @@ func sanitizeCodexImportCredentialExtras(input map[string]any) map[string]any {
 	return out
 }
 
-func buildCodexIdentityKeys(accountID, userID, email, accessToken string) []string {
-	keys := make([]string, 0, 4)
+func buildCodexIdentityKeys(accountID, accountUserID, userID, organizationID, email, accessToken, refreshToken string) []string {
+	keys := make([]string, 0, 5)
 	accountID = strings.TrimSpace(accountID)
+	accountUserID = strings.TrimSpace(accountUserID)
 	userID = strings.TrimSpace(userID)
-	if accountID != "" {
-		keys = append(keys, "account:"+accountID)
+	organizationID = strings.TrimSpace(organizationID)
+	if accountID != "" && accountUserID != "" {
+		keys = append(keys, "account_user:"+accountID+":"+accountUserID)
 	}
-	if userID != "" {
-		keys = append(keys, "user:"+userID)
+	if accountID != "" && userID != "" {
+		keys = append(keys, "account_user:"+accountID+":"+userID)
 	}
-	if accountID == "" && userID == "" {
-		if email = strings.ToLower(strings.TrimSpace(email)); email != "" {
-			keys = append(keys, "email:"+email)
-		}
+	if len(keys) == 0 && accountUserID != "" {
+		keys = append(keys, "account_user:"+accountUserID)
+	} else if len(keys) == 0 && userID != "" && organizationID != "" {
+		keys = append(keys, "user_org:"+userID+":"+organizationID)
+	} else if email = strings.ToLower(strings.TrimSpace(email)); len(keys) == 0 && email != "" && organizationID != "" {
+		keys = append(keys, "email_org:"+email+":"+organizationID)
+	}
+	if refreshToken = strings.TrimSpace(refreshToken); refreshToken != "" {
+		keys = append(keys, "refresh:"+codexTokenFingerprint(refreshToken))
 	}
 	if accessToken = strings.TrimSpace(accessToken); accessToken != "" {
 		keys = append(keys, "access:"+codexTokenFingerprint(accessToken))
@@ -840,9 +875,12 @@ func (i *codexAccountIndex) Add(account service.Account) {
 	}
 	keys := buildCodexIdentityKeys(
 		codexCredentialString(account.Credentials, "chatgpt_account_id"),
+		codexCredentialString(account.Credentials, "chatgpt_account_user_id"),
 		codexCredentialString(account.Credentials, "chatgpt_user_id"),
+		codexCredentialString(account.Credentials, "organization_id"),
 		codexCredentialString(account.Credentials, "email"),
 		codexCredentialString(account.Credentials, "access_token"),
+		codexCredentialString(account.Credentials, "refresh_token"),
 	)
 	for _, key := range keys {
 		i.accountsByKey[key] = account

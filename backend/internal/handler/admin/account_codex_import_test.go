@@ -299,22 +299,118 @@ func TestResolveCodexImportExpiryForNoRefreshTokenUsesEarlierRequestExpiry(t *te
 }
 
 func TestCodexIdentityKeysPreferStrongIdentifiers(t *testing.T) {
-	keys := buildCodexIdentityKeys("acct-1", "user-1", "same@example.com", "token")
+	keys := buildCodexIdentityKeys("acct-1", "acct-user-1", "user-1", "org-1", "same@example.com", "token", "refresh-token")
 	for _, key := range keys {
-		if strings.HasPrefix(key, "email:") {
-			t.Fatalf("strong identity should not include email fallback: %v", keys)
+		if strings.HasPrefix(key, "account:") || strings.HasPrefix(key, "user:") || strings.HasPrefix(key, "email:") {
+			t.Fatalf("identity should avoid broad user/email keys: %v", keys)
 		}
 	}
 
-	keys = buildCodexIdentityKeys("", "", "same@example.com", "token")
-	hasEmail := false
+	keys = buildCodexIdentityKeys("", "", "", "org-1", "same@example.com", "token", "")
+	hasEmailOrg := false
 	for _, key := range keys {
-		if key == "email:same@example.com" {
-			hasEmail = true
+		if key == "email_org:same@example.com:org-1" {
+			hasEmailOrg = true
 		}
 	}
-	if !hasEmail {
-		t.Fatalf("weak identity should include email fallback: %v", keys)
+	if !hasEmailOrg {
+		t.Fatalf("weak identity with organization should include email_org fallback: %v", keys)
+	}
+}
+
+func TestCodexIdentityKeysDoNotTreatSharedUserAsDuplicateAcrossOrganizations(t *testing.T) {
+	first := buildCodexIdentityKeys("", "", "user-1", "org-1", "same@example.com", "token-1", "")
+	second := buildCodexIdentityKeys("", "", "user-1", "org-2", "same@example.com", "token-2", "")
+
+	seen := map[string]int{}
+	markCodexIdentitySeen(seen, first, 1)
+	if duplicateIndex, ok := firstSeenCodexIdentity(seen, second); ok {
+		t.Fatalf("different organization should not duplicate item %d: first=%v second=%v", duplicateIndex, first, second)
+	}
+}
+
+func TestNormalizeCodexImportEntriesDoNotDuplicateDifferentAccountUsersInSharedWorkspace(t *testing.T) {
+	firstToken := buildCodexImportTestJWT(t, time.Now().Add(time.Hour), map[string]any{
+		"sub":   "shared-sub",
+		"email": "first@example.com",
+		"https://api.openai.com/auth": map[string]any{
+			"chatgpt_account_id":      "shared-workspace",
+			"chatgpt_account_user_id": "account-user-1",
+			"chatgpt_user_id":         "user-1",
+			"poid":                    "shared-org",
+		},
+	})
+	secondToken := buildCodexImportTestJWT(t, time.Now().Add(time.Hour), map[string]any{
+		"sub":   "shared-sub",
+		"email": "second@example.com",
+		"https://api.openai.com/auth": map[string]any{
+			"chatgpt_account_id":      "shared-workspace",
+			"chatgpt_account_user_id": "account-user-2",
+			"chatgpt_user_id":         "user-2",
+			"poid":                    "shared-org",
+		},
+	})
+
+	first, err := normalizeCodexImportEntry(codexImportEntry{Index: 1, Value: map[string]any{"accessToken": firstToken}})
+	if err != nil {
+		t.Fatalf("normalize first error = %v", err)
+	}
+	second, err := normalizeCodexImportEntry(codexImportEntry{Index: 2, Value: map[string]any{"accessToken": secondToken}})
+	if err != nil {
+		t.Fatalf("normalize second error = %v", err)
+	}
+
+	seen := map[string]int{}
+	markCodexIdentitySeen(seen, first.IdentityKeys, 1)
+	if duplicateIndex, ok := firstSeenCodexIdentity(seen, second.IdentityKeys); ok {
+		t.Fatalf("different chatgpt account users should not duplicate item %d: first=%v second=%v", duplicateIndex, first.IdentityKeys, second.IdentityKeys)
+	}
+}
+
+func TestNormalizeCodexSessionJSONUsesAccountUserIDFromAccessToken(t *testing.T) {
+	token := buildCodexImportTestJWT(t, time.Now().Add(time.Hour), map[string]any{
+		"sub": "auth0|provider-user",
+		"https://api.openai.com/auth": map[string]any{
+			"chatgpt_account_id":      "workspace-1",
+			"chatgpt_account_user_id": "user-1__workspace-1",
+			"chatgpt_user_id":         "user-1",
+			"poid":                    "org-1",
+		},
+		"https://api.openai.com/profile": map[string]any{
+			"email": "profile@example.com",
+		},
+	})
+	raw := map[string]any{
+		"user": map[string]any{
+			"id":    "user-1",
+			"email": "json@example.com",
+		},
+		"account": map[string]any{
+			"id":             "workspace-1",
+			"organizationId": "org-1",
+			"planType":       "team",
+		},
+		"accessToken": token,
+	}
+
+	item, err := normalizeCodexImportEntry(codexImportEntry{Index: 1, Value: raw})
+	if err != nil {
+		t.Fatalf("normalizeCodexImportEntry error = %v", err)
+	}
+	if item.AccountUserID != "user-1__workspace-1" {
+		t.Fatalf("AccountUserID = %q, want user-1__workspace-1", item.AccountUserID)
+	}
+	if item.Credentials["chatgpt_account_user_id"] != "user-1__workspace-1" {
+		t.Fatalf("credential chatgpt_account_user_id = %v", item.Credentials["chatgpt_account_user_id"])
+	}
+	hasAccountUserKey := false
+	for _, key := range item.IdentityKeys {
+		if key == "account_user:workspace-1:user-1__workspace-1" {
+			hasAccountUserKey = true
+		}
+	}
+	if !hasAccountUserKey {
+		t.Fatalf("identity keys should include account_user key: %v", item.IdentityKeys)
 	}
 }
 
