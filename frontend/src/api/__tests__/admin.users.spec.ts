@@ -11,9 +11,12 @@ vi.mock('@/api/client', () => ({
 }))
 
 import {
+  batchAssign,
   bindUserAuthIdentity,
   type AdminBindAuthIdentityRequest,
   type AdminBoundAuthIdentity,
+  type BatchAssignUsersRequest,
+  type BatchAssignUsersResult,
 } from '@/api/admin/users'
 
 type Assert<T extends true> = T
@@ -57,11 +60,42 @@ type ExpectedAdminBoundAuthIdentity = {
   } | null
 }
 
+type ExpectedBatchAssignUsersRequest = {
+  user_ids?: number[]
+  all?: boolean
+  balance?: {
+    operation: 'add' | 'subtract'
+    amount: number
+    notes?: string
+  }
+  subscription?: {
+    group_id: number
+    validity_days: number
+    notes?: string
+  }
+}
+
+type ExpectedBatchAssignUsersResult = {
+  target_count: number
+  success_count: number
+  failed_count: number
+  balance_affected_count: number
+  subscription_assigned: number
+  subscription_extended: number
+  errors?: string[]
+}
+
 const requestContractExact: Assert<
   IsExact<AdminBindAuthIdentityRequest, ExpectedAdminBindAuthIdentityRequest>
 > = true
 const responseContractExact: Assert<
   IsExact<AdminBoundAuthIdentity, ExpectedAdminBoundAuthIdentity>
+> = true
+const batchAssignRequestContractExact: Assert<
+  IsExact<BatchAssignUsersRequest, ExpectedBatchAssignUsersRequest>
+> = true
+const batchAssignResultContractExact: Assert<
+  IsExact<BatchAssignUsersResult, ExpectedBatchAssignUsersResult>
 > = true
 
 describe('admin users api auth identity binding', () => {
@@ -113,5 +147,37 @@ describe('admin users api auth identity binding', () => {
   it('keeps bind auth identity request and response types aligned with the backend contract', () => {
     expect(requestContractExact).toBe(true)
     expect(responseContractExact).toBe(true)
+  })
+
+  it('posts batch assignment payloads to the users management endpoint', async () => {
+    const response: BatchAssignUsersResult = {
+      target_count: 12,
+      success_count: 10,
+      failed_count: 2,
+      balance_affected_count: 10,
+      subscription_assigned: 0,
+      subscription_extended: 0,
+      errors: ['user 3: balance cannot be negative'],
+    }
+    post.mockResolvedValue({ data: response })
+
+    const payload: BatchAssignUsersRequest = {
+      all: true,
+      balance: {
+        operation: 'subtract',
+        amount: 2.5,
+        notes: 'manual batch adjustment',
+      },
+    }
+
+    const result = await batchAssign(payload)
+
+    expect(post).toHaveBeenCalledWith('/admin/users/batch-assign', payload)
+    expect(result).toEqual(response)
+  })
+
+  it('keeps batch assignment request and response types aligned with the backend contract', () => {
+    expect(batchAssignRequestContractExact).toBe(true)
+    expect(batchAssignResultContractExact).toBe(true)
   })
 })

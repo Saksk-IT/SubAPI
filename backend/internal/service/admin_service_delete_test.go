@@ -14,6 +14,7 @@ import (
 
 type userRepoStub struct {
 	user          *User
+	listUsers     []User
 	getErr        error
 	createErr     error
 	deleteErr     error
@@ -100,11 +101,44 @@ func (s *userRepoStub) DeleteUserAvatar(ctx context.Context, userID int64) error
 }
 
 func (s *userRepoStub) List(ctx context.Context, params pagination.PaginationParams) ([]User, *pagination.PaginationResult, error) {
-	panic("unexpected List call")
+	return s.ListWithFilters(ctx, params, UserListFilters{})
 }
 
 func (s *userRepoStub) ListWithFilters(ctx context.Context, params pagination.PaginationParams, filters UserListFilters) ([]User, *pagination.PaginationResult, error) {
-	panic("unexpected ListWithFilters call")
+	if s.listUsers == nil {
+		panic("unexpected ListWithFilters call")
+	}
+	page := params.Page
+	if page < 1 {
+		page = 1
+	}
+	pageSize := params.PageSize
+	if pageSize < 1 {
+		pageSize = len(s.listUsers)
+	}
+	pages := 1
+	if pageSize > 0 {
+		pages = (len(s.listUsers) + pageSize - 1) / pageSize
+		if pages < 1 {
+			pages = 1
+		}
+	}
+	result := &pagination.PaginationResult{
+		Total:    int64(len(s.listUsers)),
+		Page:     page,
+		PageSize: pageSize,
+		Pages:    pages,
+	}
+	start := (page - 1) * pageSize
+	if start >= len(s.listUsers) {
+		return []User{}, result, nil
+	}
+	end := start + pageSize
+	if end > len(s.listUsers) {
+		end = len(s.listUsers)
+	}
+	users := append([]User(nil), s.listUsers[start:end]...)
+	return users, result, nil
 }
 
 func (s *userRepoStub) GetLatestUsedAtByUserIDs(ctx context.Context, userIDs []int64) (map[int64]*time.Time, error) {

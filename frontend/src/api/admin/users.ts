@@ -44,6 +44,31 @@ export interface AdminBoundAuthIdentity {
   channel?: AdminBoundAuthIdentityChannel | null
 }
 
+export interface BatchAssignUsersRequest {
+  user_ids?: number[]
+  all?: boolean
+  balance?: {
+    operation: 'add' | 'subtract'
+    amount: number
+    notes?: string
+  }
+  subscription?: {
+    group_id: number
+    validity_days: number
+    notes?: string
+  }
+}
+
+export interface BatchAssignUsersResult {
+  target_count: number
+  success_count: number
+  failed_count: number
+  balance_affected_count: number
+  subscription_assigned: number
+  subscription_extended: number
+  errors?: string[]
+}
+
 /**
  * List all users with pagination
  * @param page - Page number (default: 1)
@@ -163,6 +188,13 @@ export async function updateBalance(
     operation,
     notes: notes || ''
   })
+  return data
+}
+
+export async function batchAssign(
+  request: BatchAssignUsersRequest
+): Promise<BatchAssignUsersResult> {
+  const { data } = await apiClient.post<BatchAssignUsersResult>('/admin/users/batch-assign', request)
   return data
 }
 
@@ -304,6 +336,7 @@ export const usersAPI = {
   update,
   delete: deleteUser,
   updateBalance,
+  batchAssign,
   updateConcurrency,
   toggleStatus,
   getUserApiKeys,

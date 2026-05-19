@@ -68,6 +68,25 @@ type UpdateBalanceRequest struct {
 	Notes     string  `json:"notes"`
 }
 
+type BatchAssignUsersRequest struct {
+	UserIDs      []int64                         `json:"user_ids"`
+	All          bool                            `json:"all"`
+	Balance      *BatchAssignBalanceRequest      `json:"balance"`
+	Subscription *BatchAssignSubscriptionRequest `json:"subscription"`
+}
+
+type BatchAssignBalanceRequest struct {
+	Operation string  `json:"operation"`
+	Amount    float64 `json:"amount"`
+	Notes     string  `json:"notes"`
+}
+
+type BatchAssignSubscriptionRequest struct {
+	GroupID      int64  `json:"group_id"`
+	ValidityDays int    `json:"validity_days"`
+	Notes        string `json:"notes"`
+}
+
 type BindUserAuthIdentityRequest struct {
 	ProviderType    string                              `json:"provider_type"`
 	ProviderKey     string                              `json:"provider_key"`
@@ -338,6 +357,58 @@ func (h *UserHandler) UpdateBalance(c *gin.Context) {
 			return nil, execErr
 		}
 		return dto.UserFromServiceAdmin(user), nil
+	})
+}
+
+// BatchAssign 批量为用户调整余额或分配订阅。
+// POST /api/v1/admin/users/batch-assign
+func (h *UserHandler) BatchAssign(c *gin.Context) {
+	var req BatchAssignUsersRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "Invalid request: "+err.Error())
+		return
+	}
+	if !req.All && len(req.UserIDs) == 0 {
+		response.BadRequest(c, "user_ids is required unless all=true")
+		return
+	}
+	if len(req.UserIDs) > 500 {
+		response.BadRequest(c, "user_ids cannot exceed 500")
+		return
+	}
+
+	adminID := getAdminIDFromContext(c)
+	input := &service.BatchAssignUsersInput{
+		Target: service.BatchAssignUserTarget{
+			All:     req.All,
+			UserIDs: req.UserIDs,
+		},
+	}
+	if req.Balance != nil {
+		input.Balance = &service.BatchAssignBalanceInput{
+			Operation: req.Balance.Operation,
+			Amount:    req.Balance.Amount,
+			Notes:     req.Balance.Notes,
+		}
+	}
+	if req.Subscription != nil {
+		input.Subscription = &service.BatchAssignSubscriptionInput{
+			GroupID:      req.Subscription.GroupID,
+			ValidityDays: req.Subscription.ValidityDays,
+			Notes:        req.Subscription.Notes,
+			AssignedBy:   adminID,
+		}
+	}
+
+	idempotencyPayload := struct {
+		AdminID int64                   `json:"admin_id"`
+		Body    BatchAssignUsersRequest `json:"body"`
+	}{
+		AdminID: adminID,
+		Body:    req,
+	}
+	executeAdminIdempotentJSON(c, "admin.users.batch_assign", idempotencyPayload, service.DefaultWriteIdempotencyTTL(), func(ctx context.Context) (any, error) {
+		return h.adminService.BatchAssignUsers(ctx, input)
 	})
 }
 

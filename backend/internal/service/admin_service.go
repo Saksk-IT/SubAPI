@@ -33,6 +33,7 @@ type AdminService interface {
 	UpdateUser(ctx context.Context, id int64, input *UpdateUserInput) (*User, error)
 	DeleteUser(ctx context.Context, id int64) error
 	UpdateUserBalance(ctx context.Context, userID int64, balance float64, operation string, notes string) (*User, error)
+	BatchAssignUsers(ctx context.Context, input *BatchAssignUsersInput) (*BatchAssignUsersResult, error)
 	BatchUpdateConcurrency(ctx context.Context, userIDs []int64, value int, mode string) (int, error)
 	GetUserAPIKeys(ctx context.Context, userID int64, page, pageSize int, sortBy, sortOrder string) ([]APIKey, int64, error)
 	GetUserUsageStats(ctx context.Context, userID int64, period string) (any, error)
@@ -157,6 +158,40 @@ type AdminBindAuthIdentityChannelInput struct {
 	ChannelAppID   string
 	ChannelSubject string
 	Metadata       map[string]any
+}
+
+type BatchAssignUserTarget struct {
+	All     bool
+	UserIDs []int64
+}
+
+type BatchAssignBalanceInput struct {
+	Operation string
+	Amount    float64
+	Notes     string
+}
+
+type BatchAssignSubscriptionInput struct {
+	GroupID      int64
+	ValidityDays int
+	Notes        string
+	AssignedBy   int64
+}
+
+type BatchAssignUsersInput struct {
+	Target       BatchAssignUserTarget
+	Balance      *BatchAssignBalanceInput
+	Subscription *BatchAssignSubscriptionInput
+}
+
+type BatchAssignUsersResult struct {
+	TargetCount          int      `json:"target_count"`
+	SuccessCount         int      `json:"success_count"`
+	FailedCount          int      `json:"failed_count"`
+	BalanceAffectedCount int      `json:"balance_affected_count"`
+	SubscriptionAssigned int      `json:"subscription_assigned"`
+	SubscriptionExtended int      `json:"subscription_extended"`
+	Errors               []string `json:"errors,omitempty"`
 }
 
 type AdminBoundAuthIdentity struct {
@@ -853,24 +888,25 @@ func (s *adminServiceImpl) UpdateUserBalance(ctx context.Context, userID int64, 
 	}
 
 	oldBalance := user.Balance
+	updatedUser := *user
 
 	switch operation {
 	case "set":
-		user.Balance = balance
+		updatedUser.Balance = balance
 	case "add":
-		user.Balance += balance
+		updatedUser.Balance += balance
 	case "subtract":
-		user.Balance -= balance
+		updatedUser.Balance -= balance
 	}
 
-	if user.Balance < 0 {
-		return nil, fmt.Errorf("balance cannot be negative, current balance: %.2f, requested operation would result in: %.2f", oldBalance, user.Balance)
+	if updatedUser.Balance < 0 {
+		return nil, fmt.Errorf("balance cannot be negative, current balance: %.2f, requested operation would result in: %.2f", oldBalance, updatedUser.Balance)
 	}
 
-	if err := s.userRepo.Update(ctx, user); err != nil {
+	if err := s.userRepo.Update(ctx, &updatedUser); err != nil {
 		return nil, err
 	}
-	balanceDiff := user.Balance - oldBalance
+	balanceDiff := updatedUser.Balance - oldBalance
 	if s.authCacheInvalidator != nil && balanceDiff != 0 {
 		s.authCacheInvalidator.InvalidateAuthCacheByUserID(ctx, userID)
 	}
@@ -897,7 +933,7 @@ func (s *adminServiceImpl) UpdateUserBalance(ctx context.Context, userID int64, 
 			Type:   AdjustmentTypeAdminBalance,
 			Value:  balanceDiff,
 			Status: StatusUsed,
-			UsedBy: &user.ID,
+			UsedBy: &updatedUser.ID,
 			Notes:  notes,
 		}
 		now := time.Now()
@@ -908,7 +944,7 @@ func (s *adminServiceImpl) UpdateUserBalance(ctx context.Context, userID int64, 
 		}
 	}
 
-	return user, nil
+	return &updatedUser, nil
 }
 
 func (s *adminServiceImpl) GetUserAPIKeys(ctx context.Context, userID int64, page, pageSize int, sortBy, sortOrder string) ([]APIKey, int64, error) {

@@ -229,6 +229,14 @@
                 <Icon name="cog" size="sm" class="md:mr-1.5" />
                 <span class="hidden md:inline">{{ t('admin.users.attributes.configButton') }}</span>
               </button>
+              <button
+                @click="openBatchAssignModal"
+                class="btn btn-secondary px-2 md:px-3"
+                :title="t('admin.users.batchAssign.button')"
+              >
+                <Icon name="gift" size="sm" class="md:mr-1.5" />
+                <span class="hidden md:inline">{{ t('admin.users.batchAssign.button') }}</span>
+              </button>
             </div>
 
             <!-- Create User Button (full width on mobile, auto width on desktop) -->
@@ -707,6 +715,7 @@
     <UserBalanceModal :show="showBalanceModal" :user="balanceUser" :operation="balanceOperation" @close="closeBalanceModal" @success="loadUsers" />
     <UserBalanceHistoryModal :show="showBalanceHistoryModal" :user="balanceHistoryUser" @close="closeBalanceHistoryModal" @deposit="handleDepositFromHistory" @withdraw="handleWithdrawFromHistory" />
     <GroupReplaceModal :show="showGroupReplaceModal" :user="groupReplaceUser" :old-group="groupReplaceOldGroup" :all-groups="allGroups" @close="closeGroupReplaceModal" @success="loadUsers" />
+    <UserBatchAssignModal :show="showBatchAssignModal" :groups="allGroups" @close="showBatchAssignModal = false" @success="loadUsers" @load-groups="loadAllGroups" />
     <UserAttributesConfigModal :show="showAttributesModal" @close="handleAttributesModalClose" />
   </AppLayout>
 </template>
@@ -743,6 +752,7 @@ import UserAllowedGroupsModal from '@/components/admin/user/UserAllowedGroupsMod
 import UserBalanceModal from '@/components/admin/user/UserBalanceModal.vue'
 import UserBalanceHistoryModal from '@/components/admin/user/UserBalanceHistoryModal.vue'
 import GroupReplaceModal from '@/components/admin/user/GroupReplaceModal.vue'
+import UserBatchAssignModal from '@/components/admin/user/UserBatchAssignModal.vue'
 
 const appStore = useAppStore()
 
@@ -1201,6 +1211,7 @@ const showEditModal = ref(false)
 const showDeleteDialog = ref(false)
 const showApiKeysModal = ref(false)
 const showAttributesModal = ref(false)
+const showBatchAssignModal = ref(false)
 const editingUser = ref<AdminUser | null>(null)
 const deletingUser = ref<AdminUser | null>(null)
 const viewingUser = ref<AdminUser | null>(null)
@@ -1391,6 +1402,11 @@ const handleAttributesModalClose = async () => {
   showAttributesModal.value = false
   await loadAttributeDefinitions()
   loadUsers()
+}
+
+const openBatchAssignModal = () => {
+  showBatchAssignModal.value = true
+  loadAllGroups()
 }
 
 const loadUsers = async () => {
