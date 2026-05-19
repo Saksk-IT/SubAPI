@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 
 	infraerrors "github.com/Wei-Shaw/sub2api/internal/pkg/errors"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/pagination"
@@ -23,6 +24,7 @@ type CreateRedeemCodeInput struct {
 	Notes        string
 	GroupID      *int64
 	ValidityDays int
+	ExpiresAt    *time.Time
 }
 
 type UpdateRedeemCodeInput struct {
@@ -34,6 +36,8 @@ type UpdateRedeemCodeInput struct {
 	GroupID      *int64
 	ClearGroupID bool
 	ValidityDays *int
+	ExpiresAt    *time.Time
+	ClearExpires bool
 }
 
 type GenerateRedeemCodesInput struct {
@@ -42,6 +46,7 @@ type GenerateRedeemCodesInput struct {
 	Value        float64
 	GroupID      *int64 // 订阅类型专用：关联的分组ID
 	ValidityDays int    // 订阅类型专用：有效天数
+	ExpiresAt    *time.Time
 }
 
 func (s *adminServiceImpl) ListRedeemCodes(ctx context.Context, page, pageSize int, codeType, status, search string, sortBy, sortOrder string) ([]RedeemCode, int64, error) {
@@ -89,6 +94,7 @@ func (s *adminServiceImpl) CreateRedeemCode(ctx context.Context, input *CreateRe
 		Notes:        strings.TrimSpace(input.Notes),
 		GroupID:      cloneInt64Ptr(input.GroupID),
 		ValidityDays: input.ValidityDays,
+		ExpiresAt:    cloneTimePtr(input.ExpiresAt),
 	}
 	if err := s.normalizeRedeemCodeBusinessFields(ctx, &code); err != nil {
 		return nil, err
@@ -149,6 +155,11 @@ func (s *adminServiceImpl) UpdateRedeemCode(ctx context.Context, id int64, input
 	if input.ValidityDays != nil {
 		updated.ValidityDays = *input.ValidityDays
 	}
+	if input.ClearExpires {
+		updated.ExpiresAt = nil
+	} else if input.ExpiresAt != nil {
+		updated.ExpiresAt = cloneTimePtr(input.ExpiresAt)
+	}
 
 	if err := s.normalizeRedeemCodeBusinessFields(ctx, &updated); err != nil {
 		return nil, err
@@ -184,6 +195,7 @@ func (s *adminServiceImpl) GenerateRedeemCodes(ctx context.Context, input *Gener
 		Status:       StatusUnused,
 		GroupID:      cloneInt64Ptr(input.GroupID),
 		ValidityDays: input.ValidityDays,
+		ExpiresAt:    cloneTimePtr(input.ExpiresAt),
 	}
 	if err := s.normalizeRedeemCodeBusinessFields(ctx, &template); err != nil {
 		return nil, err
@@ -274,9 +286,20 @@ func normalizeRedeemCodeValue(raw string, allowEmpty bool) (string, error) {
 	return code, nil
 }
 
+func cloneTimePtr(value *time.Time) *time.Time {
+	if value == nil {
+		return nil
+	}
+	cloned := *value
+	return &cloned
+}
+
 func (s *adminServiceImpl) normalizeRedeemCodeBusinessFields(ctx context.Context, code *RedeemCode) error {
 	if code == nil {
 		return infraerrors.BadRequest("INVALID_REDEEM_CODE", "redeem code is required")
+	}
+	if code.ExpiresAt != nil && !code.ExpiresAt.After(time.Now()) {
+		return ErrRedeemCodeExpired
 	}
 
 	switch code.Type {
