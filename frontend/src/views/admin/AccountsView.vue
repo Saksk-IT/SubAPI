@@ -361,6 +361,18 @@
       @close="showBulkEdit = false"
       @updated="handleBulkUpdated"
     />
+    <BatchRefreshResultModal
+      :show="showBatchRefreshResult"
+      :title="t('admin.accounts.batchRefreshResult.title')"
+      :summary="batchRefreshSummary"
+      :success-accounts="batchRefreshSuccessAccounts"
+      :failed-accounts="batchRefreshFailedAccounts"
+      :deleting-failed="batchRefreshDeletingFailed"
+      :disabling-failed="batchRefreshDisablingFailed"
+      @close="closeBatchRefreshResult"
+      @delete-failed="handleDeleteBatchRefreshFailed"
+      @disable-failed="handleDisableBatchRefreshFailed"
+    />
     <TempUnschedStatusModal :show="showTempUnsched" :account="tempUnschedAcc" @close="showTempUnsched = false" @reset="handleTempUnschedReset" />
     <ConfirmDialog :show="showDeleteDialog" :title="t('admin.accounts.deleteAccount')" :message="t('admin.accounts.deleteConfirm', { name: deletingAcc?.name })" :confirm-text="t('common.delete')" :cancel-text="t('common.cancel')" :danger="true" @confirm="confirmDelete" @cancel="showDeleteDialog = false" />
     <ConfirmDialog :show="showExportDataDialog" :title="t('admin.accounts.dataExport')" :message="t('admin.accounts.dataExportConfirmMessage')" :confirm-text="t('admin.accounts.dataExportConfirm')" :cancel-text="t('common.cancel')" @confirm="handleExportData" @cancel="showExportDataDialog = false">
@@ -389,7 +401,7 @@ import TablePageLayout from '@/components/layout/TablePageLayout.vue'
 import DataTable from '@/components/common/DataTable.vue'
 import Pagination from '@/components/common/Pagination.vue'
 import ConfirmDialog from '@/components/common/ConfirmDialog.vue'
-import { CreateAccountModal, EditAccountModal, BulkEditAccountModal, SyncFromCrsModal, TempUnschedStatusModal } from '@/components/account'
+import { CreateAccountModal, EditAccountModal, BulkEditAccountModal, SyncFromCrsModal, TempUnschedStatusModal, BatchRefreshResultModal } from '@/components/account'
 import AccountTableActions from '@/components/admin/account/AccountTableActions.vue'
 import AccountTableFilters from '@/components/admin/account/AccountTableFilters.vue'
 import AccountBulkActionsBar from '@/components/admin/account/AccountBulkActionsBar.vue'
@@ -412,6 +424,7 @@ import TLSFingerprintProfilesModal from '@/components/admin/TLSFingerprintProfil
 import { buildOpenAIUsageRefreshKey } from '@/utils/accountUsageRefresh'
 import { formatDateTime, formatRelativeTime } from '@/utils/format'
 import type { Account, AccountPlatform, AccountType, Proxy as AccountProxy, AdminGroup, WindowStats, ClaudeModel } from '@/types'
+import type { BatchOperationAccountResult, BatchOperationResult } from '@/api/admin/accounts'
 
 const { t } = useI18n()
 const appStore = useAppStore()
@@ -469,6 +482,22 @@ const showExportDataDialog = ref(false)
 const includeProxyOnExport = ref(true)
 const showBulkEdit = ref(false)
 const bulkEditTarget = ref<AccountBulkEditTarget | null>(null)
+const showBatchRefreshResult = ref(false)
+const batchRefreshSummary = ref<{ total: number; success: number; failed: number } | null>(null)
+type BatchRefreshResultAccount = {
+  account_id: number
+  name: string
+  platform: string
+  type: string
+  success: boolean
+  schedulingDisabled?: boolean
+  error?: string
+  warning?: string
+}
+const batchRefreshSuccessAccounts = ref<BatchRefreshResultAccount[]>([])
+const batchRefreshFailedAccounts = ref<BatchRefreshResultAccount[]>([])
+const batchRefreshDeletingFailed = ref(false)
+const batchRefreshDisablingFailed = ref(false)
 const showTempUnsched = ref(false)
 const showDeleteDialog = ref(false)
 const showReAuth = ref(false)
@@ -847,6 +876,7 @@ const isAnyModalOpen = computed(() => {
     showImportData.value ||
     showExportDataDialog.value ||
     showBulkEdit.value ||
+    showBatchRefreshResult.value ||
     showTempUnsched.value ||
     showDeleteDialog.value ||
     showReAuth.value ||
@@ -1205,6 +1235,61 @@ const toggleSelectAllVisible = (event: Event) => {
   const target = event.target as HTMLInputElement
   toggleVisible(target.checked)
 }
+const sortBatchRefreshResults = <T extends { account_id: number }>(items: T[], fallbackIds: number[]) => {
+  const order = new Map(fallbackIds.map((id, index) => [id, index]))
+  return [...items].sort((a, b) => {
+    const aOrder = order.get(a.account_id) ?? Number.MAX_SAFE_INTEGER
+    const bOrder = order.get(b.account_id) ?? Number.MAX_SAFE_INTEGER
+    if (aOrder !== bOrder) return aOrder - bOrder
+    return a.account_id - b.account_id
+  })
+}
+const buildBatchRefreshAccountsMap = (result: BatchOperationResult, fallbackIds: number[]) => {
+  const accountById = new Map(accounts.value.map(account => [account.id, account]))
+  const normalizeItem = (item: BatchOperationAccountResult): BatchRefreshResultAccount => {
+    const account = accountById.get(item.account_id)
+    return {
+      account_id: item.account_id,
+      name: item.name || account?.name || `#${item.account_id}`,
+      platform: item.platform || account?.platform || '',
+      type: item.type || account?.type || '',
+      success: item.success,
+      schedulingDisabled: account?.schedulable === false,
+      error: item.error,
+      warning: item.warning
+    }
+  }
+
+  const normalized = sortBatchRefreshResults((result.results ?? []).map(normalizeItem), fallbackIds)
+  if (normalized.length > 0) {
+    return normalized
+  }
+
+  const errorById = new Map((result.errors ?? []).map(item => [item.account_id, item.error]))
+  const warningById = new Map((result.warnings ?? []).map(item => [item.account_id, item.warning]))
+  const failedIds = result.failed_ids?.length
+    ? result.failed_ids
+    : (result.errors ?? []).map(item => item.account_id)
+  const failedIdSet = new Set(failedIds)
+  const successIds = result.success_ids?.length
+    ? result.success_ids
+    : result.failed === 0
+      ? fallbackIds
+      : fallbackIds.filter(id => !failedIdSet.has(id))
+
+  return sortBatchRefreshResults([
+    ...successIds.map((id) => normalizeItem({
+      account_id: id,
+      success: true,
+      warning: warningById.get(id)
+    })),
+    ...failedIds.map((id) => normalizeItem({
+      account_id: id,
+      success: false,
+      error: errorById.get(id)
+    }))
+  ], fallbackIds)
+}
 const handleBulkDelete = async () => { if(!confirm(t('common.confirm'))) return; try { await Promise.all(selIds.value.map(id => adminAPI.accounts.delete(id))); clearSelection(); reload() } catch (error) { console.error('Failed to bulk delete accounts:', error) } }
 const handleBulkResetStatus = async () => {
   if (!confirm(t('common.confirm'))) return
@@ -1225,17 +1310,102 @@ const handleBulkResetStatus = async () => {
 const handleBulkRefreshToken = async () => {
   if (!confirm(t('common.confirm'))) return
   try {
-    const result = await adminAPI.accounts.batchRefresh(selIds.value)
-    if (result.failed > 0) {
-      appStore.showError(t('admin.accounts.bulkActions.partialSuccess', { success: result.success, failed: result.failed }))
-    } else {
+    const accountIds = [...selIds.value]
+    const result = await adminAPI.accounts.batchRefresh(accountIds)
+    const results = buildBatchRefreshAccountsMap(result, accountIds)
+    batchRefreshSummary.value = {
+      total: result.total ?? accountIds.length,
+      success: result.success ?? 0,
+      failed: result.failed ?? 0
+    }
+    batchRefreshSuccessAccounts.value = results.filter(item => item.success)
+    batchRefreshFailedAccounts.value = results.filter(item => !item.success)
+    showBatchRefreshResult.value = true
+    if (result.failed === 0) {
       appStore.showSuccess(t('admin.accounts.bulkActions.refreshTokenSuccess', { count: result.success }))
       clearSelection()
+    } else {
+      appStore.showInfo(t('admin.accounts.bulkActions.partialSuccess', { success: result.success, failed: result.failed }))
+      setSelectedIds(batchRefreshFailedAccounts.value.map(item => item.account_id))
     }
     reload()
   } catch (error) {
     console.error('Failed to bulk refresh token:', error)
     appStore.showError(String(error))
+  }
+}
+const closeBatchRefreshResult = () => {
+  showBatchRefreshResult.value = false
+}
+const updateBatchRefreshFailedAccounts = (handledIds: number[]) => {
+  if (handledIds.length === 0) return
+  const handled = new Set(handledIds)
+  batchRefreshFailedAccounts.value = batchRefreshFailedAccounts.value.filter(item => !handled.has(item.account_id))
+}
+const markBatchRefreshSchedulingDisabled = (handledIds: number[]) => {
+  if (handledIds.length === 0) return
+  const handled = new Set(handledIds)
+  batchRefreshFailedAccounts.value = batchRefreshFailedAccounts.value.map((item) => (
+    handled.has(item.account_id) ? { ...item, schedulingDisabled: true } : item
+  ))
+}
+const handleDeleteBatchRefreshFailed = async () => {
+  const failedIds = batchRefreshFailedAccounts.value.map(item => item.account_id)
+  if (failedIds.length === 0) return
+  if (!confirm(t('admin.accounts.batchRefreshResult.confirmDeleteFailed', { count: failedIds.length }))) return
+  batchRefreshDeletingFailed.value = true
+  try {
+    const results = await Promise.allSettled(failedIds.map(id => adminAPI.accounts.delete(id)))
+    const deletedIds = failedIds.filter((_, index) => results[index].status === 'fulfilled')
+    const failedCount = failedIds.length - deletedIds.length
+    if (deletedIds.length > 0) {
+      const deletedIdSet = new Set(deletedIds)
+      accounts.value = accounts.value.filter(account => !deletedIdSet.has(account.id))
+      removeSelectedAccounts(deletedIds)
+      updateBatchRefreshFailedAccounts(deletedIds)
+      appStore.showSuccess(t('admin.accounts.batchRefreshResult.deleteFailedSuccess', { count: deletedIds.length }))
+    }
+    if (failedCount > 0) {
+      appStore.showError(t('admin.accounts.batchRefreshResult.deleteFailedPartial', { success: deletedIds.length, failed: failedCount }))
+    }
+    reload()
+  } catch (error) {
+    console.error('Failed to delete batch refresh failed accounts:', error)
+    appStore.showError(t('admin.accounts.batchRefreshResult.deleteFailedError'))
+  } finally {
+    batchRefreshDeletingFailed.value = false
+  }
+}
+const handleDisableBatchRefreshFailed = async () => {
+  const failedIds = batchRefreshFailedAccounts.value
+    .filter(item => !item.schedulingDisabled)
+    .map(item => item.account_id)
+  if (failedIds.length === 0) return
+  if (!confirm(t('admin.accounts.batchRefreshResult.confirmDisableFailed', { count: failedIds.length }))) return
+  batchRefreshDisablingFailed.value = true
+  try {
+    const result = await adminAPI.accounts.bulkUpdate(failedIds, { schedulable: false })
+    const { successIds, failedIds: operationFailedIds, successCount, failedCount, hasIds, hasCounts } = normalizeBulkSchedulableResult(result, failedIds)
+    if (successIds.length > 0) {
+      updateSchedulableInList(successIds, false)
+      removeSelectedAccounts(successIds)
+      markBatchRefreshSchedulingDisabled(successIds)
+    }
+    if (successCount > 0 && failedCount === 0) {
+      appStore.showSuccess(t('admin.accounts.batchRefreshResult.disableFailedSuccess', { count: successCount }))
+    } else if (failedCount > 0) {
+      appStore.showError(t('admin.accounts.bulkSchedulablePartial', { success: successCount, failed: failedCount }))
+      setSelectedIds(operationFailedIds.length > 0 ? operationFailedIds : failedIds)
+    } else if (!hasIds && !hasCounts) {
+      appStore.showError(t('admin.accounts.bulkSchedulableResultUnknown'))
+      setSelectedIds(failedIds)
+    }
+    reload()
+  } catch (error) {
+    console.error('Failed to disable scheduling for batch refresh failed accounts:', error)
+    appStore.showError(t('admin.accounts.batchRefreshResult.disableFailedError'))
+  } finally {
+    batchRefreshDisablingFailed.value = false
   }
 }
 const updateSchedulableInList = (accountIds: number[], schedulable: boolean) => {

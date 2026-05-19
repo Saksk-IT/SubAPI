@@ -1147,13 +1147,22 @@ func (h *AccountHandler) BatchRefresh(c *gin.Context) {
 	var successCount, failedCount int
 	var errors []gin.H
 	var warnings []gin.H
+	successIDs := make([]int64, 0, len(req.AccountIDs))
+	failedIDs := make([]int64, 0)
+	results := make([]gin.H, 0, len(req.AccountIDs))
 
 	// 将不存在的账号 ID 标记为失败
 	for _, id := range req.AccountIDs {
 		if !foundIDs[id] {
 			failedCount++
+			failedIDs = append(failedIDs, id)
 			errors = append(errors, gin.H{
 				"account_id": id,
+				"error":      "account not found",
+			})
+			results = append(results, gin.H{
+				"account_id": id,
+				"success":    false,
 				"error":      "account not found",
 			})
 		}
@@ -1170,18 +1179,37 @@ func (h *AccountHandler) BatchRefresh(c *gin.Context) {
 			mu.Lock()
 			if err != nil {
 				failedCount++
+				failedIDs = append(failedIDs, acc.ID)
 				errors = append(errors, gin.H{
 					"account_id": acc.ID,
 					"error":      err.Error(),
 				})
+				results = append(results, gin.H{
+					"account_id": acc.ID,
+					"name":       acc.Name,
+					"platform":   acc.Platform,
+					"type":       acc.Type,
+					"success":    false,
+					"error":      err.Error(),
+				})
 			} else {
 				successCount++
+				successIDs = append(successIDs, acc.ID)
+				result := gin.H{
+					"account_id": acc.ID,
+					"name":       acc.Name,
+					"platform":   acc.Platform,
+					"type":       acc.Type,
+					"success":    true,
+				}
 				if warning != "" {
 					warnings = append(warnings, gin.H{
 						"account_id": acc.ID,
 						"warning":    warning,
 					})
+					result["warning"] = warning
 				}
+				results = append(results, result)
 			}
 			mu.Unlock()
 			return nil
@@ -1194,11 +1222,14 @@ func (h *AccountHandler) BatchRefresh(c *gin.Context) {
 	}
 
 	response.Success(c, gin.H{
-		"total":    len(req.AccountIDs),
-		"success":  successCount,
-		"failed":   failedCount,
-		"errors":   errors,
-		"warnings": warnings,
+		"total":       len(req.AccountIDs),
+		"success":     successCount,
+		"failed":      failedCount,
+		"success_ids": successIDs,
+		"failed_ids":  failedIDs,
+		"results":     results,
+		"errors":      errors,
+		"warnings":    warnings,
 	})
 }
 

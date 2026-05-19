@@ -3158,6 +3158,27 @@ export default {
         refreshTokenSuccess: 'Successfully refreshed {count} account(s) token',
         partialSuccess: 'Partially completed: {success} succeeded, {failed} failed'
       },
+      batchRefreshResult: {
+        title: 'Batch Refresh Result',
+        total: 'Total',
+        success: 'Success',
+        failed: 'Failed',
+        successAccounts: 'Accounts Refreshed',
+        failedAccounts: 'Accounts Failed',
+        noSuccessAccounts: 'No accounts refreshed successfully',
+        noFailedAccounts: 'No accounts failed to refresh',
+        warning: 'Warning',
+        schedulingDisabled: 'Scheduling Disabled',
+        deleteFailed: 'Delete Failed Accounts',
+        disableFailed: 'Disable Failed Scheduling',
+        confirmDeleteFailed: 'Delete these {count} account(s) that failed to refresh? This cannot be undone.',
+        confirmDisableFailed: 'Disable scheduling for these {count} account(s) that failed to refresh?',
+        deleteFailedSuccess: 'Deleted {count} failed account(s)',
+        deleteFailedPartial: 'Partially deleted failed accounts: {success} succeeded, {failed} failed',
+        deleteFailedError: 'Failed to delete refresh-failed accounts',
+        disableFailedSuccess: 'Disabled scheduling for {count} failed account(s)',
+        disableFailedError: 'Failed to disable scheduling for refresh-failed accounts'
+      },
       bulkEdit: {
         title: 'Bulk Edit Accounts',
         selectionInfo:

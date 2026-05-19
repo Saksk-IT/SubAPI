@@ -6,6 +6,9 @@ const {
   listWithEtag,
   getById,
   getBatchTodayStats,
+  deleteAccount,
+  batchRefresh,
+  bulkUpdate,
   getAllProxies,
   getAllGroups
 } = vi.hoisted(() => ({
@@ -13,6 +16,9 @@ const {
   listWithEtag: vi.fn(),
   getById: vi.fn(),
   getBatchTodayStats: vi.fn(),
+  deleteAccount: vi.fn(),
+  batchRefresh: vi.fn(),
+  bulkUpdate: vi.fn(),
   getAllProxies: vi.fn(),
   getAllGroups: vi.fn()
 }))
@@ -24,9 +30,10 @@ vi.mock('@/api/admin', () => ({
       listWithEtag,
       getById,
       getBatchTodayStats,
-      delete: vi.fn(),
+      delete: deleteAccount,
       batchClearError: vi.fn(),
-      batchRefresh: vi.fn(),
+      batchRefresh,
+      bulkUpdate,
       toggleSchedulable: vi.fn()
     },
     proxies: {
@@ -96,6 +103,9 @@ describe('admin AccountsView bulk edit scope', () => {
     listWithEtag.mockReset()
     getById.mockReset()
     getBatchTodayStats.mockReset()
+    deleteAccount.mockReset()
+    batchRefresh.mockReset()
+    bulkUpdate.mockReset()
     getAllProxies.mockReset()
     getAllGroups.mockReset()
 
@@ -113,6 +123,9 @@ describe('admin AccountsView bulk edit scope', () => {
     })
     getById.mockRejectedValue(new Error('not found'))
     getBatchTodayStats.mockResolvedValue({ stats: {} })
+    deleteAccount.mockResolvedValue({ message: 'ok' })
+    batchRefresh.mockResolvedValue({ total: 0, success: 0, failed: 0, results: [] })
+    bulkUpdate.mockResolvedValue({ success: 0, failed: 0, success_ids: [], failed_ids: [], results: [] })
     getAllProxies.mockResolvedValue([])
     getAllGroups.mockResolvedValue([])
   })
@@ -145,6 +158,7 @@ describe('admin AccountsView bulk edit scope', () => {
           CreateAccountModal: true,
           EditAccountModal: true,
           BulkEditAccountModal: BulkEditAccountModalStub,
+          BatchRefreshResultModal: true,
           PlatformTypeBadge: true,
           AccountCapacityCell: true,
           AccountStatusIndicator: true,
@@ -214,6 +228,7 @@ describe('admin AccountsView bulk edit scope', () => {
             props: ['show', 'target'],
             template: '<div data-test="bulk-edit-modal" :data-platforms="target?.selectedPlatforms?.join(\',\') ?? \'\'"></div>'
           },
+          BatchRefreshResultModal: true,
           PlatformTypeBadge: true,
           AccountCapacityCell: true,
           AccountStatusIndicator: true,
@@ -310,6 +325,7 @@ describe('admin AccountsView bulk edit scope', () => {
               ></div>
             `
           },
+          BatchRefreshResultModal: true,
           PlatformTypeBadge: true,
           AccountCapacityCell: true,
           AccountStatusIndicator: true,
@@ -329,5 +345,114 @@ describe('admin AccountsView bulk edit scope', () => {
     expect(getById).toHaveBeenCalledWith(2)
     expect(wrapper.get('[data-test="bulk-edit-modal"]').attributes('data-platforms')).toBe('openai,anthropic')
     expect(wrapper.get('[data-test="bulk-edit-modal"]').attributes('data-types')).toBe('oauth,apikey')
+  })
+
+  it('opens a batch refresh result modal with success and failed accounts', async () => {
+    listAccounts.mockResolvedValue({
+      items: [
+        {
+          id: 1,
+          name: 'refresh-ok',
+          platform: 'openai',
+          type: 'oauth',
+          status: 'active',
+          credentials: {},
+          extra: {},
+          groups: []
+        },
+        {
+          id: 2,
+          name: 'refresh-failed',
+          platform: 'openai',
+          type: 'oauth',
+          status: 'active',
+          credentials: {},
+          extra: {},
+          groups: []
+        }
+      ],
+      total: 2,
+      page: 1,
+      page_size: 20,
+      pages: 1
+    })
+    batchRefresh.mockResolvedValue({
+      total: 2,
+      success: 1,
+      failed: 1,
+      success_ids: [1],
+      failed_ids: [2],
+      results: [
+        { account_id: 1, name: 'refresh-ok', platform: 'openai', type: 'oauth', success: true },
+        { account_id: 2, name: 'refresh-failed', platform: 'openai', type: 'oauth', success: false, error: 'invalid_grant' }
+      ]
+    })
+    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true)
+
+    const { default: AccountsView } = await import('../AccountsView.vue')
+    const wrapper = mount(AccountsView, {
+      global: {
+        stubs: {
+          AppLayout: { template: '<div><slot /></div>' },
+          TablePageLayout: {
+            template: '<div><slot name="filters" /><slot name="table" /><slot name="pagination" /></div>'
+          },
+          DataTable: DataTableStub,
+          Pagination: true,
+          ConfirmDialog: true,
+          AccountTableActions: { template: '<div><slot name="beforeCreate" /><slot name="after" /></div>' },
+          AccountTableFilters: { template: '<div></div>' },
+          AccountBulkActionsBar: {
+            props: ['selectedIds'],
+            emits: ['refresh-token'],
+            template: '<button data-test="refresh-token" @click="$emit(\'refresh-token\')">refresh token</button>'
+          },
+          AccountActionMenu: true,
+          ImportDataModal: true,
+          ReAuthAccountModal: true,
+          AccountTestModal: true,
+          AccountStatsModal: true,
+          ScheduledTestsPanel: true,
+          SyncFromCrsModal: true,
+          TempUnschedStatusModal: true,
+          ErrorPassthroughRulesModal: true,
+          TLSFingerprintProfilesModal: true,
+          CreateAccountModal: true,
+          EditAccountModal: true,
+          BulkEditAccountModal: BulkEditAccountModalStub,
+          BatchRefreshResultModal: {
+            props: ['show', 'summary', 'successAccounts', 'failedAccounts'],
+            template: `
+              <div
+                data-test="batch-refresh-result"
+                :data-show="String(show)"
+                :data-success="successAccounts.map((account) => account.name).join(',')"
+                :data-failed="failedAccounts.map((account) => account.name).join(',')"
+                :data-failed-count="String(summary?.failed ?? '')"
+              ></div>
+            `
+          },
+          PlatformTypeBadge: true,
+          AccountCapacityCell: true,
+          AccountStatusIndicator: true,
+          AccountTodayStatsCell: true,
+          AccountGroupsCell: true,
+          AccountUsageCell: true,
+          Icon: true
+        }
+      }
+    })
+
+    await flushPromises()
+    ;(wrapper.vm as any).setSelectedIds([1, 2])
+    await wrapper.get('[data-test="refresh-token"]').trigger('click')
+    await flushPromises()
+
+    expect(batchRefresh).toHaveBeenCalledWith([1, 2])
+    expect(wrapper.get('[data-test="batch-refresh-result"]').attributes('data-show')).toBe('true')
+    expect(wrapper.get('[data-test="batch-refresh-result"]').attributes('data-success')).toBe('refresh-ok')
+    expect(wrapper.get('[data-test="batch-refresh-result"]').attributes('data-failed')).toBe('refresh-failed')
+    expect(wrapper.get('[data-test="batch-refresh-result"]').attributes('data-failed-count')).toBe('1')
+    confirmSpy.mockRestore()
   })
 })

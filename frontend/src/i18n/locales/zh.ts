@@ -3303,6 +3303,27 @@ export default {
         refreshTokenSuccess: '已成功刷新 {count} 个账号令牌',
         partialSuccess: '操作部分完成：{success} 成功，{failed} 失败'
       },
+      batchRefreshResult: {
+        title: '批量刷新结果',
+        total: '总数',
+        success: '成功',
+        failed: '失败',
+        successAccounts: '刷新成功账号',
+        failedAccounts: '刷新失败账号',
+        noSuccessAccounts: '没有刷新成功的账号',
+        noFailedAccounts: '没有刷新失败的账号',
+        warning: '警告',
+        schedulingDisabled: '已停止调度',
+        deleteFailed: '批量删除失败账号',
+        disableFailed: '停止失败账号调度',
+        confirmDeleteFailed: '确定要删除这 {count} 个刷新失败账号吗？此操作无法撤销。',
+        confirmDisableFailed: '确定要停止这 {count} 个刷新失败账号的调度吗？',
+        deleteFailedSuccess: '已删除 {count} 个刷新失败账号',
+        deleteFailedPartial: '部分失败账号删除成功：成功 {success} 个，失败 {failed} 个',
+        deleteFailedError: '删除刷新失败账号失败',
+        disableFailedSuccess: '已停止 {count} 个刷新失败账号的调度',
+        disableFailedError: '停止刷新失败账号调度失败'
+      },
       bulkEdit: {
         title: '批量编辑账号',
         selectionInfo: '已选择 {count} 个账号。只更新您勾选或填写的字段，未勾选的字段保持不变。',

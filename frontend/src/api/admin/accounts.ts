@@ -614,10 +614,23 @@ export async function refreshOpenAIToken(
 /**
  * Batch operation result type
  */
+export interface BatchOperationAccountResult {
+  account_id: number
+  name?: string
+  platform?: string
+  type?: string
+  success: boolean
+  error?: string
+  warning?: string
+}
+
 export interface BatchOperationResult {
   total: number
   success: number
   failed: number
+  success_ids?: number[]
+  failed_ids?: number[]
+  results?: BatchOperationAccountResult[]
   errors?: Array<{ account_id: number; error: string }>
   warnings?: Array<{ account_id: number; warning: string }>
 }
