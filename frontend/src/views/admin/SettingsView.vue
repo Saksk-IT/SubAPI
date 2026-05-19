@@ -6473,6 +6473,7 @@ import { affiliatesAPI, type AffiliateAdminEntry, type SimpleUser as AffiliateSi
 import { extractApiErrorMessage, extractI18nErrorMessage } from "@/utils/apiError";
 import { useAppStore } from "@/stores";
 import { useAdminSettingsStore } from "@/stores/adminSettings";
+import { nativeConfirm } from "@/services/nativeDialog";
 import { normalizeVisibleMethod } from "@/components/payment/paymentFlow";
 import {
   isRegistrationEmailSuffixDomainValid,
@@ -7077,7 +7078,7 @@ function quotaPercentage(provider: WebSearchProviderConfig): number {
 async function resetWebSearchUsage(idx: number) {
   const provider = webSearchConfig.providers[idx];
   if (!provider) return;
-  if (!confirm(t("admin.settings.webSearchEmulation.resetUsageConfirm")))
+  if (!(await nativeConfirm(t("admin.settings.webSearchEmulation.resetUsageConfirm"))))
     return;
   try {
     await adminAPI.settings.resetWebSearchUsage({
@@ -8305,12 +8306,12 @@ async function createAdminApiKey() {
 }
 
 async function regenerateAdminApiKey() {
-  if (!confirm(t("admin.settings.adminApiKey.regenerateConfirm"))) return;
+  if (!(await nativeConfirm(t("admin.settings.adminApiKey.regenerateConfirm"), { variant: "danger" }))) return;
   await createAdminApiKey();
 }
 
 async function deleteAdminApiKey() {
-  if (!confirm(t("admin.settings.adminApiKey.deleteConfirm"))) return;
+  if (!(await nativeConfirm(t("admin.settings.adminApiKey.deleteConfirm"), { variant: "danger" }))) return;
   adminApiKeyOperating.value = true;
   try {
     await adminAPI.settings.deleteAdminApiKey();

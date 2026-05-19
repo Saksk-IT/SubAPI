@@ -396,6 +396,7 @@ import { adminAPI } from '@/api/admin'
 import { useTableLoader } from '@/composables/useTableLoader'
 import { useSwipeSelect, type SwipeSelectVirtualContext } from '@/composables/useSwipeSelect'
 import { useTableSelection } from '@/composables/useTableSelection'
+import { nativeConfirm } from '@/services/nativeDialog'
 import AppLayout from '@/components/layout/AppLayout.vue'
 import TablePageLayout from '@/components/layout/TablePageLayout.vue'
 import DataTable from '@/components/common/DataTable.vue'
@@ -1290,9 +1291,18 @@ const buildBatchRefreshAccountsMap = (result: BatchOperationResult, fallbackIds:
     }))
   ], fallbackIds)
 }
-const handleBulkDelete = async () => { if(!confirm(t('common.confirm'))) return; try { await Promise.all(selIds.value.map(id => adminAPI.accounts.delete(id))); clearSelection(); reload() } catch (error) { console.error('Failed to bulk delete accounts:', error) } }
+const handleBulkDelete = async () => {
+  if (!(await nativeConfirm(t('common.confirm'), { variant: 'danger' }))) return
+  try {
+    await Promise.all(selIds.value.map(id => adminAPI.accounts.delete(id)))
+    clearSelection()
+    reload()
+  } catch (error) {
+    console.error('Failed to bulk delete accounts:', error)
+  }
+}
 const handleBulkResetStatus = async () => {
-  if (!confirm(t('common.confirm'))) return
+  if (!(await nativeConfirm(t('common.confirm')))) return
   try {
     const result = await adminAPI.accounts.batchClearError(selIds.value)
     if (result.failed > 0) {
@@ -1308,7 +1318,7 @@ const handleBulkResetStatus = async () => {
   }
 }
 const handleBulkRefreshToken = async () => {
-  if (!confirm(t('common.confirm'))) return
+  if (!(await nativeConfirm(t('common.confirm')))) return
   try {
     const accountIds = [...selIds.value]
     const result = await adminAPI.accounts.batchRefresh(accountIds)
@@ -1352,7 +1362,7 @@ const markBatchRefreshSchedulingDisabled = (handledIds: number[]) => {
 const handleDeleteBatchRefreshFailed = async () => {
   const failedIds = batchRefreshFailedAccounts.value.map(item => item.account_id)
   if (failedIds.length === 0) return
-  if (!confirm(t('admin.accounts.batchRefreshResult.confirmDeleteFailed', { count: failedIds.length }))) return
+  if (!(await nativeConfirm(t('admin.accounts.batchRefreshResult.confirmDeleteFailed', { count: failedIds.length }), { variant: 'danger' }))) return
   batchRefreshDeletingFailed.value = true
   try {
     const results = await Promise.allSettled(failedIds.map(id => adminAPI.accounts.delete(id)))
@@ -1381,7 +1391,7 @@ const handleDisableBatchRefreshFailed = async () => {
     .filter(item => !item.schedulingDisabled)
     .map(item => item.account_id)
   if (failedIds.length === 0) return
-  if (!confirm(t('admin.accounts.batchRefreshResult.confirmDisableFailed', { count: failedIds.length }))) return
+  if (!(await nativeConfirm(t('admin.accounts.batchRefreshResult.confirmDisableFailed', { count: failedIds.length })))) return
   batchRefreshDisablingFailed.value = true
   try {
     const result = await adminAPI.accounts.bulkUpdate(failedIds, { schedulable: false })

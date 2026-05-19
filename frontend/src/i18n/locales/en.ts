@@ -256,6 +256,8 @@ export default {
     create: 'Create',
     update: 'Update',
     confirm: 'Confirm',
+    notice: 'Notice',
+    prompt: 'Input',
     reset: 'Reset',
     search: 'Search',
     filter: 'Filter',

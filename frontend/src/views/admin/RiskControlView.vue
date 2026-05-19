@@ -837,6 +837,7 @@ import type { AdminGroup, SelectOption } from '@/types'
 import { useAppStore } from '@/stores/app'
 import { extractApiErrorMessage } from '@/utils/apiError'
 import { formatDateTime as formatDateTimeValue } from '@/utils/format'
+import { nativeConfirm } from '@/services/nativeDialog'
 
 type SettingsTab = 'basic' | 'scope' | 'runtime' | 'response' | 'retention'
 type WorkerSlotState = 'active' | 'idle' | 'disabled'
@@ -1367,7 +1368,9 @@ async function deleteFlaggedHash() {
 
 async function clearFlaggedHashes() {
   if (hashActionLoading.value) return
-  const confirmed = window.confirm(t('admin.riskControl.clearFlaggedHashesConfirm'))
+  const confirmed = await nativeConfirm(t('admin.riskControl.clearFlaggedHashesConfirm'), {
+    variant: 'danger'
+  })
   if (!confirmed) return
   hashActionLoading.value = true
   try {
