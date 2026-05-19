@@ -5655,6 +5655,8 @@ export default {
         visibility: 'Visible To',
         visibilityUser: 'Regular Users',
         visibilityAdmin: 'Administrators',
+        openInNewTab: 'Open in New Tab',
+        openInNewTabHint: 'When enabled, clicking the sidebar item opens the page URL in a new tab.',
         add: 'Add Menu Item',
         remove: 'Remove',
         moveUp: 'Move Up',

@@ -61,7 +61,7 @@
                   :to="child.path"
                   class="sidebar-link mb-0.5 py-1.5 text-sm"
                   :class="{ 'sidebar-link-active': route.path === child.path }"
-                  @click="handleMenuItemClick(child.path)"
+                  @click.capture="handleMenuItemClick(child, $event)"
                 >
                   <component :is="child.icon" class="h-4 w-4 flex-shrink-0" />
                   <span>{{ child.label }}</span>
@@ -82,9 +82,9 @@
                     ? 'sidebar-group-manage'
                     : item.path === '/admin/redeem'
                       ? 'sidebar-wallet'
-                      : undefined
+                    : undefined
               "
-              @click="handleMenuItemClick(item.path)"
+              @click.capture="handleMenuItemClick(item, $event)"
             >
               <span v-if="item.iconSvg" class="h-5 w-5 flex-shrink-0 sidebar-svg-icon" v-html="sanitizeSvg(item.iconSvg)"></span>
               <component v-else :is="item.icon" class="h-5 w-5 flex-shrink-0" />
@@ -109,7 +109,7 @@
             :class="{ 'sidebar-link-active': isActive(item.path), 'sidebar-link-collapsed': sidebarCollapsed }"
             :title="sidebarCollapsed ? item.label : undefined"
             :data-tour="item.path === '/keys' ? 'sidebar-my-keys' : undefined"
-            @click="handleMenuItemClick(item.path)"
+            @click.capture="handleMenuItemClick(item, $event)"
           >
             <span v-if="item.iconSvg" class="h-5 w-5 flex-shrink-0 sidebar-svg-icon" v-html="sanitizeSvg(item.iconSvg)"></span>
             <component v-else :is="item.icon" class="h-5 w-5 flex-shrink-0" />
@@ -129,7 +129,7 @@
             :class="{ 'sidebar-link-active': isActive(item.path), 'sidebar-link-collapsed': sidebarCollapsed }"
             :title="sidebarCollapsed ? item.label : undefined"
             :data-tour="item.path === '/keys' ? 'sidebar-my-keys' : undefined"
-            @click="handleMenuItemClick(item.path)"
+            @click.capture="handleMenuItemClick(item, $event)"
           >
             <span v-if="item.iconSvg" class="h-5 w-5 flex-shrink-0 sidebar-svg-icon" v-html="sanitizeSvg(item.iconSvg)"></span>
             <component v-else :is="item.icon" class="h-5 w-5 flex-shrink-0" />
@@ -187,12 +187,15 @@ import { useAdminSettingsStore, useAppStore, useAuthStore, useOnboardingStore } 
 import VersionBadge from '@/components/common/VersionBadge.vue'
 import { sanitizeSvg } from '@/utils/sanitize'
 import { FeatureFlags, makeSidebarFlag } from '@/utils/featureFlags'
+import { buildEmbeddedUrl } from '@/utils/embedded-url'
 
 interface NavItem {
   path: string
   label: string
   icon: unknown
   iconSvg?: string
+  url?: string
+  openInNewTab?: boolean
   hideInSimpleMode?: boolean
   children?: NavItem[]
   /**
@@ -224,7 +227,7 @@ function applyFeatureFlags(items: NavItem[]): NavItem[] {
   return out
 }
 
-const { t } = useI18n()
+const { t, locale } = useI18n()
 
 const route = useRoute()
 const router = useRouter()
@@ -680,6 +683,8 @@ function buildSelfNavItems(withDashboard: boolean): NavItem[] {
       label: item.label,
       icon: null,
       iconSvg: item.icon_svg,
+      url: item.url,
+      openInNewTab: item.open_in_new_tab === true,
     })),
   )
   return items
@@ -775,14 +780,28 @@ const adminNavItems = computed((): NavItem[] => {
     filtered.push({ path: '/keys', label: t('nav.apiKeys'), icon: KeyIcon })
     filtered.push({ path: '/admin/settings', label: t('nav.settings'), icon: CogIcon })
     for (const cm of customMenuItemsForAdmin.value) {
-      filtered.push({ path: `/custom/${cm.id}`, label: cm.label, icon: null, iconSvg: cm.icon_svg })
+      filtered.push({
+        path: `/custom/${cm.id}`,
+        label: cm.label,
+        icon: null,
+        iconSvg: cm.icon_svg,
+        url: cm.url,
+        openInNewTab: cm.open_in_new_tab === true
+      })
     }
     return filtered
   }
 
   visible.push({ path: '/admin/settings', label: t('nav.settings'), icon: CogIcon })
   for (const cm of customMenuItemsForAdmin.value) {
-    visible.push({ path: `/custom/${cm.id}`, label: cm.label, icon: null, iconSvg: cm.icon_svg })
+    visible.push({
+      path: `/custom/${cm.id}`,
+      label: cm.label,
+      icon: null,
+      iconSvg: cm.icon_svg,
+      url: cm.url,
+      openInNewTab: cm.open_in_new_tab === true
+    })
   }
   return visible
 })
@@ -801,7 +820,26 @@ function closeMobile() {
   appStore.setMobileOpen(false)
 }
 
-function handleMenuItemClick(itemPath: string) {
+function resolveMenuItemOpenUrl(item: NavItem): string {
+  if (!item.url || item.url.startsWith('md:')) return item.path
+  const embeddedUrl = buildEmbeddedUrl(
+    item.url,
+    authStore.user?.id,
+    authStore.token,
+    isDark.value ? 'dark' : 'light',
+    locale.value
+  )
+  return embeddedUrl.startsWith('http://') || embeddedUrl.startsWith('https://')
+    ? embeddedUrl
+    : item.path
+}
+
+function handleMenuItemClick(item: NavItem, event?: MouseEvent) {
+  if (item.openInNewTab) {
+    event?.preventDefault()
+    window.open(resolveMenuItemOpenUrl(item), '_blank', 'noopener,noreferrer')
+  }
+
   if (mobileOpen.value) {
     setTimeout(() => {
       appStore.setMobileOpen(false)
@@ -815,7 +853,7 @@ function handleMenuItemClick(itemPath: string) {
     '/keys': '[data-tour="sidebar-my-keys"]'
   }
 
-  const selector = pathToSelector[itemPath]
+  const selector = pathToSelector[item.path]
   if (selector && onboardingStore.isCurrentStep(selector)) {
     onboardingStore.nextStep(500)
   }

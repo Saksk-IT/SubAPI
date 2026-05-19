@@ -4,6 +4,28 @@ import { flushPromises, mount } from "@vue/test-utils";
 
 import SettingsView from "../SettingsView.vue";
 
+const localStorageMock = vi.hoisted(() => {
+  let store: Record<string, string> = {};
+  const mock = {
+    getItem: vi.fn((key: string) => store[key] ?? null),
+    setItem: vi.fn((key: string, value: string) => {
+      store[key] = value;
+    }),
+    removeItem: vi.fn((key: string) => {
+      delete store[key];
+    }),
+    clear: vi.fn(() => {
+      store = {};
+    }),
+  };
+  Object.defineProperty(globalThis, "localStorage", {
+    value: mock,
+    configurable: true,
+    writable: true,
+  });
+  return mock;
+});
+
 const {
   getSettings,
   updateSettings,
@@ -161,6 +183,8 @@ vi.mock("vue-i18n", async () => {
     "admin.settings.payment.findProvider": "查看支持的支付方式",
     "admin.settings.openaiExperimentalScheduler.title": "OpenAI 实验调度策略",
     "admin.settings.openaiExperimentalScheduler.description": "默认关闭。开启后仅影响本网关在 OpenAI 账号间的实验性调度选择逻辑，不代表上游 OpenAI 官方能力。",
+    "admin.settings.customMenu.openInNewTab": "新标签页打开",
+    "admin.settings.customMenu.openInNewTabHint": "开启后，点击侧边栏菜单项时直接在新标签页打开页面 URL。",
     "admin.settings.site.uploadImage": "上传图片",
     "admin.settings.site.remove": "移除",
   };
@@ -581,6 +605,56 @@ describe("admin SettingsView payment visible method controls", () => {
     expect(payload).not.toHaveProperty("payment_visible_method_wxpay_source");
     expect(payload).not.toHaveProperty("payment_visible_method_alipay_enabled");
     expect(payload).not.toHaveProperty("payment_visible_method_wxpay_enabled");
+  });
+
+  it("normalizes and submits custom menu new-tab flags", async () => {
+    getSettings.mockResolvedValueOnce({
+      ...baseSettingsResponse,
+      custom_menu_items: [
+        {
+          id: "legacy",
+          label: "旧菜单",
+          icon_svg: "",
+          url: "https://example.com/legacy",
+          visibility: "user",
+          sort_order: 0,
+        },
+        {
+          id: "external",
+          label: "外部页面",
+          icon_svg: "",
+          url: "https://example.com/external",
+          visibility: "admin",
+          sort_order: 1,
+          open_in_new_tab: true,
+        },
+      ],
+    });
+
+    const wrapper = mountView();
+
+    await flushPromises();
+
+    expect(wrapper.text()).toContain("新标签页打开");
+
+    await wrapper.find("form").trigger("submit.prevent");
+    await flushPromises();
+
+    expect(updateSettings).toHaveBeenCalledTimes(1);
+    expect(updateSettings.mock.calls[0]?.[0]).toEqual(
+      expect.objectContaining({
+        custom_menu_items: [
+          expect.objectContaining({
+            id: "legacy",
+            open_in_new_tab: false,
+          }),
+          expect.objectContaining({
+            id: "external",
+            open_in_new_tab: true,
+          }),
+        ],
+      }),
+    );
   });
 
   it("submits Anthropic cache TTL injection gateway setting", async () => {

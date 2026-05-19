@@ -30,3 +30,17 @@ describe('AppSidebar header styles', () => {
     expect(sidebarBrandBlockMatch?.[0]).not.toContain('overflow: hidden;')
   })
 })
+
+describe('AppSidebar custom menu new-tab behavior', () => {
+  it('keeps normal custom menu items on router links by default', () => {
+    expect(componentSource).toContain("openInNewTab: item.open_in_new_tab === true")
+    expect(componentSource).toContain("openInNewTab: cm.open_in_new_tab === true")
+  })
+
+  it('opens enabled custom menu items with embedded query forwarding', () => {
+    expect(componentSource).toContain('@click.capture="handleMenuItemClick(item, $event)"')
+    expect(componentSource).toContain('function resolveMenuItemOpenUrl(item: NavItem): string')
+    expect(componentSource).toContain('buildEmbeddedUrl(')
+    expect(componentSource).toContain("window.open(resolveMenuItemOpenUrl(item), '_blank', 'noopener,noreferrer')")
+  })
+})

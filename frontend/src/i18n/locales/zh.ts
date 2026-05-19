@@ -5813,6 +5813,8 @@ export default {
         visibility: '可见角色',
         visibilityUser: '普通用户',
         visibilityAdmin: '管理员',
+        openInNewTab: '新标签页打开',
+        openInNewTabHint: '开启后，点击侧边栏菜单项时直接在新标签页打开页面 URL。',
         add: '添加菜单项',
         remove: '删除',
         moveUp: '上移',

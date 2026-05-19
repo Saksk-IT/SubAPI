@@ -4713,6 +4713,24 @@
                     />
                   </div>
 
+                  <!-- Open in new tab -->
+                  <div
+                    class="flex items-center justify-between gap-4 rounded-lg border border-gray-100 bg-gray-50 px-3 py-3 dark:border-dark-700 dark:bg-dark-800/40 sm:col-span-2"
+                  >
+                    <div class="min-w-0">
+                      <label class="text-sm font-medium text-gray-900 dark:text-white">
+                        {{ t("admin.settings.customMenu.openInNewTab") }}
+                      </label>
+                      <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                        {{ t("admin.settings.customMenu.openInNewTabHint") }}
+                      </p>
+                    </div>
+                    <Toggle
+                      :model-value="item.open_in_new_tab === true"
+                      @update:model-value="(value: boolean) => updateMenuItemOpenInNewTab(index, value)"
+                    />
+                  </div>
+
                   <!-- SVG Icon (full width) -->
                   <div class="sm:col-span-2">
                     <label
@@ -6781,6 +6799,7 @@ const form = reactive<SettingsForm>({
     url: string;
     visibility: "user" | "admin";
     sort_order: number;
+    open_in_new_tab: boolean;
   }>,
   custom_endpoints: [] as Array<{
     name: string;
@@ -7410,7 +7429,14 @@ function addMenuItem() {
     url: "",
     visibility: "user",
     sort_order: form.custom_menu_items.length,
+    open_in_new_tab: false,
   });
+}
+
+function updateMenuItemOpenInNewTab(index: number, value: boolean) {
+  form.custom_menu_items = form.custom_menu_items.map((item, itemIndex) =>
+    itemIndex === index ? { ...item, open_in_new_tab: value } : item,
+  );
 }
 
 function removeMenuItem(index: number) {
@@ -7511,6 +7537,26 @@ function parseTablePageSizeOptionsInput(raw: string): number[] | null {
   return deduped;
 }
 
+function normalizeCustomMenuItems(
+  items: unknown,
+): typeof form.custom_menu_items {
+  if (!Array.isArray(items)) return [];
+  return items.map((item) => {
+    const rawItem = item as Partial<(typeof form.custom_menu_items)[number]>;
+    return {
+      id: rawItem.id || "",
+      label: rawItem.label || "",
+      icon_svg: rawItem.icon_svg || "",
+      url: rawItem.url || "",
+      visibility: rawItem.visibility === "admin" ? "admin" : "user",
+      sort_order: Number.isFinite(Number(rawItem.sort_order))
+        ? Number(rawItem.sort_order)
+        : 0,
+      open_in_new_tab: rawItem.open_in_new_tab === true,
+    };
+  });
+}
+
 async function loadSettings() {
   loading.value = true;
   loadFailed.value = false;
@@ -7524,6 +7570,9 @@ async function loadSettings() {
         (form as Record<string, unknown>)[key] = value;
       }
     }
+    form.custom_menu_items = normalizeCustomMenuItems(
+      settings.custom_menu_items,
+    );
     form.login_agreement_mode =
       settings.login_agreement_mode === "checkbox" ? "checkbox" : "modal";
     form.login_agreement_updated_at =

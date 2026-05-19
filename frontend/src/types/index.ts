@@ -171,6 +171,7 @@ export interface CustomMenuItem {
   page_slug?: string
   visibility: 'user' | 'admin'
   sort_order: number
+  open_in_new_tab?: boolean
 }
 
 export interface CustomEndpoint {
