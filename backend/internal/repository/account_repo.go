@@ -543,7 +543,7 @@ func (r *accountRepository) ListWithFilters(ctx context.Context, params paginati
 					))
 				}),
 			)
-		case "unschedulable":
+		case "paused", "unschedulable":
 			q = q.Where(
 				dbaccount.StatusEQ(service.StatusActive),
 				dbaccount.SchedulableEQ(false),
