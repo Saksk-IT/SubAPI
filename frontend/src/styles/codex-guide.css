@@ -130,6 +130,92 @@
   padding-top: 2rem;
 }
 
+.codex-doc-main-grid {
+  display: grid;
+  grid-template-columns: minmax(220px, 280px) minmax(0, 1fr);
+  gap: 1rem;
+  align-items: start;
+  margin-top: 1.2rem;
+}
+
+.codex-doc-main-grid > * {
+  min-width: 0;
+}
+
+.codex-doc-toc {
+  position: sticky;
+  top: 5rem;
+  display: grid;
+  gap: 1rem;
+  min-width: 0;
+  padding: 1rem;
+  border: 1px solid var(--doc-line);
+  border-radius: 22px;
+  background: rgba(255, 255, 255, 0.92);
+  box-shadow: 0 18px 56px rgba(38, 84, 74, 0.08);
+}
+
+.codex-doc-toc__heading {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 0.75rem;
+  align-items: center;
+}
+
+.codex-doc-toc__heading strong {
+  display: block;
+  color: var(--doc-text);
+  font-weight: 950;
+}
+
+.codex-doc-toc__heading span {
+  display: block;
+  margin-top: 0.15rem;
+  color: var(--doc-muted);
+  font-size: 0.88rem;
+}
+
+.codex-doc-toc__nav {
+  display: grid;
+  gap: 0.85rem;
+}
+
+.codex-doc-toc-group {
+  display: grid;
+  gap: 0.45rem;
+}
+
+.codex-doc-toc-group > p {
+  margin: 0;
+  color: var(--doc-text);
+  font-size: 0.92rem;
+  font-weight: 900;
+}
+
+.codex-doc-toc-link {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 0.55rem;
+  align-items: center;
+  padding: 0.62rem 0.75rem;
+  border: 1px solid var(--doc-line);
+  border-radius: 14px;
+  background: #fff;
+  color: var(--doc-muted);
+  text-decoration: none;
+  transition: 0.18s ease;
+}
+
+.codex-doc-toc-link:hover {
+  border-color: var(--doc-accent);
+  color: var(--doc-accent-dark);
+  transform: translateX(2px);
+}
+
+.codex-doc-toc-link .codex-icon {
+  color: var(--doc-accent-dark);
+}
+
 .codex-doc-hero {
   display: grid;
   gap: 1rem;
@@ -215,6 +301,7 @@
 
 .codex-doc-article {
   margin-top: 1.2rem;
+  min-width: 0;
   padding: clamp(1.1rem, 3vw, 2.1rem);
   border: 1px solid var(--doc-line);
   border-radius: 28px;
@@ -776,6 +863,19 @@
   .codex-image-grid--three,
   .codex-key-step {
     grid-template-columns: 1fr;
+  }
+
+  .codex-doc-main-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .codex-doc-toc {
+    position: static;
+  }
+
+  .codex-doc-toc,
+  .codex-doc-article {
+    width: 100%;
   }
 
   .codex-doc-table {

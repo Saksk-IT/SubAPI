@@ -2,6 +2,56 @@
 import { Icon } from '@/components/icons'
 
 const teamGuideBase = 'https://team.sakms.top'
+
+const tocSections = [
+  {
+    title: '页面概览',
+    items: [
+      { href: '#guideTitle', label: '教程总览' },
+      { href: '#readingGuide', label: '阅读指南' },
+    ],
+  },
+  {
+    title: '第一章 准备工作',
+    items: [
+      { href: '#notice', label: '使用前说明' },
+      { href: '#register', label: '注册中转账户' },
+      { href: '#billing', label: '充值与订阅' },
+      { href: '#redeem', label: '兑换中转码' },
+    ],
+  },
+  {
+    title: '第二章 创建 API 密钥',
+    items: [
+      { href: '#createKey', label: '创建新密钥' },
+      { href: '#configPreview', label: '接入配置预览' },
+    ],
+  },
+  {
+    title: '第三章 Codex 客户端接入',
+    items: [
+      { href: '#installCodex', label: '手动配置 Codex' },
+      { href: '#configureCodex', label: 'Windows 配置' },
+      { href: '#configureCodexMac', label: 'Mac 配置' },
+      { href: '#otherClientGuides', label: '其他客户端教程' },
+      { href: '#loginCodex', label: '重新登录 Codex' },
+    ],
+  },
+  {
+    title: '第四章 验证与排错',
+    items: [
+      { href: '#quickCheck', label: '一行命令自检' },
+      { href: '#quickChecklist', label: '登录失败检查' },
+      { href: '#troubleTable', label: '常见报错对照' },
+    ],
+  },
+  {
+    title: '第五章 FAQ',
+    items: [
+      { href: '#faq', label: '常见问题' },
+    ],
+  },
+] as const
 </script>
 
 <template>
@@ -16,9 +66,6 @@ const teamGuideBase = 'https://team.sakms.top'
           </span>
         </a>
         <div class="codex-doc-actions">
-          <a href="/" class="codex-doc-link">
-            <Icon name="home" class="codex-icon" /> 返回兑换页
-          </a>
           <a href="#quickChecklist" class="codex-doc-link">
             <Icon name="checkCircle" class="codex-icon" /> 快速检查
           </a>
@@ -89,8 +136,33 @@ const teamGuideBase = 'https://team.sakms.top'
         </nav>
       </section>
 
-      <article class="codex-doc-article">
-        <h1>Codex API 登录对接教程</h1>
+      <div class="codex-doc-main-grid">
+        <aside class="codex-doc-toc" aria-label="教程目录">
+          <div class="codex-doc-toc__heading">
+            <Icon name="book" class="codex-icon" />
+            <div>
+              <strong>教程目录</strong>
+              <span>点击章节即可跳转</span>
+            </div>
+          </div>
+          <nav class="codex-doc-toc__nav">
+            <section v-for="section in tocSections" :key="section.title" class="codex-doc-toc-group">
+              <p>{{ section.title }}</p>
+              <a
+                v-for="item in section.items"
+                :key="item.href"
+                class="codex-doc-toc-link"
+                :href="item.href"
+              >
+                <Icon name="chevronRight" class="codex-icon" />
+                <span>{{ item.label }}</span>
+              </a>
+            </section>
+          </nav>
+        </aside>
+
+        <article class="codex-doc-article">
+          <h1>Codex API 登录对接教程</h1>
 
         <section class="codex-callout codex-callout--important" aria-label="站点信息卡">
           <p><strong>重要｜站点信息卡</strong></p>
@@ -126,7 +198,7 @@ const teamGuideBase = 'https://team.sakms.top'
           </div>
         </section>
 
-        <h2>阅读指南</h2>
+        <h2 id="readingGuide">阅读指南</h2>
         <p>本教程把使用流程拆成 <strong>「准备 → 拿 Key → 手动配置 → 验证」</strong> 四步。无论是通过质保兑换补发的中转兑换码，还是在链动小铺上面购买的额度包兑换码，都适用以下教程。</p>
         <div class="codex-doc-table-wrap">
           <table class="codex-doc-table">
@@ -342,7 +414,7 @@ const teamGuideBase = 'https://team.sakms.top'
           </article>
         </div>
 
-        <h2>2.2 一键查看接入配置，为后续配置做准备，继续往下滑</h2>
+        <h2 id="configPreview">2.2 一键查看接入配置，为后续配置做准备，继续往下滑</h2>
         <p>密钥创建成功后，在密钥列表的操作列点击“使用密钥”，会弹出接入配置。参考页中会直接给出 Codex CLI、Open Code、Claude Code 等客户端的现成配置；本页也按这些客户端补齐了手动配置方法。</p>
         <section class="codex-callout">
           <p><strong>重点提示：</strong>Codex VSCode 插件、Codex APP 与 Codex CLI 配置完全相同，通常只填一次。弹窗里的配置已经把 <code>base_url</code> 和 <code>api_key</code> 填好，优先复制弹窗，不要手动拼错。</p>
@@ -399,7 +471,7 @@ const teamGuideBase = 'https://team.sakms.top'
           <figcaption>图 9：配置示例，截图中的 API Key 已脱敏。请使用你自己的密钥，不要复制教程截图。</figcaption>
         </figure>
 
-        <h3>Mac</h3>
+        <h3 id="configureCodexMac">Mac</h3>
         <ol class="codex-steps-list">
           <li>在磁盘用户目录中找到 <code>.codex</code> 文件夹，如果找不到就按 <kbd>Command</kbd> + <kbd>Shift</kbd> + <kbd>.</kbd> 显示隐藏文件。</li>
           <li>确认存在 <code>config.toml</code> 和 <code>auth.json</code>，如果没有就新建。文件名就是 <code>config.toml</code> 和 <code>auth.json</code>。</li>
@@ -473,7 +545,7 @@ const teamGuideBase = 'https://team.sakms.top'
 
         <h1 id="chapterTrouble">第四章 验证与排错</h1>
 
-        <h2>4.1 一行命令自检（推荐）</h2>
+        <h2 id="quickCheck">4.1 一行命令自检（推荐）</h2>
         <p>复制下方命令到终端，把 <code>sk-xxxx</code> 换成你的真实密钥。如果能返回模型清单，说明 Key 与 base_url 基本正常。</p>
         <pre class="codex-code-block"><code>curl https://api.sakms.top/v1/models \
   -H "Authorization: Bearer sk-xxxx"</code></pre>
@@ -490,7 +562,7 @@ const teamGuideBase = 'https://team.sakms.top'
           <li><Icon name="checkCircle" class="codex-icon" /><span>创建密钥时是否按来源选择正确分组：质保网站补发的中转码选“质保补偿”，链动小铺额度兑换码选“GPT”或订阅分组？</span></li>
         </ul>
 
-        <h2>4.3 常见报错对照表</h2>
+        <h2 id="troubleTable">4.3 常见报错对照表</h2>
         <div class="codex-doc-table-wrap">
           <table class="codex-doc-table">
             <thead>
@@ -552,7 +624,8 @@ const teamGuideBase = 'https://team.sakms.top'
           <p><strong>Q4：充值的钱和订阅额度怎么消费？</strong><br>额度模式按调用量从余额扣款；订阅模式则在订阅周期或每日额度内使用，具体计费规则以中转后台实时显示为准。</p>
           <p><strong>Q5：技术支持怎么联系？</strong><br>可查看页面上方交流群二维码，或登录中转站后在个人中心、站内公告、客服入口查看最新联系方式。</p>
         </div>
-      </article>
+        </article>
+      </div>
     </main>
   </div>
 </template>
