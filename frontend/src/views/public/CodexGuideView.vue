@@ -3,7 +3,28 @@ import { Icon } from '@/components/icons'
 
 const teamGuideBase = 'https://team.sakms.top'
 
-const tocSections = [
+type TocItem = {
+  href: string
+  label: string
+  external?: boolean
+}
+
+type TocSection = {
+  title: string
+  items: TocItem[]
+}
+
+const tocSections: TocSection[] = [
+  {
+    title: '配置教程',
+    items: [
+      { href: '#guideTitle', label: 'Codex 配置教程' },
+      { href: `${teamGuideBase}/claude-code-guide`, label: 'Claude Code 配置教程', external: true },
+      { href: `${teamGuideBase}/open-code-guide`, label: 'Open Code 配置教程', external: true },
+      { href: `${teamGuideBase}/open-claw-guide`, label: 'Open Claw 配置教程', external: true },
+      { href: `${teamGuideBase}/mobile-guide`, label: '移动端配置教程', external: true },
+    ],
+  },
   {
     title: '页面概览',
     items: [
@@ -51,7 +72,7 @@ const tocSections = [
       { href: '#faq', label: '常见问题' },
     ],
   },
-] as const
+]
 </script>
 
 <template>
@@ -136,7 +157,7 @@ const tocSections = [
         </nav>
       </section>
 
-      <div class="codex-doc-main-grid">
+      <div class="codex-doc-layout">
         <aside class="codex-doc-toc" aria-label="教程目录">
           <div class="codex-doc-toc__heading">
             <Icon name="book" class="codex-icon" />
@@ -153,6 +174,8 @@ const tocSections = [
                 :key="item.href"
                 class="codex-doc-toc-link"
                 :href="item.href"
+                :target="item.external ? '_blank' : undefined"
+                :rel="item.external ? 'noopener noreferrer' : undefined"
               >
                 <Icon name="chevronRight" class="codex-icon" />
                 <span>{{ item.label }}</span>
@@ -161,7 +184,8 @@ const tocSections = [
           </nav>
         </aside>
 
-        <article class="codex-doc-article">
+        <div class="codex-doc-main-grid">
+          <article class="codex-doc-article">
           <h1>Codex API 登录对接教程</h1>
 
         <section class="codex-callout codex-callout--important" aria-label="站点信息卡">
@@ -625,6 +649,7 @@ const tocSections = [
           <p><strong>Q5：技术支持怎么联系？</strong><br>可查看页面上方交流群二维码，或登录中转站后在个人中心、站内公告、客服入口查看最新联系方式。</p>
         </div>
         </article>
+        </div>
       </div>
     </main>
   </div>

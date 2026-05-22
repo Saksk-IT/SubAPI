@@ -125,20 +125,26 @@
 }
 
 .codex-doc-shell {
-  width: min(100%, 1180px);
+  width: min(100%, 1440px);
   margin: 0 auto;
   padding-top: 2rem;
 }
 
-.codex-doc-main-grid {
+.codex-doc-layout {
   display: grid;
-  grid-template-columns: minmax(220px, 280px) minmax(0, 1fr);
-  gap: 1rem;
+  grid-template-columns: 290px minmax(0, 1180px);
+  gap: 1.25rem;
   align-items: start;
   margin-top: 1.2rem;
+  justify-content: center;
 }
 
+.codex-doc-layout > *,
 .codex-doc-main-grid > * {
+  min-width: 0;
+}
+
+.codex-doc-main-grid {
   min-width: 0;
 }
 
@@ -148,11 +154,15 @@
   display: grid;
   gap: 1rem;
   min-width: 0;
+  max-height: calc(100vh - 6rem);
+  overflow: auto;
+  overscroll-behavior: contain;
   padding: 1rem;
   border: 1px solid var(--doc-line);
   border-radius: 22px;
   background: rgba(255, 255, 255, 0.92);
   box-shadow: 0 18px 56px rgba(38, 84, 74, 0.08);
+  scrollbar-width: thin;
 }
 
 .codex-doc-toc__heading {
@@ -902,12 +912,14 @@
     grid-template-columns: 1fr;
   }
 
-  .codex-doc-main-grid {
+  .codex-doc-layout {
     grid-template-columns: 1fr;
   }
 
   .codex-doc-toc {
     position: static;
+    max-height: none;
+    overflow: visible;
   }
 
   .codex-doc-toc,
