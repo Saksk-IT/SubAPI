@@ -183,6 +183,46 @@ const routes: RouteRecordRaw[] = [
       title: 'Codex API 登录对接教程'
     }
   },
+  {
+    path: '/claude-code-guide',
+    name: 'ClaudeCodeGuide',
+    component: () => import('@/views/public/ClientGuideView.vue'),
+    meta: {
+      requiresAuth: false,
+      title: 'Claude Code 配置教程',
+      guideKey: 'claude'
+    }
+  },
+  {
+    path: '/open-code-guide',
+    name: 'OpenCodeGuide',
+    component: () => import('@/views/public/ClientGuideView.vue'),
+    meta: {
+      requiresAuth: false,
+      title: 'Open Code 配置教程',
+      guideKey: 'openCode'
+    }
+  },
+  {
+    path: '/open-claw-guide',
+    name: 'OpenClawGuide',
+    component: () => import('@/views/public/ClientGuideView.vue'),
+    meta: {
+      requiresAuth: false,
+      title: 'Open Claw 配置教程',
+      guideKey: 'openClaw'
+    }
+  },
+  {
+    path: '/mobile-guide',
+    name: 'MobileGuide',
+    component: () => import('@/views/public/ClientGuideView.vue'),
+    meta: {
+      requiresAuth: false,
+      title: '移动端配置教程',
+      guideKey: 'mobile'
+    }
+  },
 
   // ==================== User Routes ====================
   {
@@ -698,7 +738,19 @@ let authInitialized = false
 const navigationLoading = useNavigationLoadingState()
 // 延迟初始化预加载，传入 router 实例
 let routePrefetch: ReturnType<typeof useRoutePrefetch> | null = null
-const BACKEND_MODE_ALLOWED_PATHS = ['/login', '/key-usage', '/setup', '/payment/result', '/payment/airwallex', '/legal', '/codex-guide']
+const BACKEND_MODE_ALLOWED_PATHS = [
+  '/login',
+  '/key-usage',
+  '/setup',
+  '/payment/result',
+  '/payment/airwallex',
+  '/legal',
+  '/codex-guide',
+  '/claude-code-guide',
+  '/open-code-guide',
+  '/open-claw-guide',
+  '/mobile-guide',
+]
 const BACKEND_MODE_CALLBACK_PATHS = [
   '/auth/callback',
   '/auth/linuxdo/callback',

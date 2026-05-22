@@ -1,12 +1,9 @@
 <script setup lang="ts">
 import { Icon } from '@/components/icons'
 
-const teamGuideBase = 'https://team.sakms.top'
-
 type TocItem = {
   href: string
   label: string
-  external?: boolean
 }
 
 type TocSection = {
@@ -15,16 +12,6 @@ type TocSection = {
 }
 
 const tocSections: TocSection[] = [
-  {
-    title: '配置教程',
-    items: [
-      { href: '#guideTitle', label: 'Codex 配置教程' },
-      { href: `${teamGuideBase}/claude-code-guide`, label: 'Claude Code 配置教程', external: true },
-      { href: `${teamGuideBase}/open-code-guide`, label: 'Open Code 配置教程', external: true },
-      { href: `${teamGuideBase}/open-claw-guide`, label: 'Open Claw 配置教程', external: true },
-      { href: `${teamGuideBase}/mobile-guide`, label: '移动端配置教程', external: true },
-    ],
-  },
   {
     title: '页面概览',
     items: [
@@ -97,92 +84,90 @@ const tocSections: TocSection[] = [
       </nav>
     </header>
 
-    <main class="codex-doc-shell">
-      <section class="codex-doc-hero" aria-labelledby="guideTitle">
-        <p class="codex-doc-base">API base_url: https://api.sakms.top/</p>
-        <h1 id="guideTitle">兑换中转 API Key，并接入 Codex</h1>
-        <p class="codex-doc-lead">从注册中转账户、兑换中转码、创建 API 密钥，到手动接入 Codex 和常见排错；Claude Code、Open Code、Open Claw 请打开对应独立教程页，移动端请查看 Chatbox 教程。</p>
-        <div class="codex-doc-badges" aria-label="教程要点">
-          <span><Icon name="gift" class="codex-icon" /> 先兑换中转码</span>
-          <span><Icon name="key" class="codex-icon" /> 生成 API Key</span>
-          <span><Icon name="cog" class="codex-icon" /> 手动配置 Codex</span>
-          <span><Icon name="chat" class="codex-icon" /> 移动端 Chatbox</span>
+    <div class="codex-guide-frame">
+      <aside class="codex-doc-toc" aria-label="教程目录">
+        <div class="codex-doc-toc__heading">
+          <Icon name="book" class="codex-icon" />
+          <div>
+            <strong>教程目录</strong>
+            <span>点击章节即可跳转</span>
+          </div>
         </div>
-        <nav class="codex-doc-jump" aria-label="章节快捷入口">
-          <a href="#chapterPrepare">准备</a>
-          <a href="#chapterKey">拿 Key</a>
-          <a href="#installCodex">手动配置</a>
-          <a href="#chapterTrouble">验证排错</a>
+        <nav class="codex-doc-toc__nav">
+          <section v-for="section in tocSections" :key="section.title" class="codex-doc-toc-group">
+            <p>{{ section.title }}</p>
+            <a
+              v-for="item in section.items"
+              :key="item.href"
+              class="codex-doc-toc-link"
+              :href="item.href"
+            >
+              <Icon name="chevronRight" class="codex-icon" />
+              <span>{{ item.label }}</span>
+            </a>
+          </section>
         </nav>
+      </aside>
 
-        <nav class="codex-guide-switcher" aria-label="客户端教程互跳入口">
-          <p class="codex-guide-switcher__label">客户端配置教程</p>
-          <div class="codex-client-guide-grid codex-client-guide-grid--all">
-            <a class="codex-client-guide-card codex-client-guide-card--compact codex-client-guide-card--active" href="/codex-guide" aria-current="page">
-              <Icon name="terminal" class="codex-icon" />
-              <span>
-                <strong>Codex 配置教程</strong>
-                <small>config.toml / auth.json / API 登录</small>
-              </span>
-            </a>
-            <a class="codex-client-guide-card codex-client-guide-card--compact" :href="`${teamGuideBase}/claude-code-guide`">
-              <Icon name="terminal" class="codex-icon" />
-              <span>
-                <strong>Claude Code 配置教程</strong>
-                <small>settings.json / 环境变量 / CLI 验证</small>
-              </span>
-            </a>
-            <a class="codex-client-guide-card codex-client-guide-card--compact" :href="`${teamGuideBase}/open-code-guide`">
-              <Icon name="cube" class="codex-icon" />
-              <span>
-                <strong>Open Code 配置教程</strong>
-                <small>opencode.json / /connect 临时切换</small>
-              </span>
-            </a>
-            <a class="codex-client-guide-card codex-client-guide-card--compact" :href="`${teamGuideBase}/open-claw-guide`">
-              <Icon name="cloud" class="codex-icon" />
-              <span>
-                <strong>Open Claw 配置教程</strong>
-                <small>腾讯云在线配置 / 本地配置</small>
-              </span>
-            </a>
-            <a class="codex-client-guide-card codex-client-guide-card--compact" :href="`${teamGuideBase}/mobile-guide`">
-              <Icon name="chat" class="codex-icon" />
-              <span>
-                <strong>移动端配置教程</strong>
-                <small>Chatbox / 手机配置 / 模型切换</small>
-              </span>
-            </a>
+      <main class="codex-doc-shell">
+        <section class="codex-doc-hero" aria-labelledby="guideTitle">
+          <p class="codex-doc-base">API base_url: https://api.sakms.top/</p>
+          <h1 id="guideTitle">兑换中转 API Key，并接入 Codex</h1>
+          <p class="codex-doc-lead">从注册中转账户、兑换中转码、创建 API 密钥，到手动接入 Codex 和常见排错；Claude Code、Open Code、Open Claw 请打开对应独立教程页，移动端请查看 Chatbox 教程。</p>
+          <div class="codex-doc-badges" aria-label="教程要点">
+            <span><Icon name="gift" class="codex-icon" /> 先兑换中转码</span>
+            <span><Icon name="key" class="codex-icon" /> 生成 API Key</span>
+            <span><Icon name="cog" class="codex-icon" /> 手动配置 Codex</span>
+            <span><Icon name="chat" class="codex-icon" /> 移动端 Chatbox</span>
           </div>
-        </nav>
-      </section>
-
-      <div class="codex-doc-layout">
-        <aside class="codex-doc-toc" aria-label="教程目录">
-          <div class="codex-doc-toc__heading">
-            <Icon name="book" class="codex-icon" />
-            <div>
-              <strong>教程目录</strong>
-              <span>点击章节即可跳转</span>
-            </div>
-          </div>
-          <nav class="codex-doc-toc__nav">
-            <section v-for="section in tocSections" :key="section.title" class="codex-doc-toc-group">
-              <p>{{ section.title }}</p>
-              <a
-                v-for="item in section.items"
-                :key="item.href"
-                class="codex-doc-toc-link"
-                :href="item.href"
-                :target="item.external ? '_blank' : undefined"
-                :rel="item.external ? 'noopener noreferrer' : undefined"
-              >
-                <Icon name="chevronRight" class="codex-icon" />
-                <span>{{ item.label }}</span>
-              </a>
-            </section>
+          <nav class="codex-doc-jump" aria-label="章节快捷入口">
+            <a href="#chapterPrepare">准备</a>
+            <a href="#chapterKey">拿 Key</a>
+            <a href="#installCodex">手动配置</a>
+            <a href="#chapterTrouble">验证排错</a>
           </nav>
-        </aside>
+
+          <nav class="codex-guide-switcher" aria-label="客户端教程互跳入口">
+            <p class="codex-guide-switcher__label">客户端配置教程</p>
+            <div class="codex-client-guide-grid codex-client-guide-grid--all">
+              <a class="codex-client-guide-card codex-client-guide-card--compact codex-client-guide-card--active" href="/codex-guide" aria-current="page">
+                <Icon name="terminal" class="codex-icon" />
+                <span>
+                  <strong>Codex 配置教程</strong>
+                  <small>config.toml / auth.json / API 登录</small>
+                </span>
+              </a>
+              <a class="codex-client-guide-card codex-client-guide-card--compact" href="/claude-code-guide">
+                <Icon name="terminal" class="codex-icon" />
+                <span>
+                  <strong>Claude Code 配置教程</strong>
+                  <small>settings.json / 环境变量 / CLI 验证</small>
+                </span>
+              </a>
+              <a class="codex-client-guide-card codex-client-guide-card--compact" href="/open-code-guide">
+                <Icon name="cube" class="codex-icon" />
+                <span>
+                  <strong>Open Code 配置教程</strong>
+                  <small>opencode.json / /connect 临时切换</small>
+                </span>
+              </a>
+              <a class="codex-client-guide-card codex-client-guide-card--compact" href="/open-claw-guide">
+                <Icon name="cloud" class="codex-icon" />
+                <span>
+                  <strong>Open Claw 配置教程</strong>
+                  <small>腾讯云在线配置 / 本地配置</small>
+                </span>
+              </a>
+              <a class="codex-client-guide-card codex-client-guide-card--compact" href="/mobile-guide">
+                <Icon name="chat" class="codex-icon" />
+                <span>
+                  <strong>移动端配置教程</strong>
+                  <small>Chatbox / 手机配置 / 模型切换</small>
+                </span>
+              </a>
+            </div>
+          </nav>
+        </section>
 
         <div class="codex-doc-main-grid">
           <article class="codex-doc-article">
@@ -519,28 +504,28 @@ const tocSections: TocSection[] = [
         <h2 id="otherClientGuides">3.2 其他客户端独立教程</h2>
         <p>以下客户端配置已经从 Codex 主教程中单独拆出，方便直接分享给不同用户。打开对应页面后，仍然以第二章“使用密钥”弹窗里的真实 <code>base_url</code> 和 <code>api_key</code> 为准。</p>
         <div class="codex-client-guide-grid" aria-label="其他客户端配置教程入口">
-          <a class="codex-client-guide-card" :href="`${teamGuideBase}/claude-code-guide`">
+          <a class="codex-client-guide-card" href="/claude-code-guide">
             <Icon name="terminal" class="codex-icon" />
             <span>
               <strong>Claude Code 配置教程</strong>
               <small>环境变量 / settings.json / CLI 验证</small>
             </span>
           </a>
-          <a class="codex-client-guide-card" :href="`${teamGuideBase}/open-code-guide`">
+          <a class="codex-client-guide-card" href="/open-code-guide">
             <Icon name="cube" class="codex-icon" />
             <span>
               <strong>Open Code 配置教程</strong>
               <small>opencode.json / /connect 临时切换</small>
             </span>
           </a>
-          <a class="codex-client-guide-card" :href="`${teamGuideBase}/open-claw-guide`">
+          <a class="codex-client-guide-card" href="/open-claw-guide">
             <Icon name="cloud" class="codex-icon" />
             <span>
               <strong>Open Claw 配置教程</strong>
               <small>腾讯云在线配置 / 本地配置</small>
             </span>
           </a>
-          <a class="codex-client-guide-card" :href="`${teamGuideBase}/mobile-guide`">
+          <a class="codex-client-guide-card" href="/mobile-guide">
             <Icon name="chat" class="codex-icon" />
             <span>
               <strong>移动端配置教程</strong>
@@ -650,8 +635,8 @@ const tocSections: TocSection[] = [
         </div>
         </article>
         </div>
-      </div>
-    </main>
+      </main>
+    </div>
   </div>
 </template>
 

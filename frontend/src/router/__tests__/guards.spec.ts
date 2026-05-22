@@ -84,7 +84,17 @@ function simulateGuard(
       return authState.isAdmin ? '/admin/dashboard' : '/dashboard'
     }
     if (authState.backendModeEnabled && !authState.isAuthenticated) {
-      const allowed = ['/login', '/key-usage', '/setup', '/payment/result', '/codex-guide']
+      const allowed = [
+        '/login',
+        '/key-usage',
+        '/setup',
+        '/payment/result',
+        '/codex-guide',
+        '/claude-code-guide',
+        '/open-code-guide',
+        '/open-claw-guide',
+        '/mobile-guide',
+      ]
       const callbackPaths = [
         '/auth/callback',
         '/auth/linuxdo/callback',
@@ -133,7 +143,17 @@ function simulateGuard(
     if (authState.isAuthenticated && authState.isAdmin) {
       return null
     }
-    const allowed = ['/login', '/key-usage', '/setup', '/payment/result', '/codex-guide']
+    const allowed = [
+      '/login',
+      '/key-usage',
+      '/setup',
+      '/payment/result',
+      '/codex-guide',
+      '/claude-code-guide',
+      '/open-code-guide',
+      '/open-claw-guide',
+      '/mobile-guide',
+    ]
     const callbackPaths = [
       '/auth/callback',
       '/auth/linuxdo/callback',
@@ -382,6 +402,21 @@ describe('路由守卫逻辑', () => {
       }
       const redirect = simulateGuard('/codex-guide', { requiresAuth: false }, authState)
       expect(redirect).toBeNull()
+    })
+
+    it('unauthenticated: client guide pages are allowed', () => {
+      const authState: MockAuthState = {
+        isAuthenticated: false,
+        isAdmin: false,
+        isSimpleMode: false,
+        backendModeEnabled: true,
+        hasPendingAuthSession: false,
+      }
+
+      for (const path of ['/claude-code-guide', '/open-code-guide', '/open-claw-guide', '/mobile-guide']) {
+        const redirect = simulateGuard(path, { requiresAuth: false }, authState)
+        expect(redirect).toBeNull()
+      }
     })
 
     it('unauthenticated: /setup is allowed', () => {
