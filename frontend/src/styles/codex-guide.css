@@ -829,19 +829,43 @@
 
   .codex-doc-header {
     margin-inline: -0.75rem;
-    padding-inline: 0.75rem;
+    padding: 0.55rem 0.75rem 0.75rem;
   }
 
   .codex-doc-nav {
-    align-items: flex-start;
+    align-items: stretch;
     flex-direction: column;
+    gap: 0.65rem;
   }
 
-  .codex-doc-actions,
-  .codex-doc-link,
-  .codex-doc-cta,
-  .codex-link-card {
+  .codex-doc-brand {
+    align-self: flex-start;
+    gap: 0.65rem;
+  }
+
+  .codex-doc-brand img {
+    width: 40px;
+    height: 40px;
+    border-radius: 11px;
+  }
+
+  .codex-doc-brand strong {
+    font-size: 0.98rem;
+  }
+
+  .codex-doc-actions {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 0.55rem;
     width: 100%;
+  }
+
+  .codex-doc-link,
+  .codex-doc-cta {
+    width: 100%;
+    min-height: 46px;
+    padding: 0.72rem 0.9rem;
+    font-size: 0.95rem;
   }
 
   .codex-doc-link,
@@ -905,5 +929,24 @@
 
   .codex-doc-brand small {
     display: none;
+  }
+
+  .codex-doc-header {
+    padding-top: 0.5rem;
+  }
+
+  .codex-doc-brand img {
+    width: 38px;
+    height: 38px;
+  }
+
+  .codex-doc-actions {
+    gap: 0.5rem;
+  }
+
+  .codex-doc-link,
+  .codex-doc-cta {
+    min-height: 44px;
+    padding-block: 0.65rem;
   }
 }
