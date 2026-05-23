@@ -168,6 +168,45 @@ export interface GroupRateMultiplierEntry {
   rpm_override?: number | null
 }
 
+export interface GroupRateScheduleSettings {
+  enabled: boolean
+  start_time: string
+  end_time: string
+  percent: number
+  timezone: string
+  active: boolean
+  original_rates?: Record<string, number>
+  last_applied_at?: string | null
+  last_restored_at?: string | null
+  last_transition_at?: string | null
+}
+
+export type UpdateGroupRateScheduleRequest = Pick<
+  GroupRateScheduleSettings,
+  'enabled' | 'start_time' | 'end_time' | 'percent' | 'timezone'
+>
+
+/**
+ * Get global daily group rate schedule settings.
+ */
+export async function getRateSchedule(): Promise<GroupRateScheduleSettings> {
+  const { data } = await apiClient.get<GroupRateScheduleSettings>('/admin/groups/rate-schedule')
+  return data
+}
+
+/**
+ * Update global daily group rate schedule settings.
+ */
+export async function updateRateSchedule(
+  settings: UpdateGroupRateScheduleRequest
+): Promise<GroupRateScheduleSettings> {
+  const { data } = await apiClient.put<GroupRateScheduleSettings>(
+    '/admin/groups/rate-schedule',
+    settings
+  )
+  return data
+}
+
 /**
  * Get rate multipliers for users in a group
  * @param id - Group ID
@@ -312,6 +351,8 @@ export const groupsAPI = {
   toggleStatus,
   getStats,
   getGroupApiKeys,
+  getRateSchedule,
+  updateRateSchedule,
   getGroupRateMultipliers,
   clearGroupRateMultipliers,
   batchSetGroupRateMultipliers,

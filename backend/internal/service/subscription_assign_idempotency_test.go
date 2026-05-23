@@ -55,6 +55,9 @@ func (groupRepoNoop) BindAccountsToGroup(context.Context, int64, []int64) error 
 func (groupRepoNoop) UpdateSortOrders(context.Context, []GroupSortOrderUpdate) error {
 	panic("unexpected UpdateSortOrders call")
 }
+func (groupRepoNoop) UpdateRateMultipliers(context.Context, []GroupRateMultiplierUpdate) error {
+	panic("unexpected UpdateRateMultipliers call")
+}
 
 type subscriptionGroupRepoStub struct {
 	groupRepoNoop

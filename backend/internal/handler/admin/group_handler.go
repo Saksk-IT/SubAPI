@@ -20,6 +20,7 @@ type GroupHandler struct {
 	adminService         service.AdminService
 	dashboardService     *service.DashboardService
 	groupCapacityService *service.GroupCapacityService
+	groupRateSchedule    *service.GroupRateScheduleService
 }
 
 type optionalLimitField struct {
@@ -72,11 +73,12 @@ func (f optionalLimitField) ToServiceInput() *float64 {
 }
 
 // NewGroupHandler creates a new admin group handler
-func NewGroupHandler(adminService service.AdminService, dashboardService *service.DashboardService, groupCapacityService *service.GroupCapacityService) *GroupHandler {
+func NewGroupHandler(adminService service.AdminService, dashboardService *service.DashboardService, groupCapacityService *service.GroupCapacityService, groupRateSchedule *service.GroupRateScheduleService) *GroupHandler {
 	return &GroupHandler{
 		adminService:         adminService,
 		dashboardService:     dashboardService,
 		groupCapacityService: groupCapacityService,
+		groupRateSchedule:    groupRateSchedule,
 	}
 }
 
@@ -403,6 +405,41 @@ func (h *GroupHandler) GetCapacitySummary(c *gin.Context) {
 		return
 	}
 	response.Success(c, results)
+}
+
+// GetRateSchedule handles reading the daily global group rate override settings.
+// GET /api/v1/admin/groups/rate-schedule
+func (h *GroupHandler) GetRateSchedule(c *gin.Context) {
+	if h.groupRateSchedule == nil {
+		response.Error(c, 503, "Group rate schedule service is unavailable")
+		return
+	}
+	settings, err := h.groupRateSchedule.GetSettings(c.Request.Context())
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	response.Success(c, settings)
+}
+
+// UpdateRateSchedule handles saving the daily global group rate override settings.
+// PUT /api/v1/admin/groups/rate-schedule
+func (h *GroupHandler) UpdateRateSchedule(c *gin.Context) {
+	if h.groupRateSchedule == nil {
+		response.Error(c, 503, "Group rate schedule service is unavailable")
+		return
+	}
+	var req service.GroupRateScheduleSettings
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "Invalid request: "+err.Error())
+		return
+	}
+	settings, err := h.groupRateSchedule.UpdateSettings(c.Request.Context(), &req)
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	response.Success(c, settings)
 }
 
 // GetGroupAPIKeys handles getting API keys in a group

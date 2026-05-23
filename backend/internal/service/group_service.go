@@ -35,12 +35,20 @@ type GroupRepository interface {
 	BindAccountsToGroup(ctx context.Context, groupID int64, accountIDs []int64) error
 	// UpdateSortOrders 批量更新分组排序
 	UpdateSortOrders(ctx context.Context, updates []GroupSortOrderUpdate) error
+	// UpdateRateMultipliers 批量更新分组费率倍率。
+	UpdateRateMultipliers(ctx context.Context, updates []GroupRateMultiplierUpdate) error
 }
 
 // GroupSortOrderUpdate 分组排序更新
 type GroupSortOrderUpdate struct {
 	ID        int64 `json:"id"`
 	SortOrder int   `json:"sort_order"`
+}
+
+// GroupRateMultiplierUpdate 分组费率倍率更新。
+type GroupRateMultiplierUpdate struct {
+	ID             int64   `json:"id"`
+	RateMultiplier float64 `json:"rate_multiplier"`
 }
 
 // CreateGroupRequest 创建分组请求

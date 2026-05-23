@@ -868,3 +868,51 @@ func (r *groupRepository) UpdateSortOrders(ctx context.Context, updates []servic
 	}
 	return nil
 }
+
+func (r *groupRepository) UpdateRateMultipliers(ctx context.Context, updates []service.GroupRateMultiplierUpdate) error {
+	if len(updates) == 0 {
+		return nil
+	}
+
+	for _, update := range updates {
+		if update.ID <= 0 {
+			return fmt.Errorf("invalid group id: %d", update.ID)
+		}
+		if update.RateMultiplier <= 0 {
+			return fmt.Errorf("rate_multiplier must be > 0 (group_id=%d)", update.ID)
+		}
+	}
+
+	tx, err := r.client.Tx(ctx)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback() }()
+	txClient := tx.Client()
+
+	changedIDs := make([]int64, 0, len(updates))
+	for _, update := range updates {
+		affected, err := txClient.Group.Update().
+			Where(group.IDEQ(update.ID)).
+			SetRateMultiplier(update.RateMultiplier).
+			Save(ctx)
+		if err != nil {
+			return translatePersistenceError(err, service.ErrGroupNotFound, nil)
+		}
+		if affected == 0 {
+			return service.ErrGroupNotFound
+		}
+		changedIDs = append(changedIDs, update.ID)
+	}
+
+	if err := tx.Commit(); err != nil {
+		return err
+	}
+
+	for _, groupID := range changedIDs {
+		if err := enqueueSchedulerOutbox(ctx, r.sql, service.SchedulerOutboxEventGroupChanged, nil, &groupID, nil); err != nil {
+			logger.LegacyPrintf("repository.group", "[SchedulerOutbox] enqueue group rate multiplier update failed: group=%d err=%v", groupID, err)
+		}
+	}
+	return nil
+}

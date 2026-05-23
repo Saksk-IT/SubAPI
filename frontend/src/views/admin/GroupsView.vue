@@ -69,6 +69,14 @@
               {{ t("admin.groups.sortOrder") }}
             </button>
             <button
+              @click="openRateScheduleModal"
+              class="btn btn-secondary"
+              :title="t('admin.groups.rateSchedule.title')"
+            >
+              <Icon name="clock" size="md" class="mr-2" />
+              {{ t("admin.groups.rateSchedule.button") }}
+            </button>
+            <button
               @click="showCreateModal = true"
               class="btn btn-primary"
               data-tour="groups-create-btn"
@@ -2812,6 +2820,158 @@
       </template>
     </BaseDialog>
 
+    <!-- Group Rate Schedule Modal -->
+    <BaseDialog
+      :show="showRateScheduleModal"
+      :title="t('admin.groups.rateSchedule.title')"
+      width="normal"
+      @close="closeRateScheduleModal"
+    >
+      <form
+        id="group-rate-schedule-form"
+        @submit.prevent="saveRateSchedule"
+        class="space-y-5"
+      >
+        <div class="flex items-center justify-between gap-4">
+          <div>
+            <label class="text-sm font-medium text-gray-700 dark:text-gray-300">
+              {{ t("admin.groups.rateSchedule.enabled") }}
+            </label>
+            <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+              {{ t("admin.groups.rateSchedule.restoreHint") }}
+            </p>
+          </div>
+          <button
+            type="button"
+            @click="rateScheduleForm.enabled = !rateScheduleForm.enabled"
+            :class="[
+              'relative inline-flex h-6 w-11 flex-shrink-0 items-center rounded-full transition-colors',
+              rateScheduleForm.enabled
+                ? 'bg-primary-500'
+                : 'bg-gray-300 dark:bg-dark-600',
+            ]"
+          >
+            <span
+              :class="[
+                'inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform',
+                rateScheduleForm.enabled ? 'translate-x-6' : 'translate-x-1',
+              ]"
+            />
+          </button>
+        </div>
+
+        <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <div>
+            <label class="input-label">{{
+              t("admin.groups.rateSchedule.startTime")
+            }}</label>
+            <input
+              v-model="rateScheduleForm.start_time"
+              type="time"
+              class="input"
+              :disabled="rateScheduleLoading"
+              required
+            />
+          </div>
+          <div>
+            <label class="input-label">{{
+              t("admin.groups.rateSchedule.endTime")
+            }}</label>
+            <input
+              v-model="rateScheduleForm.end_time"
+              type="time"
+              class="input"
+              :disabled="rateScheduleLoading"
+              required
+            />
+          </div>
+        </div>
+
+        <div>
+          <label class="input-label">{{
+            t("admin.groups.rateSchedule.percent")
+          }}</label>
+          <div class="relative">
+            <input
+              v-model.number="rateScheduleForm.percent"
+              type="number"
+              min="1"
+              max="100"
+              step="1"
+              class="input pr-12"
+              :disabled="rateScheduleLoading"
+              required
+            />
+            <span
+              class="pointer-events-none absolute inset-y-0 right-4 flex items-center text-sm text-gray-400"
+              >%</span
+            >
+          </div>
+          <p class="input-hint">
+            {{
+              t("admin.groups.rateSchedule.preview", {
+                multiplier: rateScheduleMultiplierPreview,
+              })
+            }}
+          </p>
+        </div>
+
+        <div
+          class="rounded-lg border border-gray-200 px-4 py-3 text-sm dark:border-dark-600"
+        >
+          <div class="flex flex-wrap items-center gap-2">
+            <span
+              :class="[
+                'inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium',
+                rateScheduleRuntime?.active
+                  ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300'
+                  : 'bg-gray-100 text-gray-600 dark:bg-dark-600 dark:text-gray-300',
+              ]"
+            >
+              {{
+                rateScheduleRuntime?.active
+                  ? t("admin.groups.rateSchedule.active")
+                  : t("admin.groups.rateSchedule.inactive")
+              }}
+            </span>
+            <span class="text-gray-500 dark:text-gray-400">
+              {{
+                rateScheduleForm.timezone ||
+                t("admin.groups.rateSchedule.defaultTimezone")
+              }}
+            </span>
+          </div>
+          <p class="mt-2 text-xs text-gray-500 dark:text-gray-400">
+            {{ t("admin.groups.rateSchedule.timezoneHint") }}
+          </p>
+        </div>
+      </form>
+
+      <template #footer>
+        <div class="flex justify-end gap-3 pt-4">
+          <button
+            @click="closeRateScheduleModal"
+            type="button"
+            class="btn btn-secondary"
+          >
+            {{ t("common.cancel") }}
+          </button>
+          <button
+            type="submit"
+            form="group-rate-schedule-form"
+            :disabled="rateScheduleSubmitting || rateScheduleLoading"
+            class="btn btn-primary"
+          >
+            {{
+              rateScheduleSubmitting
+                ? t("admin.groups.rateSchedule.saving")
+                : t("admin.groups.rateSchedule.save")
+            }}
+          </button>
+        </div>
+      </template>
+    </BaseDialog>
+
     <!-- Group Rate Multipliers Modal -->
     <GroupRateMultipliersModal
       :show="showRateMultipliersModal"
@@ -2836,6 +2996,7 @@ import { useI18n } from "vue-i18n";
 import { useAppStore } from "@/stores/app";
 import { useOnboardingStore } from "@/stores/onboarding";
 import { adminAPI } from "@/api/admin";
+import type { GroupRateScheduleSettings } from "@/api/admin/groups";
 import type { AdminGroup, GroupPlatform, SubscriptionType } from "@/types";
 import type { Column } from "@/components/common/types";
 import AppLayout from "@/components/layout/AppLayout.vue";
@@ -3085,8 +3246,11 @@ const showCreateModal = ref(false);
 const showEditModal = ref(false);
 const showDeleteDialog = ref(false);
 const showSortModal = ref(false);
+const showRateScheduleModal = ref(false);
 const submitting = ref(false);
 const sortSubmitting = ref(false);
+const rateScheduleLoading = ref(false);
+const rateScheduleSubmitting = ref(false);
 const editingGroup = ref<AdminGroup | null>(null);
 const deletingGroup = ref<AdminGroup | null>(null);
 const showRateMultipliersModal = ref(false);
@@ -3096,6 +3260,39 @@ const rpmOverridesGroup = ref<AdminGroup | null>(null);
 const sortableGroups = ref<AdminGroup[]>([]);
 const createMessagesDispatchDefaults = createDefaultMessagesDispatchFormState();
 const editMessagesDispatchDefaults = createDefaultMessagesDispatchFormState();
+const rateScheduleRuntime = ref<GroupRateScheduleSettings | null>(null);
+
+const getBrowserTimezone = () => {
+  return Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
+};
+
+const rateScheduleForm = reactive({
+  enabled: false,
+  start_time: "00:00",
+  end_time: "00:00",
+  percent: 100,
+  timezone: getBrowserTimezone(),
+});
+
+const applyRateScheduleSettings = (settings: GroupRateScheduleSettings) => {
+  rateScheduleRuntime.value = settings;
+  rateScheduleForm.enabled = settings.enabled;
+  rateScheduleForm.start_time = settings.start_time || "00:00";
+  rateScheduleForm.end_time = settings.end_time || "00:00";
+  rateScheduleForm.percent = settings.percent || 100;
+  rateScheduleForm.timezone = settings.timezone || getBrowserTimezone();
+};
+
+const rateScheduleMultiplierPreview = computed(() => {
+  const percent = Number(rateScheduleForm.percent);
+  if (!Number.isFinite(percent)) {
+    return "1";
+  }
+  const multiplier = percent / 100;
+  return Number.isInteger(multiplier)
+    ? multiplier.toString()
+    : multiplier.toFixed(4).replace(/0+$/, "").replace(/\.$/, "");
+});
 
 const createForm = reactive({
   name: "",
@@ -4044,6 +4241,73 @@ const saveSortOrder = async () => {
     console.error("Error updating sort order:", error);
   } finally {
     sortSubmitting.value = false;
+  }
+};
+
+const openRateScheduleModal = async () => {
+  showRateScheduleModal.value = true;
+  rateScheduleLoading.value = true;
+  try {
+    const settings = await adminAPI.groups.getRateSchedule();
+    applyRateScheduleSettings(settings);
+  } catch (error) {
+    appStore.showError(t("admin.groups.rateSchedule.loadFailed"));
+    console.error("Error loading group rate schedule:", error);
+  } finally {
+    rateScheduleLoading.value = false;
+  }
+};
+
+const closeRateScheduleModal = () => {
+  if (rateScheduleSubmitting.value) {
+    return;
+  }
+  showRateScheduleModal.value = false;
+};
+
+const isHHMM = (value: string) => /^\d{2}:\d{2}$/.test(value);
+
+const saveRateSchedule = async () => {
+  if (
+    !isHHMM(rateScheduleForm.start_time) ||
+    !isHHMM(rateScheduleForm.end_time)
+  ) {
+    appStore.showError(t("admin.groups.rateSchedule.invalidTime"));
+    return;
+  }
+  if (
+    rateScheduleForm.enabled &&
+    rateScheduleForm.start_time === rateScheduleForm.end_time
+  ) {
+    appStore.showError(t("admin.groups.rateSchedule.sameTimeError"));
+    return;
+  }
+  const percent = Number(rateScheduleForm.percent);
+  if (!Number.isFinite(percent) || percent < 1 || percent > 100) {
+    appStore.showError(t("admin.groups.rateSchedule.invalidPercent"));
+    return;
+  }
+
+  rateScheduleSubmitting.value = true;
+  try {
+    const settings = await adminAPI.groups.updateRateSchedule({
+      enabled: rateScheduleForm.enabled,
+      start_time: rateScheduleForm.start_time,
+      end_time: rateScheduleForm.end_time,
+      percent,
+      timezone: rateScheduleForm.timezone || getBrowserTimezone(),
+    });
+    applyRateScheduleSettings(settings);
+    appStore.showSuccess(t("admin.groups.rateSchedule.saveSuccess"));
+    showRateScheduleModal.value = false;
+    loadGroups();
+  } catch (error: any) {
+    appStore.showError(
+      error.response?.data?.detail || t("admin.groups.rateSchedule.saveFailed"),
+    );
+    console.error("Error saving group rate schedule:", error);
+  } finally {
+    rateScheduleSubmitting.value = false;
   }
 };
 
