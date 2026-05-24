@@ -21,6 +21,14 @@
         </div>
       </div>
 
+      <div
+        v-if="rateScheduleNotice"
+        class="pointer-events-none absolute left-1/2 hidden -translate-x-1/2 items-center gap-2 rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs font-medium text-emerald-700 shadow-sm dark:border-emerald-800/60 dark:bg-emerald-900/30 dark:text-emerald-300 xl:flex"
+      >
+        <Icon name="clock" size="sm" />
+        <span>{{ rateScheduleNotice }}</span>
+      </div>
+
       <!-- Right: Announcements + Docs + Language + Subscriptions + Balance + User Dropdown -->
       <div class="flex items-center gap-3">
         <!-- Announcement Bell -->
@@ -218,6 +226,7 @@ import { useRouter, useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { useAppStore, useAuthStore, useOnboardingStore } from '@/stores'
 import { useAdminSettingsStore } from '@/stores/adminSettings'
+import { adminAPI } from '@/api/admin'
 import LocaleSwitcher from '@/components/common/LocaleSwitcher.vue'
 import SubscriptionProgressMini from '@/components/common/SubscriptionProgressMini.vue'
 import AnnouncementBell from '@/components/common/AnnouncementBell.vue'
@@ -237,6 +246,8 @@ const dropdownRef = ref<HTMLElement | null>(null)
 const contactInfo = computed(() => appStore.contactInfo)
 const docUrl = computed(() => appStore.docUrl)
 const avatarUrl = computed(() => user.value?.avatar_url?.trim() || '')
+const rateScheduleActivePercent = ref<number | null>(null)
+let rateScheduleTimer: number | null = null
 
 // 只在标准模式的管理员下显示新手引导按钮
 const showOnboardingButton = computed(() => {
@@ -260,6 +271,14 @@ const userInitials = computed(() => {
 const displayName = computed(() => {
   if (!user.value) return ''
   return user.value.username || user.value.email?.split('@')[0] || ''
+})
+
+const rateScheduleNotice = computed(() => {
+  if (!authStore.isAdmin || rateScheduleActivePercent.value === null) {
+    return ''
+  }
+  const multiplier = formatRateScheduleMultiplier(rateScheduleActivePercent.value)
+  return `当前处于优惠时间段，消耗倍率为原先的 ${multiplier} 倍`
 })
 
 const pageTitle = computed(() => {
@@ -320,12 +339,38 @@ function handleClickOutside(event: MouseEvent) {
   }
 }
 
+function formatRateScheduleMultiplier(percent: number): string {
+  const multiplier = percent / 100
+  return Number.isInteger(multiplier)
+    ? multiplier.toString()
+    : multiplier.toFixed(4).replace(/0+$/, '').replace(/\.$/, '')
+}
+
+async function refreshRateScheduleNotice() {
+  if (!authStore.isAdmin) {
+    rateScheduleActivePercent.value = null
+    return
+  }
+  try {
+    const settings = await adminAPI.groups.getRateSchedule()
+    rateScheduleActivePercent.value = settings.active ? settings.percent : null
+  } catch (error) {
+    rateScheduleActivePercent.value = null
+    console.error('Error loading group rate schedule notice:', error)
+  }
+}
+
 onMounted(() => {
   document.addEventListener('click', handleClickOutside)
+  refreshRateScheduleNotice()
+  rateScheduleTimer = window.setInterval(refreshRateScheduleNotice, 60_000)
 })
 
 onBeforeUnmount(() => {
   document.removeEventListener('click', handleClickOutside)
+  if (rateScheduleTimer !== null) {
+    window.clearInterval(rateScheduleTimer)
+  }
 })
 </script>
 
