@@ -188,7 +188,7 @@ func (s *GroupRateScheduleService) apply(ctx context.Context, settings *GroupRat
 		return fmt.Errorf("list groups: %w", err)
 	}
 
-	target := float64(settings.Percent) / 100
+	discount := float64(settings.Percent) / 100
 	originalRates := copyRateMap(settings.OriginalRates)
 	if originalRates == nil {
 		originalRates = make(map[string]float64, len(groups))
@@ -203,6 +203,7 @@ func (s *GroupRateScheduleService) apply(ctx context.Context, settings *GroupRat
 			originalRates[key] = group.RateMultiplier
 			changedOriginalRates = true
 		}
+		target := originalRates[key] * discount
 		if math.Abs(group.RateMultiplier-target) > groupRateScheduleApplyTolerance {
 			updates = append(updates, GroupRateMultiplierUpdate{
 				ID:             group.ID,

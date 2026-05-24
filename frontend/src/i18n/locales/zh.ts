@@ -2100,7 +2100,7 @@ export default {
         startTime: '开始时间',
         endTime: '结束时间',
         percent: '费率百分比',
-        preview: '时间段内所有分组倍率：{multiplier}x',
+        preview: '时间段内所有分组倍率会乘以：{multiplier}x',
         restoreHint: '关闭或离开时间段后，会恢复本功能覆盖前的分组倍率。',
         timezoneHint: '按当前浏览器时区每天执行，跨日时间段也会自动处理。',
         defaultTimezone: '默认时区',

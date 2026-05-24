@@ -2049,7 +2049,7 @@ export default {
         startTime: 'Start Time',
         endTime: 'End Time',
         percent: 'Rate Percent',
-        preview: 'All group multipliers during this window: {multiplier}x',
+        preview: 'All group multipliers are multiplied by: {multiplier}x',
         restoreHint: 'When disabled or outside the time window, group multipliers are restored to their pre-override values.',
         timezoneHint: 'Runs daily in the current browser timezone and supports overnight windows.',
         defaultTimezone: 'Default timezone',

@@ -147,7 +147,7 @@ func TestGroupRateScheduleService_ApplyAndRestore(t *testing.T) {
 	require.NoError(t, err)
 	require.True(t, settings.Active)
 	require.Equal(t, 0.85, groupRepo.groups[0].RateMultiplier)
-	require.Equal(t, 0.85, groupRepo.groups[1].RateMultiplier)
+	require.Equal(t, 1.275, groupRepo.groups[1].RateMultiplier)
 	require.Equal(t, map[string]float64{"1": 1.0, "2": 1.5}, settings.OriginalRates)
 	require.ElementsMatch(t, []int64{1, 2}, invalidator.groupIDs)
 
@@ -194,8 +194,8 @@ func TestGroupRateScheduleService_ApplyRefreshesActiveSchedule(t *testing.T) {
 	require.NoError(t, err)
 	require.True(t, settings.Active)
 	require.Equal(t, 0.9, groupRepo.groups[0].RateMultiplier)
-	require.Equal(t, 0.9, groupRepo.groups[1].RateMultiplier)
-	require.Equal(t, 0.9, groupRepo.groups[2].RateMultiplier)
+	require.Equal(t, 1.35, groupRepo.groups[1].RateMultiplier)
+	require.Equal(t, 1.8, groupRepo.groups[2].RateMultiplier)
 	require.Equal(t, map[string]float64{"1": 1.0, "2": 1.5, "3": 2.0}, settings.OriginalRates)
 }
 
