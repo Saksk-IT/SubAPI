@@ -20,6 +20,9 @@ const showInfo = vi.hoisted(() => vi.fn())
 const showWarning = vi.hoisted(() => vi.fn())
 const getCheckoutInfo = vi.hoisted(() => vi.fn())
 const bridgeInvoke = vi.hoisted(() => vi.fn())
+const appStoreState = vi.hoisted(() => ({
+  contactInfo: 'QQ: 123456789',
+}))
 
 vi.mock('vue-router', async () => {
   const actual = await vi.importActual<typeof import('vue-router')>('vue-router')
@@ -69,6 +72,7 @@ vi.mock('@/stores/subscriptions', () => ({
 
 vi.mock('@/stores', () => ({
   useAppStore: () => ({
+    contactInfo: appStoreState.contactInfo,
     showError,
     showInfo,
     showWarning,
@@ -176,6 +180,16 @@ function checkoutInfoWithPlansFixture() {
   }
 }
 
+function checkoutInfoWithSupportFixture() {
+  return {
+    data: {
+      ...checkoutInfoWithBalanceProductsFixture().data,
+      help_text: '充值前可咨询客服确认套餐',
+      help_image_url: 'https://example.test/support-qr.png',
+    },
+  }
+}
+
 function jsapiOrderFixture(resumeToken: string) {
   return {
     order_id: 123,
@@ -234,6 +248,7 @@ describe('PaymentView WeChat JSAPI flow', () => {
     showWarning.mockReset()
     getCheckoutInfo.mockReset().mockResolvedValue(checkoutInfoFixture())
     bridgeInvoke.mockReset()
+    appStoreState.contactInfo = 'QQ: 123456789'
     window.localStorage.clear()
     ;(window as Window & { WeixinJSBridge?: { invoke: typeof bridgeInvoke } }).WeixinJSBridge = {
       invoke: bridgeInvoke,
@@ -487,6 +502,30 @@ describe('PaymentView WeChat JSAPI flow', () => {
       order_type: 'balance',
       balance_product_id: 9,
     }))
+  })
+
+  it('shows customer purchase guidance and administrator support details', async () => {
+    routeState.query = {}
+    appStoreState.contactInfo = '微信: subapi-support'
+    getCheckoutInfo.mockResolvedValue(checkoutInfoWithSupportFixture())
+
+    const wrapper = shallowMount(PaymentView, {
+      global: {
+        stubs: {
+          AppLayout: { template: '<div><slot /></div>' },
+          Teleport: true,
+          Transition: false,
+        },
+      },
+    })
+    await flushPromises()
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('payment.purchaseGuide.title')
+    expect(wrapper.text()).toContain('payment.purchaseGuide.billingTitle')
+    expect(wrapper.text()).toContain('微信: subapi-support')
+    expect(wrapper.text()).toContain('充值前可咨询客服确认套餐')
+    expect(wrapper.find('img[src="https://example.test/support-qr.png"]').exists()).toBe(true)
   })
 
   it('creates a subscription order from a product card with the selected payment method and plan id', async () => {

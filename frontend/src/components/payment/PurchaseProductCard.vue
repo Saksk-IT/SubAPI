@@ -1,5 +1,5 @@
 <template>
-  <article class="flex h-full flex-col rounded-2xl border border-gray-200 bg-white p-5 shadow-sm transition hover:-translate-y-0.5 hover:shadow-lg dark:border-dark-700 dark:bg-dark-800">
+  <article class="flex h-full min-w-0 flex-col rounded-2xl border border-gray-200 bg-white p-5 shadow-sm transition hover:-translate-y-0.5 hover:shadow-lg dark:border-dark-700 dark:bg-dark-800">
     <div class="mb-4 flex items-start justify-between gap-3">
       <div class="min-w-0">
         <div class="mb-2 flex flex-wrap gap-1.5">
@@ -11,7 +11,7 @@
             {{ tag }}
           </span>
         </div>
-        <h3 class="text-2xl font-black leading-tight text-gray-950 dark:text-white">{{ product.name }}</h3>
+        <h3 class="break-words text-2xl font-black leading-tight text-gray-950 [overflow-wrap:anywhere] dark:text-white">{{ product.name }}</h3>
       </div>
       <button
         v-if="product.description"
@@ -24,24 +24,24 @@
     </div>
 
     <div class="mb-4">
-      <div class="flex items-end gap-2">
-        <span v-if="product.original_price" class="pb-2 text-sm text-gray-400 line-through dark:text-gray-500">
+      <div class="flex flex-wrap items-end gap-2">
+        <span v-if="product.original_price" class="break-words pb-2 text-sm text-gray-400 line-through [overflow-wrap:anywhere] dark:text-gray-500">
           {{ formatAmount(product.original_price) }}
         </span>
-        <span class="text-5xl font-black leading-none tracking-normal text-gray-950 dark:text-white">
+        <span class="min-w-0 break-words text-4xl font-black leading-none tracking-normal text-gray-950 [overflow-wrap:anywhere] sm:text-5xl dark:text-white">
           {{ formatAmount(product.price) }}
         </span>
-        <span v-if="priceSuffix" class="pb-2 text-sm font-medium text-gray-500 dark:text-gray-400">{{ priceSuffix }}</span>
+        <span v-if="priceSuffix" class="break-words pb-2 text-sm font-medium text-gray-500 [overflow-wrap:anywhere] dark:text-gray-400">{{ priceSuffix }}</span>
       </div>
-      <p v-if="product.description" class="mt-3 text-sm font-semibold leading-relaxed text-gray-700 dark:text-gray-200">
+      <p v-if="product.description" class="mt-3 break-words text-sm font-semibold leading-relaxed text-gray-700 [overflow-wrap:anywhere] dark:text-gray-200">
         {{ product.description }}
       </p>
     </div>
 
     <div class="grid grid-cols-2 gap-3" :class="{ 'sm:grid-cols-3': metrics.length >= 3 }">
-      <div v-for="metric in metrics" :key="metric.label" class="rounded-xl border border-gray-200 p-3 dark:border-dark-600">
+      <div v-for="metric in metrics" :key="metric.label" class="min-w-0 rounded-xl border border-gray-200 p-3 dark:border-dark-600">
         <p class="text-xs text-gray-400 dark:text-gray-500">{{ metric.label }}</p>
-        <p class="mt-1 text-lg font-black text-gray-950 dark:text-white">{{ metric.value }}</p>
+        <p class="mt-1 break-words text-lg font-black leading-snug text-gray-950 [overflow-wrap:anywhere] dark:text-white">{{ metric.value }}</p>
       </div>
     </div>
 
