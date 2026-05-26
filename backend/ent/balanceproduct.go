@@ -9,38 +9,28 @@ import (
 
 	"entgo.io/ent"
 	"entgo.io/ent/dialect/sql"
-	"github.com/Wei-Shaw/sub2api/ent/subscriptionplan"
+	"github.com/Wei-Shaw/sub2api/ent/balanceproduct"
 )
 
-// SubscriptionPlan is the model entity for the SubscriptionPlan schema.
-type SubscriptionPlan struct {
+// BalanceProduct is the model entity for the BalanceProduct schema.
+type BalanceProduct struct {
 	config `json:"-"`
 	// ID of the ent.
 	ID int64 `json:"id,omitempty"`
-	// GroupID holds the value of the "group_id" field.
-	GroupID int64 `json:"group_id,omitempty"`
 	// Name holds the value of the "name" field.
 	Name string `json:"name,omitempty"`
 	// Description holds the value of the "description" field.
 	Description string `json:"description,omitempty"`
 	// Price holds the value of the "price" field.
 	Price float64 `json:"price,omitempty"`
+	// Amount holds the value of the "amount" field.
+	Amount float64 `json:"amount,omitempty"`
 	// OriginalPrice holds the value of the "original_price" field.
 	OriginalPrice *float64 `json:"original_price,omitempty"`
-	// ValidityDays holds the value of the "validity_days" field.
-	ValidityDays int `json:"validity_days,omitempty"`
-	// ValidityUnit holds the value of the "validity_unit" field.
-	ValidityUnit string `json:"validity_unit,omitempty"`
-	// Features holds the value of the "features" field.
-	Features string `json:"features,omitempty"`
 	// Tags holds the value of the "tags" field.
 	Tags string `json:"tags,omitempty"`
-	// TotalQuota holds the value of the "total_quota" field.
-	TotalQuota *float64 `json:"total_quota,omitempty"`
-	// DailyQuota holds the value of the "daily_quota" field.
-	DailyQuota *float64 `json:"daily_quota,omitempty"`
-	// DisplayNotes holds the value of the "display_notes" field.
-	DisplayNotes string `json:"display_notes,omitempty"`
+	// Features holds the value of the "features" field.
+	Features string `json:"features,omitempty"`
 	// ProductName holds the value of the "product_name" field.
 	ProductName string `json:"product_name,omitempty"`
 	// ForSale holds the value of the "for_sale" field.
@@ -55,19 +45,19 @@ type SubscriptionPlan struct {
 }
 
 // scanValues returns the types for scanning values from sql.Rows.
-func (*SubscriptionPlan) scanValues(columns []string) ([]any, error) {
+func (*BalanceProduct) scanValues(columns []string) ([]any, error) {
 	values := make([]any, len(columns))
 	for i := range columns {
 		switch columns[i] {
-		case subscriptionplan.FieldForSale:
+		case balanceproduct.FieldForSale:
 			values[i] = new(sql.NullBool)
-		case subscriptionplan.FieldPrice, subscriptionplan.FieldOriginalPrice, subscriptionplan.FieldTotalQuota, subscriptionplan.FieldDailyQuota:
+		case balanceproduct.FieldPrice, balanceproduct.FieldAmount, balanceproduct.FieldOriginalPrice:
 			values[i] = new(sql.NullFloat64)
-		case subscriptionplan.FieldID, subscriptionplan.FieldGroupID, subscriptionplan.FieldValidityDays, subscriptionplan.FieldSortOrder:
+		case balanceproduct.FieldID, balanceproduct.FieldSortOrder:
 			values[i] = new(sql.NullInt64)
-		case subscriptionplan.FieldName, subscriptionplan.FieldDescription, subscriptionplan.FieldValidityUnit, subscriptionplan.FieldFeatures, subscriptionplan.FieldTags, subscriptionplan.FieldDisplayNotes, subscriptionplan.FieldProductName:
+		case balanceproduct.FieldName, balanceproduct.FieldDescription, balanceproduct.FieldTags, balanceproduct.FieldFeatures, balanceproduct.FieldProductName:
 			values[i] = new(sql.NullString)
-		case subscriptionplan.FieldCreatedAt, subscriptionplan.FieldUpdatedAt:
+		case balanceproduct.FieldCreatedAt, balanceproduct.FieldUpdatedAt:
 			values[i] = new(sql.NullTime)
 		default:
 			values[i] = new(sql.UnknownType)
@@ -77,119 +67,87 @@ func (*SubscriptionPlan) scanValues(columns []string) ([]any, error) {
 }
 
 // assignValues assigns the values that were returned from sql.Rows (after scanning)
-// to the SubscriptionPlan fields.
-func (_m *SubscriptionPlan) assignValues(columns []string, values []any) error {
+// to the BalanceProduct fields.
+func (_m *BalanceProduct) assignValues(columns []string, values []any) error {
 	if m, n := len(values), len(columns); m < n {
 		return fmt.Errorf("mismatch number of scan values: %d != %d", m, n)
 	}
 	for i := range columns {
 		switch columns[i] {
-		case subscriptionplan.FieldID:
+		case balanceproduct.FieldID:
 			value, ok := values[i].(*sql.NullInt64)
 			if !ok {
 				return fmt.Errorf("unexpected type %T for field id", value)
 			}
 			_m.ID = int64(value.Int64)
-		case subscriptionplan.FieldGroupID:
-			if value, ok := values[i].(*sql.NullInt64); !ok {
-				return fmt.Errorf("unexpected type %T for field group_id", values[i])
-			} else if value.Valid {
-				_m.GroupID = value.Int64
-			}
-		case subscriptionplan.FieldName:
+		case balanceproduct.FieldName:
 			if value, ok := values[i].(*sql.NullString); !ok {
 				return fmt.Errorf("unexpected type %T for field name", values[i])
 			} else if value.Valid {
 				_m.Name = value.String
 			}
-		case subscriptionplan.FieldDescription:
+		case balanceproduct.FieldDescription:
 			if value, ok := values[i].(*sql.NullString); !ok {
 				return fmt.Errorf("unexpected type %T for field description", values[i])
 			} else if value.Valid {
 				_m.Description = value.String
 			}
-		case subscriptionplan.FieldPrice:
+		case balanceproduct.FieldPrice:
 			if value, ok := values[i].(*sql.NullFloat64); !ok {
 				return fmt.Errorf("unexpected type %T for field price", values[i])
 			} else if value.Valid {
 				_m.Price = value.Float64
 			}
-		case subscriptionplan.FieldOriginalPrice:
+		case balanceproduct.FieldAmount:
+			if value, ok := values[i].(*sql.NullFloat64); !ok {
+				return fmt.Errorf("unexpected type %T for field amount", values[i])
+			} else if value.Valid {
+				_m.Amount = value.Float64
+			}
+		case balanceproduct.FieldOriginalPrice:
 			if value, ok := values[i].(*sql.NullFloat64); !ok {
 				return fmt.Errorf("unexpected type %T for field original_price", values[i])
 			} else if value.Valid {
 				_m.OriginalPrice = new(float64)
 				*_m.OriginalPrice = value.Float64
 			}
-		case subscriptionplan.FieldValidityDays:
-			if value, ok := values[i].(*sql.NullInt64); !ok {
-				return fmt.Errorf("unexpected type %T for field validity_days", values[i])
-			} else if value.Valid {
-				_m.ValidityDays = int(value.Int64)
-			}
-		case subscriptionplan.FieldValidityUnit:
-			if value, ok := values[i].(*sql.NullString); !ok {
-				return fmt.Errorf("unexpected type %T for field validity_unit", values[i])
-			} else if value.Valid {
-				_m.ValidityUnit = value.String
-			}
-		case subscriptionplan.FieldFeatures:
-			if value, ok := values[i].(*sql.NullString); !ok {
-				return fmt.Errorf("unexpected type %T for field features", values[i])
-			} else if value.Valid {
-				_m.Features = value.String
-			}
-		case subscriptionplan.FieldTags:
+		case balanceproduct.FieldTags:
 			if value, ok := values[i].(*sql.NullString); !ok {
 				return fmt.Errorf("unexpected type %T for field tags", values[i])
 			} else if value.Valid {
 				_m.Tags = value.String
 			}
-		case subscriptionplan.FieldTotalQuota:
-			if value, ok := values[i].(*sql.NullFloat64); !ok {
-				return fmt.Errorf("unexpected type %T for field total_quota", values[i])
-			} else if value.Valid {
-				_m.TotalQuota = new(float64)
-				*_m.TotalQuota = value.Float64
-			}
-		case subscriptionplan.FieldDailyQuota:
-			if value, ok := values[i].(*sql.NullFloat64); !ok {
-				return fmt.Errorf("unexpected type %T for field daily_quota", values[i])
-			} else if value.Valid {
-				_m.DailyQuota = new(float64)
-				*_m.DailyQuota = value.Float64
-			}
-		case subscriptionplan.FieldDisplayNotes:
+		case balanceproduct.FieldFeatures:
 			if value, ok := values[i].(*sql.NullString); !ok {
-				return fmt.Errorf("unexpected type %T for field display_notes", values[i])
+				return fmt.Errorf("unexpected type %T for field features", values[i])
 			} else if value.Valid {
-				_m.DisplayNotes = value.String
+				_m.Features = value.String
 			}
-		case subscriptionplan.FieldProductName:
+		case balanceproduct.FieldProductName:
 			if value, ok := values[i].(*sql.NullString); !ok {
 				return fmt.Errorf("unexpected type %T for field product_name", values[i])
 			} else if value.Valid {
 				_m.ProductName = value.String
 			}
-		case subscriptionplan.FieldForSale:
+		case balanceproduct.FieldForSale:
 			if value, ok := values[i].(*sql.NullBool); !ok {
 				return fmt.Errorf("unexpected type %T for field for_sale", values[i])
 			} else if value.Valid {
 				_m.ForSale = value.Bool
 			}
-		case subscriptionplan.FieldSortOrder:
+		case balanceproduct.FieldSortOrder:
 			if value, ok := values[i].(*sql.NullInt64); !ok {
 				return fmt.Errorf("unexpected type %T for field sort_order", values[i])
 			} else if value.Valid {
 				_m.SortOrder = int(value.Int64)
 			}
-		case subscriptionplan.FieldCreatedAt:
+		case balanceproduct.FieldCreatedAt:
 			if value, ok := values[i].(*sql.NullTime); !ok {
 				return fmt.Errorf("unexpected type %T for field created_at", values[i])
 			} else if value.Valid {
 				_m.CreatedAt = value.Time
 			}
-		case subscriptionplan.FieldUpdatedAt:
+		case balanceproduct.FieldUpdatedAt:
 			if value, ok := values[i].(*sql.NullTime); !ok {
 				return fmt.Errorf("unexpected type %T for field updated_at", values[i])
 			} else if value.Valid {
@@ -202,38 +160,35 @@ func (_m *SubscriptionPlan) assignValues(columns []string, values []any) error {
 	return nil
 }
 
-// Value returns the ent.Value that was dynamically selected and assigned to the SubscriptionPlan.
+// Value returns the ent.Value that was dynamically selected and assigned to the BalanceProduct.
 // This includes values selected through modifiers, order, etc.
-func (_m *SubscriptionPlan) Value(name string) (ent.Value, error) {
+func (_m *BalanceProduct) Value(name string) (ent.Value, error) {
 	return _m.selectValues.Get(name)
 }
 
-// Update returns a builder for updating this SubscriptionPlan.
-// Note that you need to call SubscriptionPlan.Unwrap() before calling this method if this SubscriptionPlan
+// Update returns a builder for updating this BalanceProduct.
+// Note that you need to call BalanceProduct.Unwrap() before calling this method if this BalanceProduct
 // was returned from a transaction, and the transaction was committed or rolled back.
-func (_m *SubscriptionPlan) Update() *SubscriptionPlanUpdateOne {
-	return NewSubscriptionPlanClient(_m.config).UpdateOne(_m)
+func (_m *BalanceProduct) Update() *BalanceProductUpdateOne {
+	return NewBalanceProductClient(_m.config).UpdateOne(_m)
 }
 
-// Unwrap unwraps the SubscriptionPlan entity that was returned from a transaction after it was closed,
+// Unwrap unwraps the BalanceProduct entity that was returned from a transaction after it was closed,
 // so that all future queries will be executed through the driver which created the transaction.
-func (_m *SubscriptionPlan) Unwrap() *SubscriptionPlan {
+func (_m *BalanceProduct) Unwrap() *BalanceProduct {
 	_tx, ok := _m.config.driver.(*txDriver)
 	if !ok {
-		panic("ent: SubscriptionPlan is not a transactional entity")
+		panic("ent: BalanceProduct is not a transactional entity")
 	}
 	_m.config.driver = _tx.drv
 	return _m
 }
 
 // String implements the fmt.Stringer.
-func (_m *SubscriptionPlan) String() string {
+func (_m *BalanceProduct) String() string {
 	var builder strings.Builder
-	builder.WriteString("SubscriptionPlan(")
+	builder.WriteString("BalanceProduct(")
 	builder.WriteString(fmt.Sprintf("id=%v, ", _m.ID))
-	builder.WriteString("group_id=")
-	builder.WriteString(fmt.Sprintf("%v", _m.GroupID))
-	builder.WriteString(", ")
 	builder.WriteString("name=")
 	builder.WriteString(_m.Name)
 	builder.WriteString(", ")
@@ -243,35 +198,19 @@ func (_m *SubscriptionPlan) String() string {
 	builder.WriteString("price=")
 	builder.WriteString(fmt.Sprintf("%v", _m.Price))
 	builder.WriteString(", ")
+	builder.WriteString("amount=")
+	builder.WriteString(fmt.Sprintf("%v", _m.Amount))
+	builder.WriteString(", ")
 	if v := _m.OriginalPrice; v != nil {
 		builder.WriteString("original_price=")
 		builder.WriteString(fmt.Sprintf("%v", *v))
 	}
 	builder.WriteString(", ")
-	builder.WriteString("validity_days=")
-	builder.WriteString(fmt.Sprintf("%v", _m.ValidityDays))
-	builder.WriteString(", ")
-	builder.WriteString("validity_unit=")
-	builder.WriteString(_m.ValidityUnit)
-	builder.WriteString(", ")
-	builder.WriteString("features=")
-	builder.WriteString(_m.Features)
-	builder.WriteString(", ")
 	builder.WriteString("tags=")
 	builder.WriteString(_m.Tags)
 	builder.WriteString(", ")
-	if v := _m.TotalQuota; v != nil {
-		builder.WriteString("total_quota=")
-		builder.WriteString(fmt.Sprintf("%v", *v))
-	}
-	builder.WriteString(", ")
-	if v := _m.DailyQuota; v != nil {
-		builder.WriteString("daily_quota=")
-		builder.WriteString(fmt.Sprintf("%v", *v))
-	}
-	builder.WriteString(", ")
-	builder.WriteString("display_notes=")
-	builder.WriteString(_m.DisplayNotes)
+	builder.WriteString("features=")
+	builder.WriteString(_m.Features)
 	builder.WriteString(", ")
 	builder.WriteString("product_name=")
 	builder.WriteString(_m.ProductName)
@@ -291,5 +230,5 @@ func (_m *SubscriptionPlan) String() string {
 	return builder.String()
 }
 
-// SubscriptionPlans is a parsable slice of SubscriptionPlan.
-type SubscriptionPlans []*SubscriptionPlan
+// BalanceProducts is a parsable slice of BalanceProduct.
+type BalanceProducts []*BalanceProduct

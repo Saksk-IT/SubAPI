@@ -110,6 +110,62 @@ func (_c *SubscriptionPlanCreate) SetNillableFeatures(v *string) *SubscriptionPl
 	return _c
 }
 
+// SetTags sets the "tags" field.
+func (_c *SubscriptionPlanCreate) SetTags(v string) *SubscriptionPlanCreate {
+	_c.mutation.SetTags(v)
+	return _c
+}
+
+// SetNillableTags sets the "tags" field if the given value is not nil.
+func (_c *SubscriptionPlanCreate) SetNillableTags(v *string) *SubscriptionPlanCreate {
+	if v != nil {
+		_c.SetTags(*v)
+	}
+	return _c
+}
+
+// SetTotalQuota sets the "total_quota" field.
+func (_c *SubscriptionPlanCreate) SetTotalQuota(v float64) *SubscriptionPlanCreate {
+	_c.mutation.SetTotalQuota(v)
+	return _c
+}
+
+// SetNillableTotalQuota sets the "total_quota" field if the given value is not nil.
+func (_c *SubscriptionPlanCreate) SetNillableTotalQuota(v *float64) *SubscriptionPlanCreate {
+	if v != nil {
+		_c.SetTotalQuota(*v)
+	}
+	return _c
+}
+
+// SetDailyQuota sets the "daily_quota" field.
+func (_c *SubscriptionPlanCreate) SetDailyQuota(v float64) *SubscriptionPlanCreate {
+	_c.mutation.SetDailyQuota(v)
+	return _c
+}
+
+// SetNillableDailyQuota sets the "daily_quota" field if the given value is not nil.
+func (_c *SubscriptionPlanCreate) SetNillableDailyQuota(v *float64) *SubscriptionPlanCreate {
+	if v != nil {
+		_c.SetDailyQuota(*v)
+	}
+	return _c
+}
+
+// SetDisplayNotes sets the "display_notes" field.
+func (_c *SubscriptionPlanCreate) SetDisplayNotes(v string) *SubscriptionPlanCreate {
+	_c.mutation.SetDisplayNotes(v)
+	return _c
+}
+
+// SetNillableDisplayNotes sets the "display_notes" field if the given value is not nil.
+func (_c *SubscriptionPlanCreate) SetNillableDisplayNotes(v *string) *SubscriptionPlanCreate {
+	if v != nil {
+		_c.SetDisplayNotes(*v)
+	}
+	return _c
+}
+
 // SetProductName sets the "product_name" field.
 func (_c *SubscriptionPlanCreate) SetProductName(v string) *SubscriptionPlanCreate {
 	_c.mutation.SetProductName(v)
@@ -231,6 +287,14 @@ func (_c *SubscriptionPlanCreate) defaults() {
 		v := subscriptionplan.DefaultFeatures
 		_c.mutation.SetFeatures(v)
 	}
+	if _, ok := _c.mutation.Tags(); !ok {
+		v := subscriptionplan.DefaultTags
+		_c.mutation.SetTags(v)
+	}
+	if _, ok := _c.mutation.DisplayNotes(); !ok {
+		v := subscriptionplan.DefaultDisplayNotes
+		_c.mutation.SetDisplayNotes(v)
+	}
 	if _, ok := _c.mutation.ProductName(); !ok {
 		v := subscriptionplan.DefaultProductName
 		_c.mutation.SetProductName(v)
@@ -285,6 +349,12 @@ func (_c *SubscriptionPlanCreate) check() error {
 	}
 	if _, ok := _c.mutation.Features(); !ok {
 		return &ValidationError{Name: "features", err: errors.New(`ent: missing required field "SubscriptionPlan.features"`)}
+	}
+	if _, ok := _c.mutation.Tags(); !ok {
+		return &ValidationError{Name: "tags", err: errors.New(`ent: missing required field "SubscriptionPlan.tags"`)}
+	}
+	if _, ok := _c.mutation.DisplayNotes(); !ok {
+		return &ValidationError{Name: "display_notes", err: errors.New(`ent: missing required field "SubscriptionPlan.display_notes"`)}
 	}
 	if _, ok := _c.mutation.ProductName(); !ok {
 		return &ValidationError{Name: "product_name", err: errors.New(`ent: missing required field "SubscriptionPlan.product_name"`)}
@@ -364,6 +434,22 @@ func (_c *SubscriptionPlanCreate) createSpec() (*SubscriptionPlan, *sqlgraph.Cre
 	if value, ok := _c.mutation.Features(); ok {
 		_spec.SetField(subscriptionplan.FieldFeatures, field.TypeString, value)
 		_node.Features = value
+	}
+	if value, ok := _c.mutation.Tags(); ok {
+		_spec.SetField(subscriptionplan.FieldTags, field.TypeString, value)
+		_node.Tags = value
+	}
+	if value, ok := _c.mutation.TotalQuota(); ok {
+		_spec.SetField(subscriptionplan.FieldTotalQuota, field.TypeFloat64, value)
+		_node.TotalQuota = &value
+	}
+	if value, ok := _c.mutation.DailyQuota(); ok {
+		_spec.SetField(subscriptionplan.FieldDailyQuota, field.TypeFloat64, value)
+		_node.DailyQuota = &value
+	}
+	if value, ok := _c.mutation.DisplayNotes(); ok {
+		_spec.SetField(subscriptionplan.FieldDisplayNotes, field.TypeString, value)
+		_node.DisplayNotes = value
 	}
 	if value, ok := _c.mutation.ProductName(); ok {
 		_spec.SetField(subscriptionplan.FieldProductName, field.TypeString, value)
@@ -560,6 +646,78 @@ func (u *SubscriptionPlanUpsert) SetFeatures(v string) *SubscriptionPlanUpsert {
 // UpdateFeatures sets the "features" field to the value that was provided on create.
 func (u *SubscriptionPlanUpsert) UpdateFeatures() *SubscriptionPlanUpsert {
 	u.SetExcluded(subscriptionplan.FieldFeatures)
+	return u
+}
+
+// SetTags sets the "tags" field.
+func (u *SubscriptionPlanUpsert) SetTags(v string) *SubscriptionPlanUpsert {
+	u.Set(subscriptionplan.FieldTags, v)
+	return u
+}
+
+// UpdateTags sets the "tags" field to the value that was provided on create.
+func (u *SubscriptionPlanUpsert) UpdateTags() *SubscriptionPlanUpsert {
+	u.SetExcluded(subscriptionplan.FieldTags)
+	return u
+}
+
+// SetTotalQuota sets the "total_quota" field.
+func (u *SubscriptionPlanUpsert) SetTotalQuota(v float64) *SubscriptionPlanUpsert {
+	u.Set(subscriptionplan.FieldTotalQuota, v)
+	return u
+}
+
+// UpdateTotalQuota sets the "total_quota" field to the value that was provided on create.
+func (u *SubscriptionPlanUpsert) UpdateTotalQuota() *SubscriptionPlanUpsert {
+	u.SetExcluded(subscriptionplan.FieldTotalQuota)
+	return u
+}
+
+// AddTotalQuota adds v to the "total_quota" field.
+func (u *SubscriptionPlanUpsert) AddTotalQuota(v float64) *SubscriptionPlanUpsert {
+	u.Add(subscriptionplan.FieldTotalQuota, v)
+	return u
+}
+
+// ClearTotalQuota clears the value of the "total_quota" field.
+func (u *SubscriptionPlanUpsert) ClearTotalQuota() *SubscriptionPlanUpsert {
+	u.SetNull(subscriptionplan.FieldTotalQuota)
+	return u
+}
+
+// SetDailyQuota sets the "daily_quota" field.
+func (u *SubscriptionPlanUpsert) SetDailyQuota(v float64) *SubscriptionPlanUpsert {
+	u.Set(subscriptionplan.FieldDailyQuota, v)
+	return u
+}
+
+// UpdateDailyQuota sets the "daily_quota" field to the value that was provided on create.
+func (u *SubscriptionPlanUpsert) UpdateDailyQuota() *SubscriptionPlanUpsert {
+	u.SetExcluded(subscriptionplan.FieldDailyQuota)
+	return u
+}
+
+// AddDailyQuota adds v to the "daily_quota" field.
+func (u *SubscriptionPlanUpsert) AddDailyQuota(v float64) *SubscriptionPlanUpsert {
+	u.Add(subscriptionplan.FieldDailyQuota, v)
+	return u
+}
+
+// ClearDailyQuota clears the value of the "daily_quota" field.
+func (u *SubscriptionPlanUpsert) ClearDailyQuota() *SubscriptionPlanUpsert {
+	u.SetNull(subscriptionplan.FieldDailyQuota)
+	return u
+}
+
+// SetDisplayNotes sets the "display_notes" field.
+func (u *SubscriptionPlanUpsert) SetDisplayNotes(v string) *SubscriptionPlanUpsert {
+	u.Set(subscriptionplan.FieldDisplayNotes, v)
+	return u
+}
+
+// UpdateDisplayNotes sets the "display_notes" field to the value that was provided on create.
+func (u *SubscriptionPlanUpsert) UpdateDisplayNotes() *SubscriptionPlanUpsert {
+	u.SetExcluded(subscriptionplan.FieldDisplayNotes)
 	return u
 }
 
@@ -806,6 +964,90 @@ func (u *SubscriptionPlanUpsertOne) SetFeatures(v string) *SubscriptionPlanUpser
 func (u *SubscriptionPlanUpsertOne) UpdateFeatures() *SubscriptionPlanUpsertOne {
 	return u.Update(func(s *SubscriptionPlanUpsert) {
 		s.UpdateFeatures()
+	})
+}
+
+// SetTags sets the "tags" field.
+func (u *SubscriptionPlanUpsertOne) SetTags(v string) *SubscriptionPlanUpsertOne {
+	return u.Update(func(s *SubscriptionPlanUpsert) {
+		s.SetTags(v)
+	})
+}
+
+// UpdateTags sets the "tags" field to the value that was provided on create.
+func (u *SubscriptionPlanUpsertOne) UpdateTags() *SubscriptionPlanUpsertOne {
+	return u.Update(func(s *SubscriptionPlanUpsert) {
+		s.UpdateTags()
+	})
+}
+
+// SetTotalQuota sets the "total_quota" field.
+func (u *SubscriptionPlanUpsertOne) SetTotalQuota(v float64) *SubscriptionPlanUpsertOne {
+	return u.Update(func(s *SubscriptionPlanUpsert) {
+		s.SetTotalQuota(v)
+	})
+}
+
+// AddTotalQuota adds v to the "total_quota" field.
+func (u *SubscriptionPlanUpsertOne) AddTotalQuota(v float64) *SubscriptionPlanUpsertOne {
+	return u.Update(func(s *SubscriptionPlanUpsert) {
+		s.AddTotalQuota(v)
+	})
+}
+
+// UpdateTotalQuota sets the "total_quota" field to the value that was provided on create.
+func (u *SubscriptionPlanUpsertOne) UpdateTotalQuota() *SubscriptionPlanUpsertOne {
+	return u.Update(func(s *SubscriptionPlanUpsert) {
+		s.UpdateTotalQuota()
+	})
+}
+
+// ClearTotalQuota clears the value of the "total_quota" field.
+func (u *SubscriptionPlanUpsertOne) ClearTotalQuota() *SubscriptionPlanUpsertOne {
+	return u.Update(func(s *SubscriptionPlanUpsert) {
+		s.ClearTotalQuota()
+	})
+}
+
+// SetDailyQuota sets the "daily_quota" field.
+func (u *SubscriptionPlanUpsertOne) SetDailyQuota(v float64) *SubscriptionPlanUpsertOne {
+	return u.Update(func(s *SubscriptionPlanUpsert) {
+		s.SetDailyQuota(v)
+	})
+}
+
+// AddDailyQuota adds v to the "daily_quota" field.
+func (u *SubscriptionPlanUpsertOne) AddDailyQuota(v float64) *SubscriptionPlanUpsertOne {
+	return u.Update(func(s *SubscriptionPlanUpsert) {
+		s.AddDailyQuota(v)
+	})
+}
+
+// UpdateDailyQuota sets the "daily_quota" field to the value that was provided on create.
+func (u *SubscriptionPlanUpsertOne) UpdateDailyQuota() *SubscriptionPlanUpsertOne {
+	return u.Update(func(s *SubscriptionPlanUpsert) {
+		s.UpdateDailyQuota()
+	})
+}
+
+// ClearDailyQuota clears the value of the "daily_quota" field.
+func (u *SubscriptionPlanUpsertOne) ClearDailyQuota() *SubscriptionPlanUpsertOne {
+	return u.Update(func(s *SubscriptionPlanUpsert) {
+		s.ClearDailyQuota()
+	})
+}
+
+// SetDisplayNotes sets the "display_notes" field.
+func (u *SubscriptionPlanUpsertOne) SetDisplayNotes(v string) *SubscriptionPlanUpsertOne {
+	return u.Update(func(s *SubscriptionPlanUpsert) {
+		s.SetDisplayNotes(v)
+	})
+}
+
+// UpdateDisplayNotes sets the "display_notes" field to the value that was provided on create.
+func (u *SubscriptionPlanUpsertOne) UpdateDisplayNotes() *SubscriptionPlanUpsertOne {
+	return u.Update(func(s *SubscriptionPlanUpsert) {
+		s.UpdateDisplayNotes()
 	})
 }
 
@@ -1227,6 +1469,90 @@ func (u *SubscriptionPlanUpsertBulk) SetFeatures(v string) *SubscriptionPlanUpse
 func (u *SubscriptionPlanUpsertBulk) UpdateFeatures() *SubscriptionPlanUpsertBulk {
 	return u.Update(func(s *SubscriptionPlanUpsert) {
 		s.UpdateFeatures()
+	})
+}
+
+// SetTags sets the "tags" field.
+func (u *SubscriptionPlanUpsertBulk) SetTags(v string) *SubscriptionPlanUpsertBulk {
+	return u.Update(func(s *SubscriptionPlanUpsert) {
+		s.SetTags(v)
+	})
+}
+
+// UpdateTags sets the "tags" field to the value that was provided on create.
+func (u *SubscriptionPlanUpsertBulk) UpdateTags() *SubscriptionPlanUpsertBulk {
+	return u.Update(func(s *SubscriptionPlanUpsert) {
+		s.UpdateTags()
+	})
+}
+
+// SetTotalQuota sets the "total_quota" field.
+func (u *SubscriptionPlanUpsertBulk) SetTotalQuota(v float64) *SubscriptionPlanUpsertBulk {
+	return u.Update(func(s *SubscriptionPlanUpsert) {
+		s.SetTotalQuota(v)
+	})
+}
+
+// AddTotalQuota adds v to the "total_quota" field.
+func (u *SubscriptionPlanUpsertBulk) AddTotalQuota(v float64) *SubscriptionPlanUpsertBulk {
+	return u.Update(func(s *SubscriptionPlanUpsert) {
+		s.AddTotalQuota(v)
+	})
+}
+
+// UpdateTotalQuota sets the "total_quota" field to the value that was provided on create.
+func (u *SubscriptionPlanUpsertBulk) UpdateTotalQuota() *SubscriptionPlanUpsertBulk {
+	return u.Update(func(s *SubscriptionPlanUpsert) {
+		s.UpdateTotalQuota()
+	})
+}
+
+// ClearTotalQuota clears the value of the "total_quota" field.
+func (u *SubscriptionPlanUpsertBulk) ClearTotalQuota() *SubscriptionPlanUpsertBulk {
+	return u.Update(func(s *SubscriptionPlanUpsert) {
+		s.ClearTotalQuota()
+	})
+}
+
+// SetDailyQuota sets the "daily_quota" field.
+func (u *SubscriptionPlanUpsertBulk) SetDailyQuota(v float64) *SubscriptionPlanUpsertBulk {
+	return u.Update(func(s *SubscriptionPlanUpsert) {
+		s.SetDailyQuota(v)
+	})
+}
+
+// AddDailyQuota adds v to the "daily_quota" field.
+func (u *SubscriptionPlanUpsertBulk) AddDailyQuota(v float64) *SubscriptionPlanUpsertBulk {
+	return u.Update(func(s *SubscriptionPlanUpsert) {
+		s.AddDailyQuota(v)
+	})
+}
+
+// UpdateDailyQuota sets the "daily_quota" field to the value that was provided on create.
+func (u *SubscriptionPlanUpsertBulk) UpdateDailyQuota() *SubscriptionPlanUpsertBulk {
+	return u.Update(func(s *SubscriptionPlanUpsert) {
+		s.UpdateDailyQuota()
+	})
+}
+
+// ClearDailyQuota clears the value of the "daily_quota" field.
+func (u *SubscriptionPlanUpsertBulk) ClearDailyQuota() *SubscriptionPlanUpsertBulk {
+	return u.Update(func(s *SubscriptionPlanUpsert) {
+		s.ClearDailyQuota()
+	})
+}
+
+// SetDisplayNotes sets the "display_notes" field.
+func (u *SubscriptionPlanUpsertBulk) SetDisplayNotes(v string) *SubscriptionPlanUpsertBulk {
+	return u.Update(func(s *SubscriptionPlanUpsert) {
+		s.SetDisplayNotes(v)
+	})
+}
+
+// UpdateDisplayNotes sets the "display_notes" field to the value that was provided on create.
+func (u *SubscriptionPlanUpsertBulk) UpdateDisplayNotes() *SubscriptionPlanUpsertBulk {
+	return u.Update(func(s *SubscriptionPlanUpsert) {
+		s.UpdateDisplayNotes()
 	})
 }
 

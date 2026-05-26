@@ -311,6 +311,33 @@ func (_u *PaymentOrderUpdate) ClearPlanID() *PaymentOrderUpdate {
 	return _u
 }
 
+// SetBalanceProductID sets the "balance_product_id" field.
+func (_u *PaymentOrderUpdate) SetBalanceProductID(v int64) *PaymentOrderUpdate {
+	_u.mutation.ResetBalanceProductID()
+	_u.mutation.SetBalanceProductID(v)
+	return _u
+}
+
+// SetNillableBalanceProductID sets the "balance_product_id" field if the given value is not nil.
+func (_u *PaymentOrderUpdate) SetNillableBalanceProductID(v *int64) *PaymentOrderUpdate {
+	if v != nil {
+		_u.SetBalanceProductID(*v)
+	}
+	return _u
+}
+
+// AddBalanceProductID adds value to the "balance_product_id" field.
+func (_u *PaymentOrderUpdate) AddBalanceProductID(v int64) *PaymentOrderUpdate {
+	_u.mutation.AddBalanceProductID(v)
+	return _u
+}
+
+// ClearBalanceProductID clears the value of the "balance_product_id" field.
+func (_u *PaymentOrderUpdate) ClearBalanceProductID() *PaymentOrderUpdate {
+	_u.mutation.ClearBalanceProductID()
+	return _u
+}
+
 // SetSubscriptionGroupID sets the "subscription_group_id" field.
 func (_u *PaymentOrderUpdate) SetSubscriptionGroupID(v int64) *PaymentOrderUpdate {
 	_u.mutation.ResetSubscriptionGroupID()
@@ -923,6 +950,15 @@ func (_u *PaymentOrderUpdate) sqlSave(ctx context.Context) (_node int, err error
 	if _u.mutation.PlanIDCleared() {
 		_spec.ClearField(paymentorder.FieldPlanID, field.TypeInt64)
 	}
+	if value, ok := _u.mutation.BalanceProductID(); ok {
+		_spec.SetField(paymentorder.FieldBalanceProductID, field.TypeInt64, value)
+	}
+	if value, ok := _u.mutation.AddedBalanceProductID(); ok {
+		_spec.AddField(paymentorder.FieldBalanceProductID, field.TypeInt64, value)
+	}
+	if _u.mutation.BalanceProductIDCleared() {
+		_spec.ClearField(paymentorder.FieldBalanceProductID, field.TypeInt64)
+	}
 	if value, ok := _u.mutation.SubscriptionGroupID(); ok {
 		_spec.SetField(paymentorder.FieldSubscriptionGroupID, field.TypeInt64, value)
 	}
@@ -1371,6 +1407,33 @@ func (_u *PaymentOrderUpdateOne) AddPlanID(v int64) *PaymentOrderUpdateOne {
 // ClearPlanID clears the value of the "plan_id" field.
 func (_u *PaymentOrderUpdateOne) ClearPlanID() *PaymentOrderUpdateOne {
 	_u.mutation.ClearPlanID()
+	return _u
+}
+
+// SetBalanceProductID sets the "balance_product_id" field.
+func (_u *PaymentOrderUpdateOne) SetBalanceProductID(v int64) *PaymentOrderUpdateOne {
+	_u.mutation.ResetBalanceProductID()
+	_u.mutation.SetBalanceProductID(v)
+	return _u
+}
+
+// SetNillableBalanceProductID sets the "balance_product_id" field if the given value is not nil.
+func (_u *PaymentOrderUpdateOne) SetNillableBalanceProductID(v *int64) *PaymentOrderUpdateOne {
+	if v != nil {
+		_u.SetBalanceProductID(*v)
+	}
+	return _u
+}
+
+// AddBalanceProductID adds value to the "balance_product_id" field.
+func (_u *PaymentOrderUpdateOne) AddBalanceProductID(v int64) *PaymentOrderUpdateOne {
+	_u.mutation.AddBalanceProductID(v)
+	return _u
+}
+
+// ClearBalanceProductID clears the value of the "balance_product_id" field.
+func (_u *PaymentOrderUpdateOne) ClearBalanceProductID() *PaymentOrderUpdateOne {
+	_u.mutation.ClearBalanceProductID()
 	return _u
 }
 
@@ -2015,6 +2078,15 @@ func (_u *PaymentOrderUpdateOne) sqlSave(ctx context.Context) (_node *PaymentOrd
 	}
 	if _u.mutation.PlanIDCleared() {
 		_spec.ClearField(paymentorder.FieldPlanID, field.TypeInt64)
+	}
+	if value, ok := _u.mutation.BalanceProductID(); ok {
+		_spec.SetField(paymentorder.FieldBalanceProductID, field.TypeInt64, value)
+	}
+	if value, ok := _u.mutation.AddedBalanceProductID(); ok {
+		_spec.AddField(paymentorder.FieldBalanceProductID, field.TypeInt64, value)
+	}
+	if _u.mutation.BalanceProductIDCleared() {
+		_spec.ClearField(paymentorder.FieldBalanceProductID, field.TypeInt64)
 	}
 	if value, ok := _u.mutation.SubscriptionGroupID(); ok {
 		_spec.SetField(paymentorder.FieldSubscriptionGroupID, field.TypeInt64, value)

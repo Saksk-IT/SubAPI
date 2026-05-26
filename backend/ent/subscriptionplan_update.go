@@ -174,6 +174,88 @@ func (_u *SubscriptionPlanUpdate) SetNillableFeatures(v *string) *SubscriptionPl
 	return _u
 }
 
+// SetTags sets the "tags" field.
+func (_u *SubscriptionPlanUpdate) SetTags(v string) *SubscriptionPlanUpdate {
+	_u.mutation.SetTags(v)
+	return _u
+}
+
+// SetNillableTags sets the "tags" field if the given value is not nil.
+func (_u *SubscriptionPlanUpdate) SetNillableTags(v *string) *SubscriptionPlanUpdate {
+	if v != nil {
+		_u.SetTags(*v)
+	}
+	return _u
+}
+
+// SetTotalQuota sets the "total_quota" field.
+func (_u *SubscriptionPlanUpdate) SetTotalQuota(v float64) *SubscriptionPlanUpdate {
+	_u.mutation.ResetTotalQuota()
+	_u.mutation.SetTotalQuota(v)
+	return _u
+}
+
+// SetNillableTotalQuota sets the "total_quota" field if the given value is not nil.
+func (_u *SubscriptionPlanUpdate) SetNillableTotalQuota(v *float64) *SubscriptionPlanUpdate {
+	if v != nil {
+		_u.SetTotalQuota(*v)
+	}
+	return _u
+}
+
+// AddTotalQuota adds value to the "total_quota" field.
+func (_u *SubscriptionPlanUpdate) AddTotalQuota(v float64) *SubscriptionPlanUpdate {
+	_u.mutation.AddTotalQuota(v)
+	return _u
+}
+
+// ClearTotalQuota clears the value of the "total_quota" field.
+func (_u *SubscriptionPlanUpdate) ClearTotalQuota() *SubscriptionPlanUpdate {
+	_u.mutation.ClearTotalQuota()
+	return _u
+}
+
+// SetDailyQuota sets the "daily_quota" field.
+func (_u *SubscriptionPlanUpdate) SetDailyQuota(v float64) *SubscriptionPlanUpdate {
+	_u.mutation.ResetDailyQuota()
+	_u.mutation.SetDailyQuota(v)
+	return _u
+}
+
+// SetNillableDailyQuota sets the "daily_quota" field if the given value is not nil.
+func (_u *SubscriptionPlanUpdate) SetNillableDailyQuota(v *float64) *SubscriptionPlanUpdate {
+	if v != nil {
+		_u.SetDailyQuota(*v)
+	}
+	return _u
+}
+
+// AddDailyQuota adds value to the "daily_quota" field.
+func (_u *SubscriptionPlanUpdate) AddDailyQuota(v float64) *SubscriptionPlanUpdate {
+	_u.mutation.AddDailyQuota(v)
+	return _u
+}
+
+// ClearDailyQuota clears the value of the "daily_quota" field.
+func (_u *SubscriptionPlanUpdate) ClearDailyQuota() *SubscriptionPlanUpdate {
+	_u.mutation.ClearDailyQuota()
+	return _u
+}
+
+// SetDisplayNotes sets the "display_notes" field.
+func (_u *SubscriptionPlanUpdate) SetDisplayNotes(v string) *SubscriptionPlanUpdate {
+	_u.mutation.SetDisplayNotes(v)
+	return _u
+}
+
+// SetNillableDisplayNotes sets the "display_notes" field if the given value is not nil.
+func (_u *SubscriptionPlanUpdate) SetNillableDisplayNotes(v *string) *SubscriptionPlanUpdate {
+	if v != nil {
+		_u.SetDisplayNotes(*v)
+	}
+	return _u
+}
+
 // SetProductName sets the "product_name" field.
 func (_u *SubscriptionPlanUpdate) SetProductName(v string) *SubscriptionPlanUpdate {
 	_u.mutation.SetProductName(v)
@@ -340,6 +422,30 @@ func (_u *SubscriptionPlanUpdate) sqlSave(ctx context.Context) (_node int, err e
 	}
 	if value, ok := _u.mutation.Features(); ok {
 		_spec.SetField(subscriptionplan.FieldFeatures, field.TypeString, value)
+	}
+	if value, ok := _u.mutation.Tags(); ok {
+		_spec.SetField(subscriptionplan.FieldTags, field.TypeString, value)
+	}
+	if value, ok := _u.mutation.TotalQuota(); ok {
+		_spec.SetField(subscriptionplan.FieldTotalQuota, field.TypeFloat64, value)
+	}
+	if value, ok := _u.mutation.AddedTotalQuota(); ok {
+		_spec.AddField(subscriptionplan.FieldTotalQuota, field.TypeFloat64, value)
+	}
+	if _u.mutation.TotalQuotaCleared() {
+		_spec.ClearField(subscriptionplan.FieldTotalQuota, field.TypeFloat64)
+	}
+	if value, ok := _u.mutation.DailyQuota(); ok {
+		_spec.SetField(subscriptionplan.FieldDailyQuota, field.TypeFloat64, value)
+	}
+	if value, ok := _u.mutation.AddedDailyQuota(); ok {
+		_spec.AddField(subscriptionplan.FieldDailyQuota, field.TypeFloat64, value)
+	}
+	if _u.mutation.DailyQuotaCleared() {
+		_spec.ClearField(subscriptionplan.FieldDailyQuota, field.TypeFloat64)
+	}
+	if value, ok := _u.mutation.DisplayNotes(); ok {
+		_spec.SetField(subscriptionplan.FieldDisplayNotes, field.TypeString, value)
 	}
 	if value, ok := _u.mutation.ProductName(); ok {
 		_spec.SetField(subscriptionplan.FieldProductName, field.TypeString, value)
@@ -518,6 +624,88 @@ func (_u *SubscriptionPlanUpdateOne) SetFeatures(v string) *SubscriptionPlanUpda
 func (_u *SubscriptionPlanUpdateOne) SetNillableFeatures(v *string) *SubscriptionPlanUpdateOne {
 	if v != nil {
 		_u.SetFeatures(*v)
+	}
+	return _u
+}
+
+// SetTags sets the "tags" field.
+func (_u *SubscriptionPlanUpdateOne) SetTags(v string) *SubscriptionPlanUpdateOne {
+	_u.mutation.SetTags(v)
+	return _u
+}
+
+// SetNillableTags sets the "tags" field if the given value is not nil.
+func (_u *SubscriptionPlanUpdateOne) SetNillableTags(v *string) *SubscriptionPlanUpdateOne {
+	if v != nil {
+		_u.SetTags(*v)
+	}
+	return _u
+}
+
+// SetTotalQuota sets the "total_quota" field.
+func (_u *SubscriptionPlanUpdateOne) SetTotalQuota(v float64) *SubscriptionPlanUpdateOne {
+	_u.mutation.ResetTotalQuota()
+	_u.mutation.SetTotalQuota(v)
+	return _u
+}
+
+// SetNillableTotalQuota sets the "total_quota" field if the given value is not nil.
+func (_u *SubscriptionPlanUpdateOne) SetNillableTotalQuota(v *float64) *SubscriptionPlanUpdateOne {
+	if v != nil {
+		_u.SetTotalQuota(*v)
+	}
+	return _u
+}
+
+// AddTotalQuota adds value to the "total_quota" field.
+func (_u *SubscriptionPlanUpdateOne) AddTotalQuota(v float64) *SubscriptionPlanUpdateOne {
+	_u.mutation.AddTotalQuota(v)
+	return _u
+}
+
+// ClearTotalQuota clears the value of the "total_quota" field.
+func (_u *SubscriptionPlanUpdateOne) ClearTotalQuota() *SubscriptionPlanUpdateOne {
+	_u.mutation.ClearTotalQuota()
+	return _u
+}
+
+// SetDailyQuota sets the "daily_quota" field.
+func (_u *SubscriptionPlanUpdateOne) SetDailyQuota(v float64) *SubscriptionPlanUpdateOne {
+	_u.mutation.ResetDailyQuota()
+	_u.mutation.SetDailyQuota(v)
+	return _u
+}
+
+// SetNillableDailyQuota sets the "daily_quota" field if the given value is not nil.
+func (_u *SubscriptionPlanUpdateOne) SetNillableDailyQuota(v *float64) *SubscriptionPlanUpdateOne {
+	if v != nil {
+		_u.SetDailyQuota(*v)
+	}
+	return _u
+}
+
+// AddDailyQuota adds value to the "daily_quota" field.
+func (_u *SubscriptionPlanUpdateOne) AddDailyQuota(v float64) *SubscriptionPlanUpdateOne {
+	_u.mutation.AddDailyQuota(v)
+	return _u
+}
+
+// ClearDailyQuota clears the value of the "daily_quota" field.
+func (_u *SubscriptionPlanUpdateOne) ClearDailyQuota() *SubscriptionPlanUpdateOne {
+	_u.mutation.ClearDailyQuota()
+	return _u
+}
+
+// SetDisplayNotes sets the "display_notes" field.
+func (_u *SubscriptionPlanUpdateOne) SetDisplayNotes(v string) *SubscriptionPlanUpdateOne {
+	_u.mutation.SetDisplayNotes(v)
+	return _u
+}
+
+// SetNillableDisplayNotes sets the "display_notes" field if the given value is not nil.
+func (_u *SubscriptionPlanUpdateOne) SetNillableDisplayNotes(v *string) *SubscriptionPlanUpdateOne {
+	if v != nil {
+		_u.SetDisplayNotes(*v)
 	}
 	return _u
 }
@@ -718,6 +906,30 @@ func (_u *SubscriptionPlanUpdateOne) sqlSave(ctx context.Context) (_node *Subscr
 	}
 	if value, ok := _u.mutation.Features(); ok {
 		_spec.SetField(subscriptionplan.FieldFeatures, field.TypeString, value)
+	}
+	if value, ok := _u.mutation.Tags(); ok {
+		_spec.SetField(subscriptionplan.FieldTags, field.TypeString, value)
+	}
+	if value, ok := _u.mutation.TotalQuota(); ok {
+		_spec.SetField(subscriptionplan.FieldTotalQuota, field.TypeFloat64, value)
+	}
+	if value, ok := _u.mutation.AddedTotalQuota(); ok {
+		_spec.AddField(subscriptionplan.FieldTotalQuota, field.TypeFloat64, value)
+	}
+	if _u.mutation.TotalQuotaCleared() {
+		_spec.ClearField(subscriptionplan.FieldTotalQuota, field.TypeFloat64)
+	}
+	if value, ok := _u.mutation.DailyQuota(); ok {
+		_spec.SetField(subscriptionplan.FieldDailyQuota, field.TypeFloat64, value)
+	}
+	if value, ok := _u.mutation.AddedDailyQuota(); ok {
+		_spec.AddField(subscriptionplan.FieldDailyQuota, field.TypeFloat64, value)
+	}
+	if _u.mutation.DailyQuotaCleared() {
+		_spec.ClearField(subscriptionplan.FieldDailyQuota, field.TypeFloat64)
+	}
+	if value, ok := _u.mutation.DisplayNotes(); ok {
+		_spec.SetField(subscriptionplan.FieldDisplayNotes, field.TypeString, value)
 	}
 	if value, ok := _u.mutation.ProductName(); ok {
 		_spec.SetField(subscriptionplan.FieldProductName, field.TypeString, value)

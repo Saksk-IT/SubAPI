@@ -46,6 +46,8 @@ const (
 	FieldOrderType = "order_type"
 	// FieldPlanID holds the string denoting the plan_id field in the database.
 	FieldPlanID = "plan_id"
+	// FieldBalanceProductID holds the string denoting the balance_product_id field in the database.
+	FieldBalanceProductID = "balance_product_id"
 	// FieldSubscriptionGroupID holds the string denoting the subscription_group_id field in the database.
 	FieldSubscriptionGroupID = "subscription_group_id"
 	// FieldSubscriptionDays holds the string denoting the subscription_days field in the database.
@@ -124,6 +126,7 @@ var Columns = []string{
 	FieldQrCodeImg,
 	FieldOrderType,
 	FieldPlanID,
+	FieldBalanceProductID,
 	FieldSubscriptionGroupID,
 	FieldSubscriptionDays,
 	FieldProviderInstanceID,
@@ -292,6 +295,11 @@ func ByOrderType(opts ...sql.OrderTermOption) OrderOption {
 // ByPlanID orders the results by the plan_id field.
 func ByPlanID(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldPlanID, opts...).ToFunc()
+}
+
+// ByBalanceProductID orders the results by the balance_product_id field.
+func ByBalanceProductID(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldBalanceProductID, opts...).ToFunc()
 }
 
 // BySubscriptionGroupID orders the results by the subscription_group_id field.

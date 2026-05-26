@@ -94,6 +94,26 @@ func Features(v string) predicate.SubscriptionPlan {
 	return predicate.SubscriptionPlan(sql.FieldEQ(FieldFeatures, v))
 }
 
+// Tags applies equality check predicate on the "tags" field. It's identical to TagsEQ.
+func Tags(v string) predicate.SubscriptionPlan {
+	return predicate.SubscriptionPlan(sql.FieldEQ(FieldTags, v))
+}
+
+// TotalQuota applies equality check predicate on the "total_quota" field. It's identical to TotalQuotaEQ.
+func TotalQuota(v float64) predicate.SubscriptionPlan {
+	return predicate.SubscriptionPlan(sql.FieldEQ(FieldTotalQuota, v))
+}
+
+// DailyQuota applies equality check predicate on the "daily_quota" field. It's identical to DailyQuotaEQ.
+func DailyQuota(v float64) predicate.SubscriptionPlan {
+	return predicate.SubscriptionPlan(sql.FieldEQ(FieldDailyQuota, v))
+}
+
+// DisplayNotes applies equality check predicate on the "display_notes" field. It's identical to DisplayNotesEQ.
+func DisplayNotes(v string) predicate.SubscriptionPlan {
+	return predicate.SubscriptionPlan(sql.FieldEQ(FieldDisplayNotes, v))
+}
+
 // ProductName applies equality check predicate on the "product_name" field. It's identical to ProductNameEQ.
 func ProductName(v string) predicate.SubscriptionPlan {
 	return predicate.SubscriptionPlan(sql.FieldEQ(FieldProductName, v))
@@ -547,6 +567,236 @@ func FeaturesEqualFold(v string) predicate.SubscriptionPlan {
 // FeaturesContainsFold applies the ContainsFold predicate on the "features" field.
 func FeaturesContainsFold(v string) predicate.SubscriptionPlan {
 	return predicate.SubscriptionPlan(sql.FieldContainsFold(FieldFeatures, v))
+}
+
+// TagsEQ applies the EQ predicate on the "tags" field.
+func TagsEQ(v string) predicate.SubscriptionPlan {
+	return predicate.SubscriptionPlan(sql.FieldEQ(FieldTags, v))
+}
+
+// TagsNEQ applies the NEQ predicate on the "tags" field.
+func TagsNEQ(v string) predicate.SubscriptionPlan {
+	return predicate.SubscriptionPlan(sql.FieldNEQ(FieldTags, v))
+}
+
+// TagsIn applies the In predicate on the "tags" field.
+func TagsIn(vs ...string) predicate.SubscriptionPlan {
+	return predicate.SubscriptionPlan(sql.FieldIn(FieldTags, vs...))
+}
+
+// TagsNotIn applies the NotIn predicate on the "tags" field.
+func TagsNotIn(vs ...string) predicate.SubscriptionPlan {
+	return predicate.SubscriptionPlan(sql.FieldNotIn(FieldTags, vs...))
+}
+
+// TagsGT applies the GT predicate on the "tags" field.
+func TagsGT(v string) predicate.SubscriptionPlan {
+	return predicate.SubscriptionPlan(sql.FieldGT(FieldTags, v))
+}
+
+// TagsGTE applies the GTE predicate on the "tags" field.
+func TagsGTE(v string) predicate.SubscriptionPlan {
+	return predicate.SubscriptionPlan(sql.FieldGTE(FieldTags, v))
+}
+
+// TagsLT applies the LT predicate on the "tags" field.
+func TagsLT(v string) predicate.SubscriptionPlan {
+	return predicate.SubscriptionPlan(sql.FieldLT(FieldTags, v))
+}
+
+// TagsLTE applies the LTE predicate on the "tags" field.
+func TagsLTE(v string) predicate.SubscriptionPlan {
+	return predicate.SubscriptionPlan(sql.FieldLTE(FieldTags, v))
+}
+
+// TagsContains applies the Contains predicate on the "tags" field.
+func TagsContains(v string) predicate.SubscriptionPlan {
+	return predicate.SubscriptionPlan(sql.FieldContains(FieldTags, v))
+}
+
+// TagsHasPrefix applies the HasPrefix predicate on the "tags" field.
+func TagsHasPrefix(v string) predicate.SubscriptionPlan {
+	return predicate.SubscriptionPlan(sql.FieldHasPrefix(FieldTags, v))
+}
+
+// TagsHasSuffix applies the HasSuffix predicate on the "tags" field.
+func TagsHasSuffix(v string) predicate.SubscriptionPlan {
+	return predicate.SubscriptionPlan(sql.FieldHasSuffix(FieldTags, v))
+}
+
+// TagsEqualFold applies the EqualFold predicate on the "tags" field.
+func TagsEqualFold(v string) predicate.SubscriptionPlan {
+	return predicate.SubscriptionPlan(sql.FieldEqualFold(FieldTags, v))
+}
+
+// TagsContainsFold applies the ContainsFold predicate on the "tags" field.
+func TagsContainsFold(v string) predicate.SubscriptionPlan {
+	return predicate.SubscriptionPlan(sql.FieldContainsFold(FieldTags, v))
+}
+
+// TotalQuotaEQ applies the EQ predicate on the "total_quota" field.
+func TotalQuotaEQ(v float64) predicate.SubscriptionPlan {
+	return predicate.SubscriptionPlan(sql.FieldEQ(FieldTotalQuota, v))
+}
+
+// TotalQuotaNEQ applies the NEQ predicate on the "total_quota" field.
+func TotalQuotaNEQ(v float64) predicate.SubscriptionPlan {
+	return predicate.SubscriptionPlan(sql.FieldNEQ(FieldTotalQuota, v))
+}
+
+// TotalQuotaIn applies the In predicate on the "total_quota" field.
+func TotalQuotaIn(vs ...float64) predicate.SubscriptionPlan {
+	return predicate.SubscriptionPlan(sql.FieldIn(FieldTotalQuota, vs...))
+}
+
+// TotalQuotaNotIn applies the NotIn predicate on the "total_quota" field.
+func TotalQuotaNotIn(vs ...float64) predicate.SubscriptionPlan {
+	return predicate.SubscriptionPlan(sql.FieldNotIn(FieldTotalQuota, vs...))
+}
+
+// TotalQuotaGT applies the GT predicate on the "total_quota" field.
+func TotalQuotaGT(v float64) predicate.SubscriptionPlan {
+	return predicate.SubscriptionPlan(sql.FieldGT(FieldTotalQuota, v))
+}
+
+// TotalQuotaGTE applies the GTE predicate on the "total_quota" field.
+func TotalQuotaGTE(v float64) predicate.SubscriptionPlan {
+	return predicate.SubscriptionPlan(sql.FieldGTE(FieldTotalQuota, v))
+}
+
+// TotalQuotaLT applies the LT predicate on the "total_quota" field.
+func TotalQuotaLT(v float64) predicate.SubscriptionPlan {
+	return predicate.SubscriptionPlan(sql.FieldLT(FieldTotalQuota, v))
+}
+
+// TotalQuotaLTE applies the LTE predicate on the "total_quota" field.
+func TotalQuotaLTE(v float64) predicate.SubscriptionPlan {
+	return predicate.SubscriptionPlan(sql.FieldLTE(FieldTotalQuota, v))
+}
+
+// TotalQuotaIsNil applies the IsNil predicate on the "total_quota" field.
+func TotalQuotaIsNil() predicate.SubscriptionPlan {
+	return predicate.SubscriptionPlan(sql.FieldIsNull(FieldTotalQuota))
+}
+
+// TotalQuotaNotNil applies the NotNil predicate on the "total_quota" field.
+func TotalQuotaNotNil() predicate.SubscriptionPlan {
+	return predicate.SubscriptionPlan(sql.FieldNotNull(FieldTotalQuota))
+}
+
+// DailyQuotaEQ applies the EQ predicate on the "daily_quota" field.
+func DailyQuotaEQ(v float64) predicate.SubscriptionPlan {
+	return predicate.SubscriptionPlan(sql.FieldEQ(FieldDailyQuota, v))
+}
+
+// DailyQuotaNEQ applies the NEQ predicate on the "daily_quota" field.
+func DailyQuotaNEQ(v float64) predicate.SubscriptionPlan {
+	return predicate.SubscriptionPlan(sql.FieldNEQ(FieldDailyQuota, v))
+}
+
+// DailyQuotaIn applies the In predicate on the "daily_quota" field.
+func DailyQuotaIn(vs ...float64) predicate.SubscriptionPlan {
+	return predicate.SubscriptionPlan(sql.FieldIn(FieldDailyQuota, vs...))
+}
+
+// DailyQuotaNotIn applies the NotIn predicate on the "daily_quota" field.
+func DailyQuotaNotIn(vs ...float64) predicate.SubscriptionPlan {
+	return predicate.SubscriptionPlan(sql.FieldNotIn(FieldDailyQuota, vs...))
+}
+
+// DailyQuotaGT applies the GT predicate on the "daily_quota" field.
+func DailyQuotaGT(v float64) predicate.SubscriptionPlan {
+	return predicate.SubscriptionPlan(sql.FieldGT(FieldDailyQuota, v))
+}
+
+// DailyQuotaGTE applies the GTE predicate on the "daily_quota" field.
+func DailyQuotaGTE(v float64) predicate.SubscriptionPlan {
+	return predicate.SubscriptionPlan(sql.FieldGTE(FieldDailyQuota, v))
+}
+
+// DailyQuotaLT applies the LT predicate on the "daily_quota" field.
+func DailyQuotaLT(v float64) predicate.SubscriptionPlan {
+	return predicate.SubscriptionPlan(sql.FieldLT(FieldDailyQuota, v))
+}
+
+// DailyQuotaLTE applies the LTE predicate on the "daily_quota" field.
+func DailyQuotaLTE(v float64) predicate.SubscriptionPlan {
+	return predicate.SubscriptionPlan(sql.FieldLTE(FieldDailyQuota, v))
+}
+
+// DailyQuotaIsNil applies the IsNil predicate on the "daily_quota" field.
+func DailyQuotaIsNil() predicate.SubscriptionPlan {
+	return predicate.SubscriptionPlan(sql.FieldIsNull(FieldDailyQuota))
+}
+
+// DailyQuotaNotNil applies the NotNil predicate on the "daily_quota" field.
+func DailyQuotaNotNil() predicate.SubscriptionPlan {
+	return predicate.SubscriptionPlan(sql.FieldNotNull(FieldDailyQuota))
+}
+
+// DisplayNotesEQ applies the EQ predicate on the "display_notes" field.
+func DisplayNotesEQ(v string) predicate.SubscriptionPlan {
+	return predicate.SubscriptionPlan(sql.FieldEQ(FieldDisplayNotes, v))
+}
+
+// DisplayNotesNEQ applies the NEQ predicate on the "display_notes" field.
+func DisplayNotesNEQ(v string) predicate.SubscriptionPlan {
+	return predicate.SubscriptionPlan(sql.FieldNEQ(FieldDisplayNotes, v))
+}
+
+// DisplayNotesIn applies the In predicate on the "display_notes" field.
+func DisplayNotesIn(vs ...string) predicate.SubscriptionPlan {
+	return predicate.SubscriptionPlan(sql.FieldIn(FieldDisplayNotes, vs...))
+}
+
+// DisplayNotesNotIn applies the NotIn predicate on the "display_notes" field.
+func DisplayNotesNotIn(vs ...string) predicate.SubscriptionPlan {
+	return predicate.SubscriptionPlan(sql.FieldNotIn(FieldDisplayNotes, vs...))
+}
+
+// DisplayNotesGT applies the GT predicate on the "display_notes" field.
+func DisplayNotesGT(v string) predicate.SubscriptionPlan {
+	return predicate.SubscriptionPlan(sql.FieldGT(FieldDisplayNotes, v))
+}
+
+// DisplayNotesGTE applies the GTE predicate on the "display_notes" field.
+func DisplayNotesGTE(v string) predicate.SubscriptionPlan {
+	return predicate.SubscriptionPlan(sql.FieldGTE(FieldDisplayNotes, v))
+}
+
+// DisplayNotesLT applies the LT predicate on the "display_notes" field.
+func DisplayNotesLT(v string) predicate.SubscriptionPlan {
+	return predicate.SubscriptionPlan(sql.FieldLT(FieldDisplayNotes, v))
+}
+
+// DisplayNotesLTE applies the LTE predicate on the "display_notes" field.
+func DisplayNotesLTE(v string) predicate.SubscriptionPlan {
+	return predicate.SubscriptionPlan(sql.FieldLTE(FieldDisplayNotes, v))
+}
+
+// DisplayNotesContains applies the Contains predicate on the "display_notes" field.
+func DisplayNotesContains(v string) predicate.SubscriptionPlan {
+	return predicate.SubscriptionPlan(sql.FieldContains(FieldDisplayNotes, v))
+}
+
+// DisplayNotesHasPrefix applies the HasPrefix predicate on the "display_notes" field.
+func DisplayNotesHasPrefix(v string) predicate.SubscriptionPlan {
+	return predicate.SubscriptionPlan(sql.FieldHasPrefix(FieldDisplayNotes, v))
+}
+
+// DisplayNotesHasSuffix applies the HasSuffix predicate on the "display_notes" field.
+func DisplayNotesHasSuffix(v string) predicate.SubscriptionPlan {
+	return predicate.SubscriptionPlan(sql.FieldHasSuffix(FieldDisplayNotes, v))
+}
+
+// DisplayNotesEqualFold applies the EqualFold predicate on the "display_notes" field.
+func DisplayNotesEqualFold(v string) predicate.SubscriptionPlan {
+	return predicate.SubscriptionPlan(sql.FieldEqualFold(FieldDisplayNotes, v))
+}
+
+// DisplayNotesContainsFold applies the ContainsFold predicate on the "display_notes" field.
+func DisplayNotesContainsFold(v string) predicate.SubscriptionPlan {
+	return predicate.SubscriptionPlan(sql.FieldContainsFold(FieldDisplayNotes, v))
 }
 
 // ProductNameEQ applies the EQ predicate on the "product_name" field.

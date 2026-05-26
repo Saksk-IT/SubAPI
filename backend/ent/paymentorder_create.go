@@ -183,6 +183,20 @@ func (_c *PaymentOrderCreate) SetNillablePlanID(v *int64) *PaymentOrderCreate {
 	return _c
 }
 
+// SetBalanceProductID sets the "balance_product_id" field.
+func (_c *PaymentOrderCreate) SetBalanceProductID(v int64) *PaymentOrderCreate {
+	_c.mutation.SetBalanceProductID(v)
+	return _c
+}
+
+// SetNillableBalanceProductID sets the "balance_product_id" field if the given value is not nil.
+func (_c *PaymentOrderCreate) SetNillableBalanceProductID(v *int64) *PaymentOrderCreate {
+	if v != nil {
+		_c.SetBalanceProductID(*v)
+	}
+	return _c
+}
+
 // SetSubscriptionGroupID sets the "subscription_group_id" field.
 func (_c *PaymentOrderCreate) SetSubscriptionGroupID(v int64) *PaymentOrderCreate {
 	_c.mutation.SetSubscriptionGroupID(v)
@@ -761,6 +775,10 @@ func (_c *PaymentOrderCreate) createSpec() (*PaymentOrder, *sqlgraph.CreateSpec)
 		_spec.SetField(paymentorder.FieldPlanID, field.TypeInt64, value)
 		_node.PlanID = &value
 	}
+	if value, ok := _c.mutation.BalanceProductID(); ok {
+		_spec.SetField(paymentorder.FieldBalanceProductID, field.TypeInt64, value)
+		_node.BalanceProductID = &value
+	}
 	if value, ok := _c.mutation.SubscriptionGroupID(); ok {
 		_spec.SetField(paymentorder.FieldSubscriptionGroupID, field.TypeInt64, value)
 		_node.SubscriptionGroupID = &value
@@ -1165,6 +1183,30 @@ func (u *PaymentOrderUpsert) AddPlanID(v int64) *PaymentOrderUpsert {
 // ClearPlanID clears the value of the "plan_id" field.
 func (u *PaymentOrderUpsert) ClearPlanID() *PaymentOrderUpsert {
 	u.SetNull(paymentorder.FieldPlanID)
+	return u
+}
+
+// SetBalanceProductID sets the "balance_product_id" field.
+func (u *PaymentOrderUpsert) SetBalanceProductID(v int64) *PaymentOrderUpsert {
+	u.Set(paymentorder.FieldBalanceProductID, v)
+	return u
+}
+
+// UpdateBalanceProductID sets the "balance_product_id" field to the value that was provided on create.
+func (u *PaymentOrderUpsert) UpdateBalanceProductID() *PaymentOrderUpsert {
+	u.SetExcluded(paymentorder.FieldBalanceProductID)
+	return u
+}
+
+// AddBalanceProductID adds v to the "balance_product_id" field.
+func (u *PaymentOrderUpsert) AddBalanceProductID(v int64) *PaymentOrderUpsert {
+	u.Add(paymentorder.FieldBalanceProductID, v)
+	return u
+}
+
+// ClearBalanceProductID clears the value of the "balance_product_id" field.
+func (u *PaymentOrderUpsert) ClearBalanceProductID() *PaymentOrderUpsert {
+	u.SetNull(paymentorder.FieldBalanceProductID)
 	return u
 }
 
@@ -1869,6 +1911,34 @@ func (u *PaymentOrderUpsertOne) UpdatePlanID() *PaymentOrderUpsertOne {
 func (u *PaymentOrderUpsertOne) ClearPlanID() *PaymentOrderUpsertOne {
 	return u.Update(func(s *PaymentOrderUpsert) {
 		s.ClearPlanID()
+	})
+}
+
+// SetBalanceProductID sets the "balance_product_id" field.
+func (u *PaymentOrderUpsertOne) SetBalanceProductID(v int64) *PaymentOrderUpsertOne {
+	return u.Update(func(s *PaymentOrderUpsert) {
+		s.SetBalanceProductID(v)
+	})
+}
+
+// AddBalanceProductID adds v to the "balance_product_id" field.
+func (u *PaymentOrderUpsertOne) AddBalanceProductID(v int64) *PaymentOrderUpsertOne {
+	return u.Update(func(s *PaymentOrderUpsert) {
+		s.AddBalanceProductID(v)
+	})
+}
+
+// UpdateBalanceProductID sets the "balance_product_id" field to the value that was provided on create.
+func (u *PaymentOrderUpsertOne) UpdateBalanceProductID() *PaymentOrderUpsertOne {
+	return u.Update(func(s *PaymentOrderUpsert) {
+		s.UpdateBalanceProductID()
+	})
+}
+
+// ClearBalanceProductID clears the value of the "balance_product_id" field.
+func (u *PaymentOrderUpsertOne) ClearBalanceProductID() *PaymentOrderUpsertOne {
+	return u.Update(func(s *PaymentOrderUpsert) {
+		s.ClearBalanceProductID()
 	})
 }
 
@@ -2801,6 +2871,34 @@ func (u *PaymentOrderUpsertBulk) UpdatePlanID() *PaymentOrderUpsertBulk {
 func (u *PaymentOrderUpsertBulk) ClearPlanID() *PaymentOrderUpsertBulk {
 	return u.Update(func(s *PaymentOrderUpsert) {
 		s.ClearPlanID()
+	})
+}
+
+// SetBalanceProductID sets the "balance_product_id" field.
+func (u *PaymentOrderUpsertBulk) SetBalanceProductID(v int64) *PaymentOrderUpsertBulk {
+	return u.Update(func(s *PaymentOrderUpsert) {
+		s.SetBalanceProductID(v)
+	})
+}
+
+// AddBalanceProductID adds v to the "balance_product_id" field.
+func (u *PaymentOrderUpsertBulk) AddBalanceProductID(v int64) *PaymentOrderUpsertBulk {
+	return u.Update(func(s *PaymentOrderUpsert) {
+		s.AddBalanceProductID(v)
+	})
+}
+
+// UpdateBalanceProductID sets the "balance_product_id" field to the value that was provided on create.
+func (u *PaymentOrderUpsertBulk) UpdateBalanceProductID() *PaymentOrderUpsertBulk {
+	return u.Update(func(s *PaymentOrderUpsert) {
+		s.UpdateBalanceProductID()
+	})
+}
+
+// ClearBalanceProductID clears the value of the "balance_product_id" field.
+func (u *PaymentOrderUpsertBulk) ClearBalanceProductID() *PaymentOrderUpsertBulk {
+	return u.Update(func(s *PaymentOrderUpsert) {
+		s.ClearBalanceProductID()
 	})
 }
 
