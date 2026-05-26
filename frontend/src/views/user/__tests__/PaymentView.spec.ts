@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises, shallowMount } from '@vue/test-utils'
 import PaymentView from '../PaymentView.vue'
+import PurchaseProductCard from '@/components/payment/PurchaseProductCard.vue'
 import { PAYMENT_RECOVERY_STORAGE_KEY } from '@/components/payment/paymentFlow'
 
 const routeState = vi.hoisted(() => ({
@@ -100,6 +101,7 @@ function checkoutInfoFixture() {
       },
       global_min: 0,
       global_max: 0,
+      balance_products: [],
       plans: [],
       balance_disabled: false,
       balance_recharge_multiplier: 1,
@@ -107,6 +109,40 @@ function checkoutInfoFixture() {
       help_text: '',
       help_image_url: '',
       stripe_publishable_key: '',
+    },
+  }
+}
+
+function checkoutInfoWithBalanceProductsFixture() {
+  return {
+    data: {
+      ...checkoutInfoFixture().data,
+      methods: {
+        alipay: {
+          daily_limit: 0,
+          daily_used: 0,
+          daily_remaining: 0,
+          single_min: 0,
+          single_max: 0,
+          fee_rate: 0,
+          available: true,
+        },
+      },
+      balance_products: [
+        {
+          id: 9,
+          name: 'Light Day Pass',
+          description: 'Today only',
+          price: 6.9,
+          amount: 69,
+          original_price: 9.9,
+          tags: ['Debug'],
+          features: ['Light tasks'],
+          product_name: '',
+          sort_order: 1,
+          for_sale: true,
+        },
+      ],
     },
   }
 }
@@ -414,5 +450,81 @@ describe('PaymentView WeChat JSAPI flow', () => {
     expect(showWarning).toHaveBeenCalledWith('payment.errors.mobilePaymentFallbackToQr')
     expect(showError).not.toHaveBeenCalled()
     expect(window.localStorage.getItem(PAYMENT_RECOVERY_STORAGE_KEY)).toContain('weixin://wxpay/bizpayurl?pr=fallback-native')
+  })
+
+  it('creates a balance order from a product card with the selected payment method and product id', async () => {
+    routeState.query = {}
+    getCheckoutInfo.mockResolvedValue(checkoutInfoWithBalanceProductsFixture())
+    createOrder.mockResolvedValue({
+      order_id: 901,
+      amount: 69,
+      pay_amount: 6.9,
+      fee_rate: 0,
+      expires_at: '2099-01-01T00:10:00.000Z',
+      payment_type: 'alipay',
+      qr_code: 'https://pay.example.test/qr',
+      out_trade_no: 'sub2_balance_901',
+    })
+
+    const wrapper = shallowMount(PaymentView, {
+      global: {
+        stubs: {
+          AppLayout: { template: '<div><slot /></div>' },
+          Teleport: true,
+          Transition: false,
+        },
+      },
+    })
+    await flushPromises()
+    await flushPromises()
+
+    await wrapper.findComponent(PurchaseProductCard).vm.$emit('pay', 'alipay')
+    await flushPromises()
+
+    expect(createOrder).toHaveBeenCalledWith(expect.objectContaining({
+      amount: 6.9,
+      payment_type: 'alipay',
+      order_type: 'balance',
+      balance_product_id: 9,
+    }))
+  })
+
+  it('creates a subscription order from a product card with the selected payment method and plan id', async () => {
+    routeState.query = {
+      tab: 'subscription',
+    }
+    getCheckoutInfo.mockResolvedValue(checkoutInfoWithPlansFixture())
+    createOrder.mockResolvedValue({
+      order_id: 902,
+      amount: 128,
+      pay_amount: 128,
+      fee_rate: 0,
+      expires_at: '2099-01-01T00:10:00.000Z',
+      payment_type: 'wxpay',
+      qr_code: 'weixin://wxpay/bizpayurl?pr=plan',
+      out_trade_no: 'sub2_plan_902',
+    })
+
+    const wrapper = shallowMount(PaymentView, {
+      global: {
+        stubs: {
+          AppLayout: { template: '<div><slot /></div>' },
+          Teleport: true,
+          Transition: false,
+        },
+      },
+    })
+    await flushPromises()
+    await flushPromises()
+
+    await wrapper.findComponent(PurchaseProductCard).vm.$emit('pay', 'wxpay')
+    await flushPromises()
+
+    expect(createOrder).toHaveBeenCalledWith(expect.objectContaining({
+      amount: 128,
+      payment_type: 'wxpay',
+      order_type: 'subscription',
+      plan_id: 7,
+    }))
   })
 })

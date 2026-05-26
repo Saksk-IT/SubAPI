@@ -82,8 +82,9 @@ type CreateOrderRequest struct {
 	ReturnURL       string
 	PaymentSource   string
 	OrderType       string
-	PlanID          int64
-	Locale          string
+	PlanID           int64
+	BalanceProductID int64
+	Locale           string
 }
 
 type CreateOrderResponse struct {

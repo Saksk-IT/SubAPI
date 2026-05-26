@@ -291,6 +291,23 @@ describe('buildCreateOrderPayload', () => {
     })
   })
 
+  it('passes balance product id for productized recharge orders', () => {
+    expect(buildCreateOrderPayload({
+      amount: 6.9,
+      paymentType: 'alipay',
+      orderType: 'balance',
+      balanceProductId: 9,
+      origin: 'https://app.example.com',
+      isMobile: false,
+      isWechatBrowser: false,
+    })).toMatchObject({
+      amount: 6.9,
+      payment_type: 'alipay',
+      order_type: 'balance',
+      balance_product_id: 9,
+    })
+  })
+
   it('passes is_mobile: false when forceQRCode is enabled for alipay', () => {
     expect(buildCreateOrderPayload({
       amount: 50,

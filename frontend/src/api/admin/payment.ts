@@ -6,6 +6,7 @@
 import { apiClient } from '../client'
 import type {
   DashboardStats,
+  BalanceProduct,
   PaymentOrder,
   PaymentChannel,
   SubscriptionPlan,
@@ -150,6 +151,24 @@ export const adminPaymentAPI = {
   /** Delete a subscription plan */
   deletePlan(id: number) {
     return apiClient.delete(`/admin/payment/plans/${id}`)
+  },
+
+  // ==================== Balance Products ====================
+
+  getBalanceProducts() {
+    return apiClient.get<BalanceProduct[]>('/admin/payment/balance-products')
+  },
+
+  createBalanceProduct(data: Record<string, unknown>) {
+    return apiClient.post<BalanceProduct>('/admin/payment/balance-products', data)
+  },
+
+  updateBalanceProduct(id: number, data: Record<string, unknown>) {
+    return apiClient.put<BalanceProduct>(`/admin/payment/balance-products/${id}`, data)
+  },
+
+  deleteBalanceProduct(id: number) {
+    return apiClient.delete(`/admin/payment/balance-products/${id}`)
   },
 
   // ==================== Provider Instances ====================

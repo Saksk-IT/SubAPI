@@ -177,6 +177,25 @@ func (h *PaymentHandler) ProcessRefund(c *gin.Context) {
 
 // --- Subscription Plans ---
 
+type AdminPlanResult struct {
+	ID              int64    `json:"id"`
+	GroupID         int64    `json:"group_id"`
+	Name            string   `json:"name"`
+	Description     string   `json:"description"`
+	Price           float64  `json:"price"`
+	OriginalPrice   *float64 `json:"original_price,omitempty"`
+	ValidityDays    int      `json:"validity_days"`
+	ValidityUnit    string   `json:"validity_unit"`
+	Features        string   `json:"features"`
+	Tags            string   `json:"tags"`
+	TotalQuota      *float64 `json:"total_quota,omitempty"`
+	DailyQuota      *float64 `json:"daily_quota,omitempty"`
+	DisplayNotes    string   `json:"display_notes"`
+	ProductName     string   `json:"product_name"`
+	ForSale         bool     `json:"for_sale"`
+	SortOrder       int      `json:"sort_order"`
+}
+
 // ListPlans returns all subscription plans.
 // GET /api/v1/admin/payment/plans
 func (h *PaymentHandler) ListPlans(c *gin.Context) {
@@ -185,7 +204,7 @@ func (h *PaymentHandler) ListPlans(c *gin.Context) {
 		response.ErrorFrom(c, err)
 		return
 	}
-	response.Success(c, plans)
+	response.Success(c, h.buildAdminPlanResults(c, plans))
 }
 
 // CreatePlan creates a new subscription plan.
@@ -201,7 +220,7 @@ func (h *PaymentHandler) CreatePlan(c *gin.Context) {
 		response.ErrorFrom(c, err)
 		return
 	}
-	response.Created(c, plan)
+	response.Created(c, h.buildAdminPlanResults(c, []*dbent.SubscriptionPlan{plan})[0])
 }
 
 // UpdatePlan updates an existing subscription plan.
@@ -221,7 +240,7 @@ func (h *PaymentHandler) UpdatePlan(c *gin.Context) {
 		response.ErrorFrom(c, err)
 		return
 	}
-	response.Success(c, plan)
+	response.Success(c, h.buildAdminPlanResults(c, []*dbent.SubscriptionPlan{plan})[0])
 }
 
 // DeletePlan deletes a subscription plan.
@@ -232,6 +251,88 @@ func (h *PaymentHandler) DeletePlan(c *gin.Context) {
 		return
 	}
 	if err := h.configService.DeletePlan(c.Request.Context(), id); err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	response.Success(c, gin.H{"message": "deleted"})
+}
+
+func (h *PaymentHandler) buildAdminPlanResults(c *gin.Context, plans []*dbent.SubscriptionPlan) []AdminPlanResult {
+	displayInfo := h.configService.GetPlanDisplayInfoMap(c.Request.Context(), plans)
+	out := make([]AdminPlanResult, 0, len(plans))
+	for _, plan := range plans {
+		display := displayInfo[plan.ID]
+		out = append(out, AdminPlanResult{
+			ID:            plan.ID,
+			GroupID:       plan.GroupID,
+			Name:          plan.Name,
+			Description:   plan.Description,
+			Price:         plan.Price,
+			OriginalPrice: plan.OriginalPrice,
+			ValidityDays:  plan.ValidityDays,
+			ValidityUnit:  plan.ValidityUnit,
+			Features:      plan.Features,
+			Tags:          display.Tags,
+			TotalQuota:    display.TotalQuota,
+			DailyQuota:    display.DailyQuota,
+			DisplayNotes:  display.DisplayNotes,
+			ProductName:   plan.ProductName,
+			ForSale:       plan.ForSale,
+			SortOrder:     plan.SortOrder,
+		})
+	}
+	return out
+}
+
+// --- Balance Products ---
+
+func (h *PaymentHandler) ListBalanceProducts(c *gin.Context) {
+	products, err := h.configService.ListBalanceProducts(c.Request.Context())
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	response.Success(c, products)
+}
+
+func (h *PaymentHandler) CreateBalanceProduct(c *gin.Context) {
+	var req service.CreateBalanceProductRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "Invalid request: "+err.Error())
+		return
+	}
+	product, err := h.configService.CreateBalanceProduct(c.Request.Context(), req)
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	response.Created(c, product)
+}
+
+func (h *PaymentHandler) UpdateBalanceProduct(c *gin.Context) {
+	id, ok := parseIDParam(c, "id")
+	if !ok {
+		return
+	}
+	var req service.UpdateBalanceProductRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "Invalid request: "+err.Error())
+		return
+	}
+	product, err := h.configService.UpdateBalanceProduct(c.Request.Context(), id, req)
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	response.Success(c, product)
+}
+
+func (h *PaymentHandler) DeleteBalanceProduct(c *gin.Context) {
+	id, ok := parseIDParam(c, "id")
+	if !ok {
+		return
+	}
+	if err := h.configService.DeleteBalanceProduct(c.Request.Context(), id); err != nil {
 		response.ErrorFrom(c, err)
 		return
 	}

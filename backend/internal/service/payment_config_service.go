@@ -158,6 +158,10 @@ type CreatePlanRequest struct {
 	ValidityDays  int      `json:"validity_days"`
 	ValidityUnit  string   `json:"validity_unit"`
 	Features      string   `json:"features"`
+	Tags          string   `json:"tags"`
+	TotalQuota    *float64 `json:"total_quota"`
+	DailyQuota    *float64 `json:"daily_quota"`
+	DisplayNotes  string   `json:"display_notes"`
 	ProductName   string   `json:"product_name"`
 	ForSale       bool     `json:"for_sale"`
 	SortOrder     int      `json:"sort_order"`
@@ -172,6 +176,10 @@ type UpdatePlanRequest struct {
 	ValidityDays  *int     `json:"validity_days"`
 	ValidityUnit  *string  `json:"validity_unit"`
 	Features      *string  `json:"features"`
+	Tags          *string  `json:"tags"`
+	TotalQuota    *float64 `json:"total_quota"`
+	DailyQuota    *float64 `json:"daily_quota"`
+	DisplayNotes  *string  `json:"display_notes"`
 	ProductName   *string  `json:"product_name"`
 	ForSale       *bool    `json:"for_sale"`
 	SortOrder     *int     `json:"sort_order"`

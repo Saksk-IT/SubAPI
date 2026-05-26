@@ -52,29 +52,16 @@ func (h *PaymentHandler) GetPlans(c *gin.Context) {
 		response.ErrorFrom(c, err)
 		return
 	}
-	// Enrich plans with group platform for frontend color coding
-	type planWithPlatform struct {
-		ID            int64    `json:"id"`
-		GroupID       int64    `json:"group_id"`
-		GroupPlatform string   `json:"group_platform"`
-		Name          string   `json:"name"`
-		Description   string   `json:"description"`
-		Price         float64  `json:"price"`
-		OriginalPrice *float64 `json:"original_price,omitempty"`
-		ValidityDays  int      `json:"validity_days"`
-		ValidityUnit  string   `json:"validity_unit"`
-		Features      string   `json:"features"`
-		ProductName   string   `json:"product_name"`
-		ForSale       bool     `json:"for_sale"`
-		SortOrder     int      `json:"sort_order"`
-	}
 	platformMap := h.configService.GetGroupPlatformMap(c.Request.Context(), plans)
-	result := make([]planWithPlatform, 0, len(plans))
+	displayInfo := h.configService.GetPlanDisplayInfoMap(c.Request.Context(), plans)
+	result := make([]checkoutPlan, 0, len(plans))
 	for _, p := range plans {
-		result = append(result, planWithPlatform{
+		display := displayInfo[p.ID]
+		result = append(result, checkoutPlan{
 			ID: int64(p.ID), GroupID: p.GroupID, GroupPlatform: platformMap[p.GroupID],
 			Name: p.Name, Description: p.Description, Price: p.Price, OriginalPrice: p.OriginalPrice,
-			ValidityDays: p.ValidityDays, ValidityUnit: p.ValidityUnit, Features: p.Features,
+			ValidityDays: p.ValidityDays, ValidityUnit: p.ValidityUnit, Features: parseFeatures(p.Features),
+			Tags: parseFeatures(display.Tags), TotalQuota: display.TotalQuota, DailyQuota: display.DailyQuota, DisplayNotes: display.DisplayNotes,
 			ProductName: p.ProductName, ForSale: p.ForSale, SortOrder: p.SortOrder,
 		})
 	}
@@ -115,9 +102,11 @@ func (h *PaymentHandler) GetCheckoutInfo(c *gin.Context) {
 	// Fetch plans with group info
 	plans, _ := h.configService.ListPlansForSale(ctx)
 	groupInfo := h.configService.GetGroupInfoMap(ctx, plans)
+	displayInfo := h.configService.GetPlanDisplayInfoMap(ctx, plans)
 	planList := make([]checkoutPlan, 0, len(plans))
 	for _, p := range plans {
 		gi := groupInfo[p.GroupID]
+		display := displayInfo[p.ID]
 		planList = append(planList, checkoutPlan{
 			ID: int64(p.ID), GroupID: p.GroupID,
 			GroupPlatform: gi.Platform, GroupName: gi.Name,
@@ -126,7 +115,16 @@ func (h *PaymentHandler) GetCheckoutInfo(c *gin.Context) {
 			ModelScopes: gi.ModelScopes,
 			Name:        p.Name, Description: p.Description, Price: p.Price, OriginalPrice: p.OriginalPrice,
 			ValidityDays: p.ValidityDays, ValidityUnit: p.ValidityUnit, Features: parseFeatures(p.Features),
-			ProductName: p.ProductName,
+			Tags: parseFeatures(display.Tags), TotalQuota: display.TotalQuota, DailyQuota: display.DailyQuota, DisplayNotes: display.DisplayNotes,
+			ProductName: p.ProductName, ForSale: p.ForSale, SortOrder: p.SortOrder,
+		})
+	}
+	balanceProducts, _ := h.configService.ListBalanceProductsForSale(ctx)
+	balanceProductList := make([]checkoutBalanceProduct, 0, len(balanceProducts))
+	for _, p := range balanceProducts {
+		balanceProductList = append(balanceProductList, checkoutBalanceProduct{
+			ID: p.ID, Name: p.Name, Description: p.Description, Price: p.Price, Amount: p.Amount, OriginalPrice: p.OriginalPrice,
+			Tags: parseFeatures(p.Tags), Features: parseFeatures(p.Features), ProductName: p.ProductName, ForSale: p.ForSale, SortOrder: p.SortOrder,
 		})
 	}
 
@@ -134,6 +132,7 @@ func (h *PaymentHandler) GetCheckoutInfo(c *gin.Context) {
 		Methods:                   limitsResp.Methods,
 		GlobalMin:                 limitsResp.GlobalMin,
 		GlobalMax:                 limitsResp.GlobalMax,
+		BalanceProducts:           balanceProductList,
 		Plans:                     planList,
 		BalanceDisabled:           cfg.BalanceDisabled,
 		BalanceRechargeMultiplier: cfg.BalanceRechargeMultiplier,
@@ -149,6 +148,7 @@ type checkoutInfoResponse struct {
 	Methods                   map[string]service.MethodLimits `json:"methods"`
 	GlobalMin                 float64                         `json:"global_min"`
 	GlobalMax                 float64                         `json:"global_max"`
+	BalanceProducts           []checkoutBalanceProduct         `json:"balance_products"`
 	Plans                     []checkoutPlan                  `json:"plans"`
 	BalanceDisabled           bool                            `json:"balance_disabled"`
 	BalanceRechargeMultiplier float64                         `json:"balance_recharge_multiplier"`
@@ -157,6 +157,20 @@ type checkoutInfoResponse struct {
 	HelpImageURL              string                          `json:"help_image_url"`
 	StripePublishableKey      string                          `json:"stripe_publishable_key"`
 	AlipayForceQRCode         bool                            `json:"alipay_force_qrcode"`
+}
+
+type checkoutBalanceProduct struct {
+	ID            int64    `json:"id"`
+	Name          string   `json:"name"`
+	Description   string   `json:"description"`
+	Price         float64  `json:"price"`
+	Amount        float64  `json:"amount"`
+	OriginalPrice *float64 `json:"original_price,omitempty"`
+	Tags          []string `json:"tags"`
+	Features      []string `json:"features"`
+	ProductName   string   `json:"product_name"`
+	ForSale       bool     `json:"for_sale"`
+	SortOrder     int      `json:"sort_order"`
 }
 
 type checkoutPlan struct {
@@ -176,7 +190,13 @@ type checkoutPlan struct {
 	ValidityDays    int      `json:"validity_days"`
 	ValidityUnit    string   `json:"validity_unit"`
 	Features        []string `json:"features"`
+	Tags            []string `json:"tags"`
+	TotalQuota      *float64 `json:"total_quota,omitempty"`
+	DailyQuota      *float64 `json:"daily_quota,omitempty"`
+	DisplayNotes    string   `json:"display_notes"`
 	ProductName     string   `json:"product_name"`
+	ForSale         bool     `json:"for_sale"`
+	SortOrder       int      `json:"sort_order"`
 }
 
 // parseFeatures splits a newline-separated features string into a string slice.
@@ -217,6 +237,7 @@ type CreateOrderRequest struct {
 	PaymentSource     string  `json:"payment_source"`
 	OrderType         string  `json:"order_type"`
 	PlanID            int64   `json:"plan_id"`
+	BalanceProductID  int64   `json:"balance_product_id"`
 	// IsMobile lets the frontend declare its mobile status directly. When
 	// nil we fall back to User-Agent heuristics (which miss iPadOS / some
 	// embedded browsers that strip the "Mobile" keyword).
@@ -266,6 +287,7 @@ func (h *PaymentHandler) CreateOrder(c *gin.Context) {
 		PaymentSource:   req.PaymentSource,
 		OrderType:       req.OrderType,
 		PlanID:          req.PlanID,
+		BalanceProductID: req.BalanceProductID,
 		Locale:          c.GetHeader("Accept-Language"),
 	})
 	if err != nil {
@@ -309,6 +331,9 @@ func applyWeChatPaymentResumeClaims(req *CreateOrderRequest, claims *service.WeC
 	}
 	if claims.PlanID > 0 {
 		req.PlanID = claims.PlanID
+	}
+	if claims.BalanceProductID > 0 {
+		req.BalanceProductID = claims.BalanceProductID
 	}
 	return nil
 }

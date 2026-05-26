@@ -2,8 +2,10 @@ package service
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"strings"
+	"time"
 
 	dbent "github.com/Wei-Shaw/sub2api/ent"
 	"github.com/Wei-Shaw/sub2api/ent/group"
@@ -34,6 +36,22 @@ func validatePlanRequired(name string, groupID int64, price float64, validityDay
 	return nil
 }
 
+func validatePlanDisplayFields(tags string, features string, totalQuota *float64, dailyQuota *float64) error {
+	if err := validateProductLines(tags, maxProductTags, maxProductTagLen, "PLAN_TAGS_INVALID"); err != nil {
+		return err
+	}
+	if err := validateProductLines(features, maxProductFeatures, 160, "PLAN_FEATURES_INVALID"); err != nil {
+		return err
+	}
+	if totalQuota != nil && *totalQuota < 0 {
+		return infraerrors.BadRequest("PLAN_TOTAL_QUOTA_INVALID", "total quota must be >= 0")
+	}
+	if dailyQuota != nil && *dailyQuota < 0 {
+		return infraerrors.BadRequest("PLAN_DAILY_QUOTA_INVALID", "daily quota must be >= 0")
+	}
+	return nil
+}
+
 // validatePlanPatch validates only the non-nil fields in a patch update.
 func validatePlanPatch(req UpdatePlanRequest) error {
 	if req.Name != nil && strings.TrimSpace(*req.Name) == "" {
@@ -54,6 +72,22 @@ func validatePlanPatch(req UpdatePlanRequest) error {
 	if req.OriginalPrice != nil && *req.OriginalPrice < 0 {
 		return infraerrors.BadRequest("PLAN_ORIGINAL_PRICE_INVALID", "original price must be >= 0")
 	}
+	if req.Tags != nil {
+		if err := validateProductLines(*req.Tags, maxProductTags, maxProductTagLen, "PLAN_TAGS_INVALID"); err != nil {
+			return err
+		}
+	}
+	if req.Features != nil {
+		if err := validateProductLines(*req.Features, maxProductFeatures, 160, "PLAN_FEATURES_INVALID"); err != nil {
+			return err
+		}
+	}
+	if req.TotalQuota != nil && *req.TotalQuota < 0 {
+		return infraerrors.BadRequest("PLAN_TOTAL_QUOTA_INVALID", "total quota must be >= 0")
+	}
+	if req.DailyQuota != nil && *req.DailyQuota < 0 {
+		return infraerrors.BadRequest("PLAN_DAILY_QUOTA_INVALID", "daily quota must be >= 0")
+	}
 	return nil
 }
 
@@ -68,6 +102,13 @@ type PlanGroupInfo struct {
 	WeeklyLimitUSD  *float64 `json:"weekly_limit_usd"`
 	MonthlyLimitUSD *float64 `json:"monthly_limit_usd"`
 	ModelScopes     []string `json:"supported_model_scopes"`
+}
+
+type PlanDisplayInfo struct {
+	Tags         string   `json:"tags"`
+	TotalQuota   *float64 `json:"total_quota,omitempty"`
+	DailyQuota   *float64 `json:"daily_quota,omitempty"`
+	DisplayNotes string   `json:"display_notes"`
 }
 
 // GetGroupPlatformMap returns a map of group_id → platform for the given plans.
@@ -112,6 +153,51 @@ func (s *PaymentConfigService) GetGroupInfoMap(ctx context.Context, plans []*dbe
 	return m
 }
 
+func (s *PaymentConfigService) GetPlanDisplayInfoMap(ctx context.Context, plans []*dbent.SubscriptionPlan) map[int64]PlanDisplayInfo {
+	ids := make([]int64, 0, len(plans))
+	for _, p := range plans {
+		ids = append(ids, p.ID)
+	}
+	if len(ids) == 0 {
+		return nil
+	}
+	placeholders := make([]string, 0, len(ids))
+	args := make([]any, 0, len(ids))
+	for i, id := range ids {
+		placeholders = append(placeholders, fmt.Sprintf("$%d", i+1))
+		args = append(args, id)
+	}
+	rows, err := s.entClient.QueryContext(ctx, fmt.Sprintf(`
+SELECT id, tags, total_quota, daily_quota, display_notes
+FROM subscription_plans
+WHERE id IN (%s)`, strings.Join(placeholders, ",")), args...)
+	if err != nil {
+		return nil
+	}
+	defer func() { _ = rows.Close() }()
+
+	result := make(map[int64]PlanDisplayInfo, len(ids))
+	for rows.Next() {
+		var id int64
+		var tags string
+		var totalQuota sql.NullFloat64
+		var dailyQuota sql.NullFloat64
+		var displayNotes string
+		if err := rows.Scan(&id, &tags, &totalQuota, &dailyQuota, &displayNotes); err != nil {
+			continue
+		}
+		info := PlanDisplayInfo{Tags: tags, DisplayNotes: displayNotes}
+		if totalQuota.Valid {
+			info.TotalQuota = &totalQuota.Float64
+		}
+		if dailyQuota.Valid {
+			info.DailyQuota = &dailyQuota.Float64
+		}
+		result[id] = info
+	}
+	return result
+}
+
 func (s *PaymentConfigService) ListPlans(ctx context.Context) ([]*dbent.SubscriptionPlan, error) {
 	return s.entClient.SubscriptionPlan.Query().Order(subscriptionplan.BySortOrder()).All(ctx)
 }
@@ -124,15 +210,31 @@ func (s *PaymentConfigService) CreatePlan(ctx context.Context, req CreatePlanReq
 	if err := validatePlanRequired(req.Name, req.GroupID, req.Price, req.ValidityDays, req.ValidityUnit, req.OriginalPrice); err != nil {
 		return nil, err
 	}
+	if err := validatePlanDisplayFields(req.Tags, req.Features, req.TotalQuota, req.DailyQuota); err != nil {
+		return nil, err
+	}
 	b := s.entClient.SubscriptionPlan.Create().
 		SetGroupID(req.GroupID).SetName(req.Name).SetDescription(req.Description).
 		SetPrice(req.Price).SetValidityDays(req.ValidityDays).SetValidityUnit(req.ValidityUnit).
-		SetFeatures(req.Features).SetProductName(req.ProductName).
+		SetFeatures(normalizeProductLines(req.Features)).SetProductName(req.ProductName).
 		SetForSale(req.ForSale).SetSortOrder(req.SortOrder)
 	if req.OriginalPrice != nil {
 		b.SetOriginalPrice(*req.OriginalPrice)
 	}
-	return b.Save(ctx)
+	plan, err := b.Save(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if err := s.updatePlanDisplayFields(ctx, plan.ID, &PlanDisplayInfo{
+		Tags:         normalizeProductLines(req.Tags),
+		TotalQuota:   req.TotalQuota,
+		DailyQuota:   req.DailyQuota,
+		DisplayNotes: strings.TrimSpace(req.DisplayNotes),
+	}); err != nil {
+		_ = s.entClient.SubscriptionPlan.DeleteOneID(plan.ID).Exec(ctx)
+		return nil, err
+	}
+	return s.GetPlan(ctx, plan.ID)
 }
 
 // UpdatePlan updates a subscription plan by ID (patch semantics).
@@ -165,7 +267,8 @@ func (s *PaymentConfigService) UpdatePlan(ctx context.Context, id int64, req Upd
 		u.SetValidityUnit(*req.ValidityUnit)
 	}
 	if req.Features != nil {
-		u.SetFeatures(*req.Features)
+		features := normalizeProductLines(*req.Features)
+		u.SetFeatures(features)
 	}
 	if req.ProductName != nil {
 		u.SetProductName(*req.ProductName)
@@ -176,7 +279,65 @@ func (s *PaymentConfigService) UpdatePlan(ctx context.Context, id int64, req Upd
 	if req.SortOrder != nil {
 		u.SetSortOrder(*req.SortOrder)
 	}
-	return u.Save(ctx)
+	plan, err := u.Save(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if req.Tags != nil || req.TotalQuota != nil || req.DailyQuota != nil || req.DisplayNotes != nil {
+		current := s.GetPlanDisplayInfoMap(ctx, []*dbent.SubscriptionPlan{plan})[plan.ID]
+		next := current
+		if req.Tags != nil {
+			next.Tags = normalizeProductLines(*req.Tags)
+		}
+		if req.TotalQuota != nil {
+			next.TotalQuota = req.TotalQuota
+		}
+		if req.DailyQuota != nil {
+			next.DailyQuota = req.DailyQuota
+		}
+		if req.DisplayNotes != nil {
+			next.DisplayNotes = strings.TrimSpace(*req.DisplayNotes)
+		}
+		if err := s.updatePlanDisplayFields(ctx, plan.ID, &next); err != nil {
+			return nil, err
+		}
+	}
+	return s.GetPlan(ctx, id)
+}
+
+func (s *PaymentConfigService) updatePlanDisplayFields(ctx context.Context, planID int64, info *PlanDisplayInfo) error {
+	if info == nil {
+		return nil
+	}
+	var totalQuota any
+	if info.TotalQuota != nil {
+		totalQuota = *info.TotalQuota
+	}
+	var dailyQuota any
+	if info.DailyQuota != nil {
+		dailyQuota = *info.DailyQuota
+	}
+	_, err := s.entClient.ExecContext(ctx, `
+UPDATE subscription_plans
+SET tags = $2, total_quota = $3, daily_quota = $4, display_notes = $5, updated_at = $6
+WHERE id = $1`, planID, normalizeProductLines(info.Tags), totalQuota, dailyQuota, strings.TrimSpace(info.DisplayNotes), time.Now())
+	if err != nil {
+		if isMissingPlanDisplayColumnError(err) {
+			return nil
+		}
+		return fmt.Errorf("update plan display fields: %w", err)
+	}
+	return nil
+}
+
+func isMissingPlanDisplayColumnError(err error) bool {
+	if err == nil {
+		return false
+	}
+	msg := strings.ToLower(err.Error())
+	return strings.Contains(msg, "no such column") ||
+		strings.Contains(msg, "does not exist") ||
+		strings.Contains(msg, "unknown column")
 }
 
 func (s *PaymentConfigService) DeletePlan(ctx context.Context, id int64) error {

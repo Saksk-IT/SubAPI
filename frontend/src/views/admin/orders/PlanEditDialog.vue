@@ -50,6 +50,26 @@
         <textarea v-model="planFeaturesText" rows="3" class="input" :placeholder="t('payment.admin.featuresPlaceholder')"></textarea>
         <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">{{ t('payment.admin.featuresHint') }}</p>
       </div>
+      <div class="grid grid-cols-2 gap-4">
+        <div>
+          <label class="input-label">{{ t('payment.admin.productTags') }}</label>
+          <textarea v-model="planTagsText" rows="3" class="input" :placeholder="t('payment.admin.productTagsPlaceholder')"></textarea>
+        </div>
+        <div>
+          <label class="input-label">{{ t('payment.admin.displayNotes') }}</label>
+          <textarea v-model="planForm.display_notes" rows="3" class="input"></textarea>
+        </div>
+      </div>
+      <div class="grid grid-cols-2 gap-4">
+        <div>
+          <label class="input-label">{{ t('payment.admin.totalQuota') }}</label>
+          <input v-model.number="planForm.total_quota" type="number" min="0" step="0.01" class="input" />
+        </div>
+        <div>
+          <label class="input-label">{{ t('payment.admin.dailyQuota') }}</label>
+          <input v-model.number="planForm.daily_quota" type="number" min="0" step="0.01" class="input" />
+        </div>
+      </div>
       <div class="flex items-center gap-3">
         <label class="text-sm text-gray-700 dark:text-gray-300">{{ t('payment.admin.forSale') }}</label>
         <button
@@ -105,8 +125,9 @@ const { t } = useI18n()
 const appStore = useAppStore()
 
 const saving = ref(false)
-const planForm = reactive({ name: '', group_id: null as number | null, description: '', price: 0, original_price: 0, validity_days: 30, validity_unit: 'days', sort_order: 0, for_sale: true })
+const planForm = reactive({ name: '', group_id: null as number | null, description: '', price: 0, original_price: 0, validity_days: 30, validity_unit: 'days', total_quota: 0, daily_quota: 0, display_notes: '', sort_order: 0, for_sale: true })
 const planFeaturesText = ref('')
+const planTagsText = ref('')
 
 const validityUnitOptions = computed(() => [
   { value: 'days', label: t('payment.admin.days') },
@@ -133,17 +154,20 @@ const selectedGroupInfo = computed(() => {
 watch(() => props.show, (visible) => {
   if (!visible) return
   if (props.plan) {
-    Object.assign(planForm, { name: props.plan.name, group_id: props.plan.group_id, description: props.plan.description, price: props.plan.price, original_price: props.plan.original_price || 0, validity_days: props.plan.validity_days, validity_unit: props.plan.validity_unit || 'days', sort_order: props.plan.sort_order || 0, for_sale: props.plan.for_sale })
+    Object.assign(planForm, { name: props.plan.name, group_id: props.plan.group_id, description: props.plan.description, price: props.plan.price, original_price: props.plan.original_price || 0, validity_days: props.plan.validity_days, validity_unit: props.plan.validity_unit || 'days', total_quota: props.plan.total_quota || 0, daily_quota: props.plan.daily_quota || 0, display_notes: props.plan.display_notes || '', sort_order: props.plan.sort_order || 0, for_sale: props.plan.for_sale })
     planFeaturesText.value = (props.plan.features || []).join('\n')
+    planTagsText.value = Array.isArray(props.plan.tags) ? props.plan.tags.join('\n') : (props.plan.tags || '')
   } else {
-    Object.assign(planForm, { name: '', group_id: null, description: '', price: 0, original_price: 0, validity_days: 30, validity_unit: 'days', sort_order: 0, for_sale: true })
+    Object.assign(planForm, { name: '', group_id: null, description: '', price: 0, original_price: 0, validity_days: 30, validity_unit: 'days', total_quota: 0, daily_quota: 0, display_notes: '', sort_order: 0, for_sale: true })
     planFeaturesText.value = ''
+    planTagsText.value = ''
   }
 })
 
 /** Build request payload with snake_case keys matching backend JSON tags */
 function buildPlanPayload() {
   const features = planFeaturesText.value.split('\n').map(f => f.trim()).filter(Boolean).join('\n')
+  const tags = planTagsText.value.split('\n').map(f => f.trim()).filter(Boolean).join('\n')
   return {
     name: planForm.name,
     group_id: planForm.group_id,
@@ -155,6 +179,10 @@ function buildPlanPayload() {
     sort_order: planForm.sort_order,
     for_sale: planForm.for_sale,
     features,
+    tags,
+    total_quota: Number(planForm.total_quota) || 0,
+    daily_quota: Number(planForm.daily_quota) || 0,
+    display_notes: planForm.display_notes,
   }
 }
 

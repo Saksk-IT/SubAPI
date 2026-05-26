@@ -62,6 +62,7 @@ export interface CheckoutInfoResponse {
   methods: Record<string, MethodLimit>
   global_min: number
   global_max: number
+  balance_products: BalanceProduct[]
   plans: SubscriptionPlan[]
   balance_disabled: boolean
   balance_recharge_multiplier: number
@@ -96,10 +97,25 @@ export interface PaymentOrder {
   refund_requested_by?: number
   refund_request_reason?: string
   plan_id?: number
+  balance_product_id?: number
   provider_instance_id?: string
 }
 
 // ==================== Plans & Channels ====================
+
+export interface BalanceProduct {
+  id: number
+  name: string
+  description: string
+  price: number
+  amount: number
+  original_price?: number
+  tags: string[] | string
+  features: string[] | string
+  product_name?: string
+  for_sale: boolean
+  sort_order: number
+}
 
 export interface SubscriptionPlan {
   id: number
@@ -119,6 +135,11 @@ export interface SubscriptionPlan {
   validity_unit: string
   /** Stored as JSON string in backend; API layer should parse before use */
   features: string[]
+  tags?: string[] | string
+  total_quota?: number | null
+  daily_quota?: number | null
+  display_notes?: string
+  product_name?: string
   for_sale: boolean
   sort_order: number
 }
@@ -158,6 +179,7 @@ export interface CreateOrderRequest {
   payment_type: string
   order_type: string
   plan_id?: number
+  balance_product_id?: number
   return_url?: string
   payment_source?: string
   openid?: string
