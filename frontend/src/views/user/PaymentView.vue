@@ -1,6 +1,6 @@
 <template>
   <AppLayout>
-    <div class="mx-auto w-full max-w-[1640px] space-y-6">
+    <div class="mx-auto w-full max-w-[1720px] space-y-6">
       <div v-if="loading" class="flex items-center justify-center py-20">
         <div class="h-8 w-8 animate-spin rounded-full border-4 border-primary-500 border-t-transparent"></div>
       </div>
@@ -23,60 +23,114 @@
           </div>
         </template>
         <!-- Tab content (select phase) -->
-        <div v-else class="grid gap-6 xl:grid-cols-[260px_minmax(0,1fr)_280px] 2xl:grid-cols-[280px_minmax(0,1fr)_300px]">
-          <aside
+        <div v-else class="space-y-6">
+          <div
             v-if="!selectedPlan"
-            class="card p-5 xl:sticky xl:top-24 xl:self-start"
+            class="grid gap-5 xl:grid-cols-[minmax(0,1fr)_380px]"
           >
-            <p class="text-xs font-semibold uppercase text-primary-600 dark:text-primary-400">
-              {{ t('payment.purchaseGuide.eyebrow') }}
-            </p>
-            <h1 class="mt-2 text-xl font-black leading-tight text-gray-950 dark:text-white">
-              {{ t('payment.purchaseGuide.title') }}
-            </h1>
-            <p class="mt-3 text-sm leading-6 text-gray-600 dark:text-gray-300">
-              {{ t('payment.purchaseGuide.subtitle') }}
-            </p>
-            <div class="mt-5 space-y-4">
-              <section class="border-l-2 border-sky-400 pl-4">
-                <h2 class="text-sm font-bold text-gray-950 dark:text-white">
-                  {{ t('payment.purchaseGuide.apiRechargeTitle') }}
-                </h2>
-                <p class="mt-1 text-sm leading-6 text-gray-500 dark:text-gray-400">
-                  {{ t('payment.purchaseGuide.apiRechargeDescription') }}
+            <section class="card p-5 sm:p-6">
+              <p class="text-xs font-semibold uppercase text-primary-600 dark:text-primary-400">
+                {{ t('payment.purchaseGuide.eyebrow') }}
+              </p>
+              <div class="mt-2 max-w-5xl">
+                <h1 class="text-2xl font-black leading-tight text-gray-950 dark:text-white sm:text-3xl">
+                  {{ t('payment.purchaseGuide.title') }}
+                </h1>
+                <p class="mt-3 text-sm leading-6 text-gray-600 dark:text-gray-300 sm:text-base sm:leading-7">
+                  {{ t('payment.purchaseGuide.subtitle') }}
                 </p>
-              </section>
-              <section class="border-l-2 border-emerald-400 pl-4">
-                <h2 class="text-sm font-bold text-gray-950 dark:text-white">
-                  {{ t('payment.purchaseGuide.rechargeTitle') }}
-                </h2>
-                <p class="mt-1 text-sm leading-6 text-gray-500 dark:text-gray-400">
-                  {{ t('payment.purchaseGuide.rechargeDescription') }}
-                </p>
-              </section>
-              <section class="border-l-2 border-violet-400 pl-4">
-                <h2 class="text-sm font-bold text-gray-950 dark:text-white">
-                  {{ t('payment.purchaseGuide.subscriptionTitle') }}
-                </h2>
-                <p class="mt-1 text-sm leading-6 text-gray-500 dark:text-gray-400">
-                  {{ t('payment.purchaseGuide.subscriptionDescription') }}
-                </p>
-              </section>
-            </div>
-            <div class="mt-5 border-t border-gray-100 pt-4 dark:border-dark-700">
-              <h2 class="text-sm font-bold text-gray-950 dark:text-white">
-                {{ t('payment.purchaseGuide.billingTitle') }}
-              </h2>
-              <div class="mt-3 space-y-2 text-sm leading-6 text-gray-500 dark:text-gray-400">
-                <p>{{ t('payment.purchaseGuide.billingRecharge') }}</p>
-                <p>{{ t('payment.purchaseGuide.billingSubscription') }}</p>
               </div>
-            </div>
-          </aside>
+              <div class="mt-6 grid gap-4 lg:grid-cols-3">
+                <section class="min-w-0 border-l-2 border-sky-400 pl-4">
+                  <h2 class="text-base font-bold text-gray-950 dark:text-white">
+                    {{ t('payment.purchaseGuide.apiRechargeTitle') }}
+                  </h2>
+                  <p class="mt-2 text-sm leading-6 text-gray-500 dark:text-gray-400">
+                    {{ t('payment.purchaseGuide.apiRechargeDescription') }}
+                  </p>
+                </section>
+                <section class="min-w-0 border-l-2 border-emerald-400 pl-4">
+                  <h2 class="text-base font-bold text-gray-950 dark:text-white">
+                    {{ t('payment.purchaseGuide.rechargeTitle') }}
+                  </h2>
+                  <p class="mt-2 text-sm leading-6 text-gray-500 dark:text-gray-400">
+                    {{ t('payment.purchaseGuide.rechargeDescription') }}
+                  </p>
+                </section>
+                <section class="min-w-0 border-l-2 border-violet-400 pl-4">
+                  <h2 class="text-base font-bold text-gray-950 dark:text-white">
+                    {{ t('payment.purchaseGuide.subscriptionTitle') }}
+                  </h2>
+                  <p class="mt-2 text-sm leading-6 text-gray-500 dark:text-gray-400">
+                    {{ t('payment.purchaseGuide.subscriptionDescription') }}
+                  </p>
+                </section>
+              </div>
+              <div class="mt-6 border-t border-gray-100 pt-5 dark:border-dark-700">
+                <h2 class="text-base font-bold text-gray-950 dark:text-white">
+                  {{ t('payment.purchaseGuide.billingTitle') }}
+                </h2>
+                <div class="mt-3 grid gap-3 text-sm leading-6 text-gray-500 dark:text-gray-400 md:grid-cols-2">
+                  <p>{{ t('payment.purchaseGuide.billingRecharge') }}</p>
+                  <p>{{ t('payment.purchaseGuide.billingSubscription') }}</p>
+                </div>
+              </div>
+            </section>
+
+            <aside class="card p-5 sm:p-6">
+              <p class="text-xs font-semibold uppercase text-primary-600 dark:text-primary-400">
+                {{ t('payment.purchaseGuide.contactEyebrow') }}
+              </p>
+              <h2 class="mt-2 text-xl font-black leading-tight text-gray-950 dark:text-white">
+                {{ t('payment.purchaseGuide.contactTitle') }}
+              </h2>
+              <p class="mt-3 text-sm leading-6 text-gray-600 dark:text-gray-300">
+                {{ t('payment.purchaseGuide.contactSubtitle') }}
+              </p>
+              <div class="mt-5 space-y-4">
+                <button
+                  v-if="supportImageUrl"
+                  type="button"
+                  class="w-full rounded-xl border border-gray-100 bg-gray-50 p-3 transition hover:border-gray-200 hover:bg-white dark:border-dark-700 dark:bg-dark-900/60 dark:hover:bg-dark-900"
+                  @click="previewImage = supportImageUrl"
+                >
+                  <img
+                    :src="supportImageUrl"
+                    :alt="t('payment.purchaseGuide.contactQr')"
+                    class="mx-auto h-44 max-w-full object-contain"
+                  />
+                  <span class="mt-2 block text-xs font-medium text-gray-500 dark:text-gray-400">
+                    {{ t('payment.purchaseGuide.contactQr') }}
+                  </span>
+                </button>
+                <div v-if="supportContactInfo">
+                  <p class="text-xs font-semibold text-gray-400 dark:text-gray-500">
+                    {{ t('payment.purchaseGuide.contactInfo') }}
+                  </p>
+                  <p class="mt-2 whitespace-pre-line break-words text-sm font-medium leading-6 text-gray-800 [overflow-wrap:anywhere] dark:text-gray-100">
+                    {{ supportContactInfo }}
+                  </p>
+                </div>
+                <div v-if="supportHelpText">
+                  <p class="text-xs font-semibold text-gray-400 dark:text-gray-500">
+                    {{ t('payment.purchaseGuide.helpTitle') }}
+                  </p>
+                  <p class="mt-2 whitespace-pre-line break-words text-sm leading-6 text-gray-600 [overflow-wrap:anywhere] dark:text-gray-300">
+                    {{ supportHelpText }}
+                  </p>
+                </div>
+                <p
+                  v-if="!supportImageUrl && !supportContactInfo && !supportHelpText"
+                  class="rounded-xl bg-gray-50 px-4 py-3 text-sm leading-6 text-gray-500 dark:bg-dark-900/60 dark:text-gray-400"
+                >
+                  {{ t('payment.purchaseGuide.contactEmpty') }}
+                </p>
+              </div>
+            </aside>
+          </div>
 
           <section
             class="min-w-0 space-y-6"
-            :class="selectedPlan ? 'xl:col-span-3' : ''"
           >
             <!-- Tab Switcher (hide during subscription confirm) -->
             <div v-if="tabs.length > 1 && !selectedPlan" class="flex space-x-1 rounded-xl bg-gray-100 p-1 dark:bg-dark-800">
@@ -245,60 +299,6 @@
               </template>
             </template>
           </section>
-
-          <aside
-            v-if="!selectedPlan"
-            class="card p-5 xl:sticky xl:top-24 xl:self-start"
-          >
-            <p class="text-xs font-semibold uppercase text-primary-600 dark:text-primary-400">
-              {{ t('payment.purchaseGuide.contactEyebrow') }}
-            </p>
-            <h2 class="mt-2 text-xl font-black leading-tight text-gray-950 dark:text-white">
-              {{ t('payment.purchaseGuide.contactTitle') }}
-            </h2>
-            <p class="mt-3 text-sm leading-6 text-gray-600 dark:text-gray-300">
-              {{ t('payment.purchaseGuide.contactSubtitle') }}
-            </p>
-            <div class="mt-5 space-y-4">
-              <button
-                v-if="supportImageUrl"
-                type="button"
-                class="w-full rounded-xl border border-gray-100 bg-gray-50 p-3 transition hover:border-gray-200 hover:bg-white dark:border-dark-700 dark:bg-dark-900/60 dark:hover:bg-dark-900"
-                @click="previewImage = supportImageUrl"
-              >
-                <img
-                  :src="supportImageUrl"
-                  :alt="t('payment.purchaseGuide.contactQr')"
-                  class="mx-auto h-44 max-w-full object-contain"
-                />
-                <span class="mt-2 block text-xs font-medium text-gray-500 dark:text-gray-400">
-                  {{ t('payment.purchaseGuide.contactQr') }}
-                </span>
-              </button>
-              <div v-if="supportContactInfo">
-                <p class="text-xs font-semibold text-gray-400 dark:text-gray-500">
-                  {{ t('payment.purchaseGuide.contactInfo') }}
-                </p>
-                <p class="mt-2 whitespace-pre-line break-words text-sm font-medium leading-6 text-gray-800 [overflow-wrap:anywhere] dark:text-gray-100">
-                  {{ supportContactInfo }}
-                </p>
-              </div>
-              <div v-if="supportHelpText">
-                <p class="text-xs font-semibold text-gray-400 dark:text-gray-500">
-                  {{ t('payment.purchaseGuide.helpTitle') }}
-                </p>
-                <p class="mt-2 whitespace-pre-line break-words text-sm leading-6 text-gray-600 [overflow-wrap:anywhere] dark:text-gray-300">
-                  {{ supportHelpText }}
-                </p>
-              </div>
-              <p
-                v-if="!supportImageUrl && !supportContactInfo && !supportHelpText"
-                class="rounded-xl bg-gray-50 px-4 py-3 text-sm leading-6 text-gray-500 dark:bg-dark-900/60 dark:text-gray-400"
-              >
-                {{ t('payment.purchaseGuide.contactEmpty') }}
-              </p>
-            </div>
-          </aside>
         </div>
       </template>
     </div>
@@ -589,7 +589,7 @@ const supportContactInfo = computed(() => appStore.contactInfo.trim())
 const supportHelpText = computed(() => checkout.value.help_text.trim())
 const supportImageUrl = computed(() => checkout.value.help_image_url.trim())
 
-const productGridClass = 'grid gap-5 [grid-template-columns:repeat(auto-fit,minmax(min(100%,20rem),1fr))]'
+const productGridClass = 'grid gap-6 [grid-template-columns:repeat(auto-fit,minmax(min(100%,26rem),1fr))]'
 
 // Check if an amount fits a method's [min, max]. 0 = no limit.
 function amountFitsMethod(amt: number, methodType: string): boolean {

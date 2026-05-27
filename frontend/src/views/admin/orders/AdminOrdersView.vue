@@ -1,21 +1,89 @@
 <template>
   <AppLayout>
     <div class="space-y-4">
-      <!-- Filters -->
-      <div class="card p-4">
-        <div class="flex flex-wrap items-center gap-3">
-          <div class="flex-1 sm:max-w-64">
-            <input v-model="orderSearch" type="text" :placeholder="t('payment.admin.searchOrders')" class="input" @input="debounceLoadOrders" />
-          </div>
-          <Select v-model="orderFilters.status" :options="statusFilterOptions" class="w-36" @change="loadOrders" />
-          <Select v-model="orderFilters.payment_type" :options="paymentTypeFilterOptions" class="w-40" @change="loadOrders" />
-          <Select v-model="orderFilters.order_type" :options="orderTypeFilterOptions" class="w-36" @change="loadOrders" />
-          <div class="flex flex-1 flex-wrap items-center justify-end gap-2">
-            <button @click="loadOrders" :disabled="ordersLoading" class="btn btn-secondary" :title="t('common.refresh')">
-              <Icon name="refresh" size="md" :class="ordersLoading ? 'animate-spin' : ''" />
-            </button>
+      <div class="grid gap-4 2xl:grid-cols-[minmax(0,1fr)_420px]">
+        <!-- Filters -->
+        <div class="card p-4">
+          <div class="flex flex-wrap items-center gap-3">
+            <div class="flex-1 sm:max-w-64">
+              <input v-model="orderSearch" type="text" :placeholder="t('payment.admin.searchOrders')" class="input" @input="debounceLoadOrders" />
+            </div>
+            <Select v-model="orderFilters.status" :options="statusFilterOptions" class="w-36" @change="loadOrders" />
+            <Select v-model="orderFilters.payment_type" :options="paymentTypeFilterOptions" class="w-40" @change="loadOrders" />
+            <Select v-model="orderFilters.order_type" :options="orderTypeFilterOptions" class="w-36" @change="loadOrders" />
+            <div class="flex flex-1 flex-wrap items-center justify-end gap-2">
+              <button @click="loadOrders" :disabled="ordersLoading" class="btn btn-secondary" :title="t('common.refresh')">
+                <Icon name="refresh" size="md" :class="ordersLoading ? 'animate-spin' : ''" />
+              </button>
+            </div>
           </div>
         </div>
+
+        <section class="card p-4" data-test="purchase-support-config">
+          <div class="flex items-start justify-between gap-3">
+            <div class="min-w-0">
+              <h2 class="text-sm font-bold text-gray-900 dark:text-white">
+                {{ t('payment.admin.purchaseSupportConfig') }}
+              </h2>
+              <p class="mt-1 text-xs leading-5 text-gray-500 dark:text-gray-400">
+                {{ t('payment.admin.purchaseSupportConfigDesc') }}
+              </p>
+            </div>
+            <button
+              type="button"
+              class="btn btn-secondary shrink-0 px-3 py-2"
+              :disabled="supportConfigLoading"
+              :title="t('common.refresh')"
+              @click="loadSupportConfig"
+            >
+              <Icon name="refresh" size="sm" :class="supportConfigLoading ? 'animate-spin' : ''" />
+            </button>
+          </div>
+          <div class="mt-4 space-y-3">
+            <label class="block">
+              <span class="mb-1 block text-xs font-medium text-gray-500 dark:text-gray-400">
+                {{ t('payment.admin.supportContactInfo') }}
+              </span>
+              <textarea
+                v-model="supportContactInfo"
+                class="input min-h-20 resize-y"
+                :placeholder="t('payment.admin.supportContactInfoPlaceholder')"
+              />
+            </label>
+            <label class="block">
+              <span class="mb-1 block text-xs font-medium text-gray-500 dark:text-gray-400">
+                {{ t('payment.admin.supportHelpImageUrl') }}
+              </span>
+              <input
+                v-model="supportHelpImageUrl"
+                type="url"
+                class="input"
+                :placeholder="t('payment.admin.supportHelpImageUrlPlaceholder')"
+              />
+            </label>
+            <label class="block">
+              <span class="mb-1 block text-xs font-medium text-gray-500 dark:text-gray-400">
+                {{ t('payment.admin.supportHelpText') }}
+              </span>
+              <textarea
+                v-model="supportHelpText"
+                class="input min-h-20 resize-y"
+                :placeholder="t('payment.admin.supportHelpTextPlaceholder')"
+              />
+            </label>
+          </div>
+          <div class="mt-4 flex justify-end">
+            <button
+              type="button"
+              class="btn btn-primary"
+              :disabled="supportConfigSaving"
+              @click="saveSupportConfig"
+            >
+              <span v-if="supportConfigSaving" class="mr-2 inline-block h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent"></span>
+              {{ t('payment.admin.saveSupportConfig') }}
+            </button>
+          </div>
+        </section>
       </div>
 
       <!-- Table -->
@@ -116,6 +184,7 @@ import { ref, reactive, computed, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useAppStore } from '@/stores/app'
 import { adminPaymentAPI } from '@/api/admin/payment'
+import { settingsAPI } from '@/api/admin/settings'
 import { extractI18nErrorMessage } from '@/utils/apiError'
 import { formatOrderDateTime } from '@/components/payment/orderUtils'
 import type { PaymentOrder } from '@/types/payment'
@@ -149,6 +218,11 @@ const showDetailDialog = ref(false)
 const showRefundDialog = ref(false)
 const refundSubmitting = ref(false)
 const orderAuditLogs = ref<AuditLog[]>([])
+const supportConfigLoading = ref(false)
+const supportConfigSaving = ref(false)
+const supportContactInfo = ref('')
+const supportHelpImageUrl = ref('')
+const supportHelpText = ref('')
 
 let debounceTimer: ReturnType<typeof setTimeout> | null = null
 function debounceLoadOrders() {
@@ -169,6 +243,50 @@ async function loadOrders() {
   } catch (err: unknown) {
     appStore.showError(extractI18nErrorMessage(err, t, 'payment.errors', t('common.error')))
   } finally { ordersLoading.value = false }
+}
+
+async function loadSupportConfig() {
+  supportConfigLoading.value = true
+  try {
+    const [settings, paymentConfig] = await Promise.all([
+      settingsAPI.getSettings(),
+      adminPaymentAPI.getConfig(),
+    ])
+    supportContactInfo.value = settings.contact_info || ''
+    supportHelpImageUrl.value = paymentConfig.data.help_image_url || ''
+    supportHelpText.value = paymentConfig.data.help_text || ''
+  } catch (err: unknown) {
+    appStore.showError(extractI18nErrorMessage(err, t, 'payment.errors', t('payment.admin.supportConfigLoadFailed')))
+  } finally {
+    supportConfigLoading.value = false
+  }
+}
+
+async function saveSupportConfig() {
+  supportConfigSaving.value = true
+  try {
+    const nextConfig = {
+      contact_info: supportContactInfo.value.trim(),
+      help_image_url: supportHelpImageUrl.value.trim(),
+      help_text: supportHelpText.value.trim(),
+    }
+    await Promise.all([
+      settingsAPI.updateSettings({ contact_info: nextConfig.contact_info }),
+      adminPaymentAPI.updateConfig({
+        help_image_url: nextConfig.help_image_url,
+        help_text: nextConfig.help_text,
+      }),
+    ])
+    supportContactInfo.value = nextConfig.contact_info
+    supportHelpImageUrl.value = nextConfig.help_image_url
+    supportHelpText.value = nextConfig.help_text
+    await appStore.fetchPublicSettings(true).catch(() => null)
+    appStore.showSuccess(t('payment.admin.supportConfigSaved'))
+  } catch (err: unknown) {
+    appStore.showError(extractI18nErrorMessage(err, t, 'payment.errors', t('payment.admin.supportConfigSaveFailed')))
+  } finally {
+    supportConfigSaving.value = false
+  }
 }
 
 function handleOrderPageChange(page: number) { orderPagination.page = page; loadOrders() }
@@ -237,5 +355,8 @@ async function handleRefund(data: { amount: number; reason: string; deduct_balan
 
 function formatDateTime(dateStr: string): string { return formatOrderDateTime(dateStr) }
 
-onMounted(() => loadOrders())
+onMounted(() => {
+  loadOrders()
+  loadSupportConfig()
+})
 </script>
