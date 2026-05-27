@@ -6898,6 +6898,7 @@ export default {
       detail: 'Details',
       autoApply: 'Applies automatically after purchase',
       payPrice: 'Pay Price',
+      exchangeRate: 'Exchange Rate',
       balanceAmount: 'Credited',
       totalQuota: 'Total Quota',
       dailyQuota: 'Daily Quota',

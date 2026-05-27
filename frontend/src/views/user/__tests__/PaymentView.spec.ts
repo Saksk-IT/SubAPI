@@ -506,7 +506,7 @@ describe('PaymentView WeChat JSAPI flow', () => {
     }))
   })
 
-  it('shows product pay prices in CNY and received credits in USD', async () => {
+  it('shows product exchange rate and received credits in USD', async () => {
     routeState.query = {}
     getCheckoutInfo.mockResolvedValue(checkoutInfoWithBalanceProductsFixture())
 
@@ -524,11 +524,11 @@ describe('PaymentView WeChat JSAPI flow', () => {
 
     const card = wrapper.findComponent(PurchaseProductCard)
     const metrics = card.props('metrics') as { label: string; value: string }[]
-    const payPrice = metrics.find(item => item.label === 'payment.product.payPrice')?.value || ''
+    const exchangeRate = metrics.find(item => item.label === 'payment.product.exchangeRate')?.value || ''
     const balanceAmount = metrics.find(item => item.label === 'payment.product.balanceAmount')?.value || ''
 
     expect(card.props('currency')).toBe('CNY')
-    expect(payPrice).toContain('¥')
+    expect(exchangeRate).toBe('1:10')
     expect(balanceAmount).toContain('$')
     expect(balanceAmount).not.toContain('¥')
   })

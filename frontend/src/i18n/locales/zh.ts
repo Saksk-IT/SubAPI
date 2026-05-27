@@ -7079,6 +7079,7 @@ export default {
       detail: '详情',
       autoApply: '购买后默认直接生效',
       payPrice: '支付价格',
+      exchangeRate: '对应汇率',
       balanceAmount: '获得额度',
       totalQuota: '总额度',
       dailyQuota: '每日可用',

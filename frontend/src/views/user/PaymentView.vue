@@ -621,10 +621,6 @@ function formatSelectedPaymentAmount(value: number): string {
   return formatPaymentAmount(value, selectedCurrency.value, localeCode.value)
 }
 
-function formatPayAmount(value: number): string {
-  return formatPaymentAmount(value, paymentPriceCurrency, localeCode.value)
-}
-
 function formatQuotaAmount(value: number): string {
   return formatPaymentAmount(value, quotaDisplayCurrency, localeCode.value)
 }
@@ -659,28 +655,37 @@ function formatQuota(value: number | null | undefined): string {
   return formatQuotaAmount(Number(value))
 }
 
+function formatExchangeRate(amount: number, price: number): string {
+  if (amount <= 0 || price <= 0) return t('payment.planCard.unlimited')
+  return `1:${Number((amount / price).toFixed(2))}`
+}
+
 function getPlanTotalQuota(plan: SubscriptionPlan): number | null {
   return normalizePositiveQuota(plan.total_quota) ?? calculateSubscriptionTotalQuotaUSD(plan, plan)
 }
 
 const balanceProductCards = computed<PurchaseCardItem<BalanceProduct>[]>(() =>
-  (checkout.value.balance_products || []).map((product) => ({
-    raw: product,
-    product: {
-      id: product.id,
-      name: product.name,
-      description: product.description || '',
-      price: Number(product.price) || 0,
-      original_price: product.original_price,
-      tags: normalizeTextList(product.tags),
-      features: normalizeTextList(product.features),
-    },
-    metrics: [
-      { label: t('payment.product.payPrice'), value: formatPayAmount(Number(product.price) || 0) },
-      { label: t('payment.product.balanceAmount'), value: formatQuotaAmount(Number(product.amount) || 0) },
-    ],
-    methods: amountMethodOptions(Number(product.price) || 0),
-  })),
+  (checkout.value.balance_products || []).map((product) => {
+    const price = Number(product.price) || 0
+    const amount = Number(product.amount) || 0
+    return {
+      raw: product,
+      product: {
+        id: product.id,
+        name: product.name,
+        description: product.description || '',
+        price,
+        original_price: product.original_price,
+        tags: normalizeTextList(product.tags),
+        features: normalizeTextList(product.features),
+      },
+      metrics: [
+        { label: t('payment.product.exchangeRate'), value: formatExchangeRate(amount, price) },
+        { label: t('payment.product.balanceAmount'), value: formatQuotaAmount(amount) },
+      ],
+      methods: amountMethodOptions(price),
+    }
+  }),
 )
 
 const subscriptionProductCards = computed<PurchaseCardItem<SubscriptionPlan>[]>(() =>
