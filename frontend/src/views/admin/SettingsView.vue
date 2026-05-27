@@ -4525,24 +4525,6 @@
                 </button>
               </div>
 
-              <!-- Contact Info -->
-              <div>
-                <label
-                  class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300"
-                >
-                  {{ t("admin.settings.site.contactInfo") }}
-                </label>
-                <input
-                  v-model="form.contact_info"
-                  type="text"
-                  class="input"
-                  :placeholder="t('admin.settings.site.contactInfoPlaceholder')"
-                />
-                <p class="mt-1.5 text-xs text-gray-500 dark:text-gray-400">
-                  {{ t("admin.settings.site.contactInfoHint") }}
-                </p>
-              </div>
-
               <!-- Doc URL -->
               <div>
                 <label
@@ -5992,33 +5974,62 @@
                     </a>
                   </p>
                 </div>
-                <!-- Row 5: Help image + text -->
-                <div class="grid grid-cols-2 gap-3">
+                <!-- Row 5: Purchase support content -->
+                <div
+                  class="space-y-4 rounded-xl border border-gray-100 p-4 dark:border-dark-700"
+                  data-testid="payment-support-config"
+                >
                   <div>
-                    <label class="input-label">{{
-                      t("admin.settings.payment.helpImage")
-                    }}</label>
-                    <ImageUpload
-                      v-model="form.payment_help_image_url"
-                      :upload-label="t('admin.settings.site.uploadImage')"
-                      :remove-label="t('admin.settings.site.remove')"
-                      :placeholder="
-                        t('admin.settings.payment.helpImagePlaceholder')
-                      "
-                    />
+                    <h3 class="text-sm font-semibold text-gray-900 dark:text-white">
+                      {{ t("admin.settings.payment.supportTitle") }}
+                    </h3>
+                    <p class="mt-1 text-xs leading-5 text-gray-500 dark:text-gray-400">
+                      {{ t("admin.settings.payment.supportDescription") }}
+                    </p>
                   </div>
                   <div>
                     <label class="input-label">{{
-                      t("admin.settings.payment.helpText")
+                      t("admin.settings.payment.supportContactInfo")
                     }}</label>
                     <textarea
-                      v-model="form.payment_help_text"
+                      v-model="form.contact_info"
                       rows="3"
                       class="input"
                       :placeholder="
-                        t('admin.settings.payment.helpTextPlaceholder')
+                        t('admin.settings.payment.supportContactInfoPlaceholder')
                       "
                     ></textarea>
+                    <p class="mt-1.5 text-xs text-gray-500 dark:text-gray-400">
+                      {{ t("admin.settings.payment.supportContactInfoHint") }}
+                    </p>
+                  </div>
+                  <div class="grid gap-4 lg:grid-cols-2">
+                    <div>
+                      <label class="input-label">{{
+                        t("admin.settings.payment.helpImage")
+                      }}</label>
+                      <ImageUpload
+                        v-model="form.payment_help_image_url"
+                        mode="image"
+                        :upload-label="t('admin.settings.site.uploadImage')"
+                        :remove-label="t('admin.settings.site.remove')"
+                        :hint="t('admin.settings.payment.helpImageHint')"
+                        :max-size="1024 * 1024"
+                      />
+                    </div>
+                    <div>
+                      <label class="input-label">{{
+                        t("admin.settings.payment.helpText")
+                      }}</label>
+                      <textarea
+                        v-model="form.payment_help_text"
+                        rows="6"
+                        class="input"
+                        :placeholder="
+                          t('admin.settings.payment.helpTextPlaceholder')
+                        "
+                      ></textarea>
+                    </div>
                   </div>
                 </div>
               </template>

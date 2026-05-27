@@ -4,7 +4,7 @@ import { flushPromises, mount } from "@vue/test-utils";
 
 import SettingsView from "../SettingsView.vue";
 
-const localStorageMock = vi.hoisted(() => {
+const _localStorageMock = vi.hoisted(() => {
   let store: Record<string, string> = {};
   const mock = {
     getItem: vi.fn((key: string) => store[key] ?? null),
@@ -181,6 +181,7 @@ vi.mock("vue-i18n", async () => {
     "admin.settings.paymentVisibleMethods.sourceRequiredError": "{title} 已启用，请先选择支付来源。",
     "admin.settings.payment.configGuide": "查看支付配置说明",
     "admin.settings.payment.findProvider": "查看支持的支付方式",
+    "admin.settings.payment.helpImageHint": "支持上传 PNG、JPG、WebP 等图片，最大 1MB。建议使用客服二维码或付款前咨询二维码。",
     "admin.settings.openaiExperimentalScheduler.title": "OpenAI 实验调度策略",
     "admin.settings.openaiExperimentalScheduler.description": "默认关闭。开启后仅影响本网关在 OpenAI 账号间的实验性调度选择逻辑，不代表上游 OpenAI 官方能力。",
     "admin.settings.customMenu.openInNewTab": "新标签页打开",
@@ -290,16 +291,28 @@ const ImageUploadStub = defineComponent({
       type: String,
       default: "",
     },
+    hint: {
+      type: String,
+      default: "",
+    },
   },
-  setup(props) {
+  emits: ["update:modelValue"],
+  setup(props, { emit }) {
     return () =>
-      h("div", {
-        class: "image-upload-stub",
-        "data-model-value": props.modelValue,
-        "data-upload-label": props.uploadLabel,
-        "data-remove-label": props.removeLabel,
-        "data-placeholder": props.placeholder,
-      });
+      h(
+        "button",
+        {
+          type: "button",
+          class: "image-upload-stub",
+          "data-model-value": props.modelValue,
+          "data-upload-label": props.uploadLabel,
+          "data-remove-label": props.removeLabel,
+          "data-placeholder": props.placeholder,
+          "data-hint": props.hint,
+          onClick: () => emit("update:modelValue", "data:image/png;base64,NEW"),
+        },
+        "upload image",
+      );
   },
 });
 
@@ -800,16 +813,59 @@ describe("admin SettingsView payment visible method controls", () => {
     await flushPromises();
     await openPaymentTab(wrapper);
 
-    const imageUploads = wrapper.findAll(".image-upload-stub");
+    const supportPanel = wrapper.get('[data-testid="payment-support-config"]');
+    expect(supportPanel.text()).toContain(
+      "admin.settings.payment.supportTitle",
+    );
+
+    const imageUploads = supportPanel.findAll(".image-upload-stub");
     expect(imageUploads.length).toBeGreaterThan(0);
 
     const paymentHelpImageUpload = imageUploads.find(
-      (node) => node.attributes("data-placeholder") === "admin.settings.payment.helpImagePlaceholder",
+      (node) =>
+        node.attributes("data-model-value") ===
+        baseSettingsResponse.payment_help_image_url,
     );
 
     expect(paymentHelpImageUpload).toBeDefined();
     expect(paymentHelpImageUpload?.attributes("data-upload-label")).toBe("上传图片");
     expect(paymentHelpImageUpload?.attributes("data-remove-label")).toBe("移除");
+    expect(paymentHelpImageUpload?.attributes("data-hint")).toBe(
+      "支持上传 PNG、JPG、WebP 等图片，最大 1MB。建议使用客服二维码或付款前咨询二维码。",
+    );
+  });
+
+  it("submits purchase support contact, uploaded image, and notes from payment settings", async () => {
+    getSettings.mockResolvedValueOnce({
+      ...baseSettingsResponse,
+      contact_info: "旧客服",
+      payment_help_image_url: "data:image/png;base64,OLD",
+      payment_help_text: "旧购买说明",
+    });
+
+    const wrapper = mountView();
+
+    await flushPromises();
+    await openPaymentTab(wrapper);
+
+    const supportPanel = wrapper.get('[data-testid="payment-support-config"]');
+    const textareas = supportPanel.findAll("textarea");
+    expect(textareas).toHaveLength(2);
+
+    await textareas[0]?.setValue("微信：subapi-support\nQQ：123456789");
+    await textareas[1]?.setValue("付款前可先联系客服确认套餐、到账规则和发票信息。");
+    await supportPanel.get(".image-upload-stub").trigger("click");
+    await wrapper.find("form").trigger("submit.prevent");
+    await flushPromises();
+
+    expect(updateSettings).toHaveBeenCalledTimes(1);
+    expect(updateSettings).toHaveBeenCalledWith(
+      expect.objectContaining({
+        contact_info: "微信：subapi-support\nQQ：123456789",
+        payment_help_image_url: "data:image/png;base64,NEW",
+        payment_help_text: "付款前可先联系客服确认套餐、到账规则和发票信息。",
+      }),
+    );
   });
 });
 
