@@ -109,6 +109,7 @@ import {
   platformDiscountClass,
   platformLabel,
 } from '@/utils/platformColors'
+import { formatSubscriptionValidityUnit } from '@/utils/subscriptionQuota'
 
 const props = defineProps<{ plan: SubscriptionPlan; activeSubscriptions?: UserSubscription[] }>()
 const emit = defineEmits<{ select: [plan: SubscriptionPlan] }>()
@@ -160,9 +161,10 @@ const modelScopeLabels = computed(() => {
 })
 
 const validitySuffix = computed(() => {
-  const u = props.plan.validity_unit || 'day'
-  if (u === 'month') return t('payment.perMonth')
-  if (u === 'year') return t('payment.perYear')
-  return `${props.plan.validity_days}${t('payment.days')}`
+  return formatSubscriptionValidityUnit(props.plan.validity_days, props.plan.validity_unit, {
+    days: t('payment.days'),
+    weeks: t('payment.admin.weeks'),
+    months: t('payment.months'),
+  })
 })
 </script>

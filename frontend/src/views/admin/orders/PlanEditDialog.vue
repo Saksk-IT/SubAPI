@@ -1,7 +1,7 @@
 <template>
   <BaseDialog :show="show" :title="plan ? t('payment.admin.editPlan') : t('payment.admin.createPlan')" width="wide" @close="emit('close')">
     <form id="plan-form" @submit.prevent="handleSavePlan" class="space-y-4">
-      <div class="grid grid-cols-2 gap-4">
+      <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <div>
           <label class="input-label">{{ t('payment.admin.planName') }} <span class="text-red-500">*</span></label>
           <input v-model="planForm.name" type="text" class="input" required />
@@ -26,7 +26,7 @@
         <div class="mb-2 flex items-center gap-2">
           <GroupBadge :name="selectedGroupInfo.name" :platform="selectedGroupInfo.platform" :rate-multiplier="selectedGroupInfo.rate_multiplier" />
         </div>
-        <div class="grid grid-cols-2 gap-2 text-xs">
+        <div class="grid grid-cols-1 gap-2 text-xs sm:grid-cols-2">
           <div><span class="text-gray-500">{{ t('payment.admin.dailyLimit') }}:</span> <span class="ml-1 font-medium text-gray-700 dark:text-gray-300">{{ selectedGroupInfo.daily_limit_usd != null ? '$' + selectedGroupInfo.daily_limit_usd : t('payment.admin.unlimited') }}</span></div>
           <div><span class="text-gray-500">{{ t('payment.admin.weeklyLimit') }}:</span> <span class="ml-1 font-medium text-gray-700 dark:text-gray-300">{{ selectedGroupInfo.weekly_limit_usd != null ? '$' + selectedGroupInfo.weekly_limit_usd : t('payment.admin.unlimited') }}</span></div>
           <div><span class="text-gray-500">{{ t('payment.admin.monthlyLimit') }}:</span> <span class="ml-1 font-medium text-gray-700 dark:text-gray-300">{{ selectedGroupInfo.monthly_limit_usd != null ? '$' + selectedGroupInfo.monthly_limit_usd : t('payment.admin.unlimited') }}</span></div>
@@ -34,15 +34,15 @@
       </div>
 
       <div><label class="input-label">{{ t('payment.admin.planDescription') }} <span class="text-red-500">*</span></label><textarea v-model="planForm.description" rows="2" class="input" required></textarea></div>
-      <div class="grid grid-cols-2 gap-4">
+      <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <div><label class="input-label">{{ t('payment.admin.price') }} <span class="text-red-500">*</span></label><input v-model.number="planForm.price" type="number" step="0.01" min="0.01" class="input" required /></div>
         <div><label class="input-label">{{ t('payment.admin.originalPrice') }}</label><input v-model.number="planForm.original_price" type="number" step="0.01" min="0" class="input" /></div>
       </div>
-      <div class="grid grid-cols-2 gap-4">
-        <div><label class="input-label">{{ t('payment.admin.validityDays') }} <span class="text-red-500">*</span></label><input v-model.number="planForm.validity_days" type="number" min="1" class="input" required /></div>
+      <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <div><label class="input-label">{{ validityCountLabel }} <span class="text-red-500">*</span></label><input v-model.number="planForm.validity_days" type="number" min="1" class="input" required /></div>
         <div><label class="input-label">{{ t('payment.admin.validityUnit') }} <span class="text-red-500">*</span></label><Select v-model="planForm.validity_unit" :options="validityUnitOptions" /></div>
       </div>
-      <div class="grid grid-cols-2 gap-4">
+      <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <div><label class="input-label">{{ t('payment.admin.sortOrder') }}</label><input v-model.number="planForm.sort_order" type="number" min="0" class="input" /></div>
       </div>
       <div>
@@ -50,7 +50,7 @@
         <textarea v-model="planFeaturesText" rows="3" class="input" :placeholder="t('payment.admin.featuresPlaceholder')"></textarea>
         <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">{{ t('payment.admin.featuresHint') }}</p>
       </div>
-      <div class="grid grid-cols-2 gap-4">
+      <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <div>
           <label class="input-label">{{ t('payment.admin.productTags') }}</label>
           <textarea v-model="planTagsText" rows="3" class="input" :placeholder="t('payment.admin.productTagsPlaceholder')"></textarea>
@@ -60,10 +60,24 @@
           <textarea v-model="planForm.display_notes" rows="3" class="input"></textarea>
         </div>
       </div>
-      <div class="grid grid-cols-2 gap-4">
+      <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <div>
           <label class="input-label">{{ t('payment.admin.dailyQuota') }}</label>
-          <input v-model.number="planForm.daily_quota" type="number" min="0" step="0.01" class="input" />
+          <div class="input bg-gray-50 font-semibold text-gray-900 dark:bg-dark-900 dark:text-gray-100">
+            {{ dailyQuotaDisplay }}
+          </div>
+        </div>
+        <div>
+          <label class="input-label">{{ t('payment.admin.weeklyQuota') }}</label>
+          <div class="input bg-gray-50 font-semibold text-gray-900 dark:bg-dark-900 dark:text-gray-100">
+            {{ weeklyQuotaDisplay }}
+          </div>
+        </div>
+        <div>
+          <label class="input-label">{{ t('payment.admin.monthlyQuota') }}</label>
+          <div class="input bg-gray-50 font-semibold text-gray-900 dark:bg-dark-900 dark:text-gray-100">
+            {{ monthlyQuotaDisplay }}
+          </div>
         </div>
         <div>
           <label class="input-label">{{ t('payment.admin.totalQuotaAuto') }}</label>
@@ -112,6 +126,11 @@ import Select from '@/components/common/Select.vue'
 import Icon from '@/components/icons/Icon.vue'
 import GroupBadge from '@/components/common/GroupBadge.vue'
 import { platformTextClass } from '@/utils/platformColors'
+import {
+  calculateSubscriptionTotalQuotaUSD,
+  normalizePositiveQuota,
+  normalizeSubscriptionValidityUnit,
+} from '@/utils/subscriptionQuota'
 
 const props = defineProps<{
   show: boolean
@@ -128,7 +147,7 @@ const { t } = useI18n()
 const appStore = useAppStore()
 
 const saving = ref(false)
-const planForm = reactive({ name: '', group_id: null as number | null, description: '', price: 0, original_price: 0, validity_days: 30, validity_unit: 'days', daily_quota: 0, display_notes: '', sort_order: 0, for_sale: true })
+const planForm = reactive({ name: '', group_id: null as number | null, description: '', price: 0, original_price: 0, validity_days: 30, validity_unit: 'days', display_notes: '', sort_order: 0, for_sale: true })
 const planFeaturesText = ref('')
 const planTagsText = ref('')
 
@@ -153,35 +172,47 @@ const selectedGroupInfo = computed(() => {
   return props.groups.find(g => g.id === planForm.group_id) || null
 })
 
-const effectiveValidityDays = computed(() => {
-  const days = Number(planForm.validity_days) || 0
-  const unit = String(planForm.validity_unit || 'days').toLowerCase()
-  if (unit === 'week' || unit === 'weeks') return days * 7
-  if (unit === 'month' || unit === 'months') return days * 30
-  if (unit === 'year' || unit === 'years') return days * 365
-  return days
+const normalizedValidityUnit = computed(() => normalizeSubscriptionValidityUnit(planForm.validity_unit))
+
+const validityCountLabel = computed(() => {
+  if (normalizedValidityUnit.value === 'weeks') return t('payment.admin.validityWeeks')
+  if (normalizedValidityUnit.value === 'months') return t('payment.admin.validityMonths')
+  return t('payment.admin.validityDays')
 })
 
+const selectedDailyQuota = computed(() => normalizePositiveQuota(selectedGroupInfo.value?.daily_limit_usd))
+const selectedWeeklyQuota = computed(() => normalizePositiveQuota(selectedGroupInfo.value?.weekly_limit_usd))
+const selectedMonthlyQuota = computed(() => normalizePositiveQuota(selectedGroupInfo.value?.monthly_limit_usd))
+
+function formatQuotaAmount(value: number | null): string {
+  if (value == null) return t('payment.admin.unlimited')
+  return `$${value.toFixed(2)}`
+}
+
+const dailyQuotaDisplay = computed(() => formatQuotaAmount(selectedDailyQuota.value))
+const weeklyQuotaDisplay = computed(() => formatQuotaAmount(selectedWeeklyQuota.value))
+const monthlyQuotaDisplay = computed(() => formatQuotaAmount(selectedMonthlyQuota.value))
+
 const calculatedTotalQuota = computed(() => {
-  const dailyQuota = Number(planForm.daily_quota) || 0
-  if (dailyQuota <= 0 || effectiveValidityDays.value <= 0) return 0
-  return Math.round(dailyQuota * effectiveValidityDays.value * 100) / 100
+  return calculateSubscriptionTotalQuotaUSD(
+    { validity_days: planForm.validity_days, validity_unit: planForm.validity_unit },
+    selectedGroupInfo.value,
+  )
 })
 
 const calculatedTotalQuotaDisplay = computed(() => {
-  if (calculatedTotalQuota.value <= 0) return t('payment.admin.unlimited')
-  return `$${calculatedTotalQuota.value.toFixed(2)}`
+  return formatQuotaAmount(calculatedTotalQuota.value)
 })
 
 // Reset form when dialog opens
 watch(() => props.show, (visible) => {
   if (!visible) return
   if (props.plan) {
-    Object.assign(planForm, { name: props.plan.name, group_id: props.plan.group_id, description: props.plan.description, price: props.plan.price, original_price: props.plan.original_price || 0, validity_days: props.plan.validity_days, validity_unit: props.plan.validity_unit || 'days', daily_quota: props.plan.daily_quota || 0, display_notes: props.plan.display_notes || '', sort_order: props.plan.sort_order || 0, for_sale: props.plan.for_sale })
+    Object.assign(planForm, { name: props.plan.name, group_id: props.plan.group_id, description: props.plan.description, price: props.plan.price, original_price: props.plan.original_price || 0, validity_days: props.plan.validity_days, validity_unit: props.plan.validity_unit || 'days', display_notes: props.plan.display_notes || '', sort_order: props.plan.sort_order || 0, for_sale: props.plan.for_sale })
     planFeaturesText.value = (props.plan.features || []).join('\n')
     planTagsText.value = Array.isArray(props.plan.tags) ? props.plan.tags.join('\n') : (props.plan.tags || '')
   } else {
-    Object.assign(planForm, { name: '', group_id: null, description: '', price: 0, original_price: 0, validity_days: 30, validity_unit: 'days', daily_quota: 0, display_notes: '', sort_order: 0, for_sale: true })
+    Object.assign(planForm, { name: '', group_id: null, description: '', price: 0, original_price: 0, validity_days: 30, validity_unit: 'days', display_notes: '', sort_order: 0, for_sale: true })
     planFeaturesText.value = ''
     planTagsText.value = ''
   }
@@ -203,8 +234,8 @@ function buildPlanPayload() {
     for_sale: planForm.for_sale,
     features,
     tags,
-    total_quota: calculatedTotalQuota.value,
-    daily_quota: Number(planForm.daily_quota) || 0,
+    total_quota: calculatedTotalQuota.value ?? 0,
+    daily_quota: selectedDailyQuota.value ?? 0,
     display_notes: planForm.display_notes,
   }
 }

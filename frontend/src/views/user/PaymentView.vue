@@ -364,6 +364,7 @@ import type { PurchaseProductMetric, PurchaseProductViewModel } from '@/componen
 import Icon from '@/components/icons/Icon.vue'
 import { formatPaymentAmount, normalizePaymentCurrency } from '@/components/payment/currency'
 import type { PaymentMethodOption } from '@/components/payment/PaymentMethodSelector.vue'
+import { calculateSubscriptionTotalQuotaUSD, formatSubscriptionValidityUnit } from '@/utils/subscriptionQuota'
 import { buildPaymentErrorToastMessage, describePaymentScenarioError } from './paymentUx'
 import { hasWechatResumeQuery, parseWechatResumeRoute, stripWechatResumeQuery } from './paymentWechatResume'
 
@@ -658,26 +659,6 @@ function formatQuota(value: number | null | undefined): string {
   return formatQuotaAmount(Number(value))
 }
 
-function getPlanEffectiveDays(plan: Pick<SubscriptionPlan, 'validity_days' | 'validity_unit'>): number {
-  const days = Number(plan.validity_days) || 0
-  const unit = String(plan.validity_unit || 'day').toLowerCase()
-  if (unit === 'week' || unit === 'weeks') return days * 7
-  if (unit === 'month' || unit === 'months') return days * 30
-  if (unit === 'year' || unit === 'years') return days * 365
-  return days
-}
-
-function calculateSubscriptionTotalQuota(
-  plan: Pick<SubscriptionPlan, 'validity_days' | 'validity_unit'>,
-  dailyQuota: number | null | undefined,
-): number | null {
-  const normalizedDailyQuota = Number(dailyQuota) || 0
-  if (normalizedDailyQuota <= 0) return null
-  const effectiveDays = getPlanEffectiveDays(plan)
-  if (effectiveDays <= 0) return null
-  return Math.round(normalizedDailyQuota * effectiveDays * 100) / 100
-}
-
 const balanceProductCards = computed<PurchaseCardItem<BalanceProduct>[]>(() =>
   (checkout.value.balance_products || []).map((product) => ({
     raw: product,
@@ -701,7 +682,7 @@ const balanceProductCards = computed<PurchaseCardItem<BalanceProduct>[]>(() =>
 const subscriptionProductCards = computed<PurchaseCardItem<SubscriptionPlan>[]>(() =>
   checkout.value.plans.map((plan) => {
     const dailyQuota = plan.daily_quota ?? plan.daily_limit_usd ?? null
-    const totalQuota = calculateSubscriptionTotalQuota(plan, dailyQuota)
+    const totalQuota = plan.total_quota ?? calculateSubscriptionTotalQuotaUSD(plan, plan)
     return {
       raw: plan,
       product: {
@@ -794,11 +775,11 @@ const planValiditySuffix = computed(() => {
 })
 
 function formatPlanValidity(plan: SubscriptionPlan): string {
-  const u = plan.validity_unit || 'day'
-  if (u === 'month' || u === 'months') return `${plan.validity_days}${t('payment.months')}`
-  if (u === 'year' || u === 'years') return `${plan.validity_days}${t('payment.years')}`
-  if (u === 'week' || u === 'weeks') return `${plan.validity_days}${t('payment.admin.weeks')}`
-  return `${plan.validity_days}${t('payment.days')}`
+  return formatSubscriptionValidityUnit(plan.validity_days, plan.validity_unit, {
+    days: t('payment.days'),
+    weeks: t('payment.admin.weeks'),
+    months: t('payment.months'),
+  })
 }
 
 function selectPlanFromModal(plan: SubscriptionPlan) {

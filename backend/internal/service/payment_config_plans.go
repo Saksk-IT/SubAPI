@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"math"
 	"strings"
 	"time"
 
@@ -12,6 +13,11 @@ import (
 	"github.com/Wei-Shaw/sub2api/ent/subscriptionplan"
 	infraerrors "github.com/Wei-Shaw/sub2api/internal/pkg/errors"
 )
+
+type planDerivedQuota struct {
+	TotalQuota *float64
+	DailyQuota *float64
+}
 
 // validatePlanRequired checks that all required fields for a plan are provided.
 func validatePlanRequired(name string, groupID int64, price float64, validityDays int, validityUnit string, originalPrice *float64) error {
@@ -50,6 +56,57 @@ func validatePlanDisplayFields(tags string, features string, totalQuota *float64
 		return infraerrors.BadRequest("PLAN_DAILY_QUOTA_INVALID", "daily quota must be >= 0")
 	}
 	return nil
+}
+
+func normalizePlanValidityUnit(unit string) string {
+	normalized := strings.ToLower(strings.TrimSpace(unit))
+	switch normalized {
+	case "week", "weeks":
+		return "weeks"
+	case "month", "months":
+		return "months"
+	default:
+		return "days"
+	}
+}
+
+func positiveQuotaPtr(value *float64) *float64 {
+	if value == nil || *value <= 0 {
+		return nil
+	}
+	quota := *value
+	return &quota
+}
+
+func roundQuota(value float64) float64 {
+	return math.Round(value*100) / 100
+}
+
+func derivePlanQuotaFromGroup(group *dbent.Group, validityDays int, validityUnit string) planDerivedQuota {
+	if group == nil || validityDays <= 0 {
+		return planDerivedQuota{}
+	}
+
+	var cycleQuota *float64
+	switch normalizePlanValidityUnit(validityUnit) {
+	case "weeks":
+		cycleQuota = positiveQuotaPtr(group.WeeklyLimitUsd)
+	case "months":
+		cycleQuota = positiveQuotaPtr(group.MonthlyLimitUsd)
+	default:
+		cycleQuota = positiveQuotaPtr(group.DailyLimitUsd)
+	}
+
+	var totalQuota *float64
+	if cycleQuota != nil {
+		total := roundQuota(*cycleQuota * float64(validityDays))
+		totalQuota = &total
+	}
+
+	return planDerivedQuota{
+		TotalQuota: totalQuota,
+		DailyQuota: positiveQuotaPtr(group.DailyLimitUsd),
+	}
 }
 
 // validatePlanPatch validates only the non-nil fields in a patch update.
@@ -213,6 +270,11 @@ func (s *PaymentConfigService) CreatePlan(ctx context.Context, req CreatePlanReq
 	if err := validatePlanDisplayFields(req.Tags, req.Features, req.TotalQuota, req.DailyQuota); err != nil {
 		return nil, err
 	}
+	groupInfo, err := s.getActiveSubscriptionGroup(ctx, req.GroupID)
+	if err != nil {
+		return nil, err
+	}
+	derivedQuota := derivePlanQuotaFromGroup(groupInfo, req.ValidityDays, req.ValidityUnit)
 	b := s.entClient.SubscriptionPlan.Create().
 		SetGroupID(req.GroupID).SetName(req.Name).SetDescription(req.Description).
 		SetPrice(req.Price).SetValidityDays(req.ValidityDays).SetValidityUnit(req.ValidityUnit).
@@ -227,8 +289,8 @@ func (s *PaymentConfigService) CreatePlan(ctx context.Context, req CreatePlanReq
 	}
 	if err := s.updatePlanDisplayFields(ctx, plan.ID, &PlanDisplayInfo{
 		Tags:         normalizeProductLines(req.Tags),
-		TotalQuota:   req.TotalQuota,
-		DailyQuota:   req.DailyQuota,
+		TotalQuota:   derivedQuota.TotalQuota,
+		DailyQuota:   derivedQuota.DailyQuota,
 		DisplayNotes: strings.TrimSpace(req.DisplayNotes),
 	}); err != nil {
 		_ = s.entClient.SubscriptionPlan.DeleteOneID(plan.ID).Exec(ctx)
@@ -243,6 +305,32 @@ func (s *PaymentConfigService) CreatePlan(ctx context.Context, req CreatePlanReq
 func (s *PaymentConfigService) UpdatePlan(ctx context.Context, id int64, req UpdatePlanRequest) (*dbent.SubscriptionPlan, error) {
 	if err := validatePlanPatch(req); err != nil {
 		return nil, err
+	}
+	currentPlan, err := s.entClient.SubscriptionPlan.Get(ctx, id)
+	if err != nil {
+		return nil, infraerrors.NotFound("PLAN_NOT_FOUND", "subscription plan not found")
+	}
+	nextGroupID := currentPlan.GroupID
+	isFullPlanSave := req.GroupID != nil && req.ValidityDays != nil && req.ValidityUnit != nil
+	if req.GroupID != nil {
+		nextGroupID = *req.GroupID
+	}
+	nextValidityDays := currentPlan.ValidityDays
+	if req.ValidityDays != nil {
+		nextValidityDays = *req.ValidityDays
+	}
+	nextValidityUnit := currentPlan.ValidityUnit
+	if req.ValidityUnit != nil {
+		nextValidityUnit = *req.ValidityUnit
+	}
+	shouldDeriveQuota := isFullPlanSave || req.GroupID != nil || req.ValidityDays != nil || req.ValidityUnit != nil || req.TotalQuota != nil || req.DailyQuota != nil
+	var derivedQuota planDerivedQuota
+	if shouldDeriveQuota {
+		groupInfo, err := s.getActiveSubscriptionGroup(ctx, nextGroupID)
+		if err != nil {
+			return nil, err
+		}
+		derivedQuota = derivePlanQuotaFromGroup(groupInfo, nextValidityDays, nextValidityUnit)
 	}
 	u := s.entClient.SubscriptionPlan.UpdateOneID(id)
 	if req.GroupID != nil {
@@ -283,17 +371,15 @@ func (s *PaymentConfigService) UpdatePlan(ctx context.Context, id int64, req Upd
 	if err != nil {
 		return nil, err
 	}
-	if req.Tags != nil || req.TotalQuota != nil || req.DailyQuota != nil || req.DisplayNotes != nil {
+	if req.Tags != nil || req.TotalQuota != nil || req.DailyQuota != nil || req.DisplayNotes != nil || shouldDeriveQuota {
 		current := s.GetPlanDisplayInfoMap(ctx, []*dbent.SubscriptionPlan{plan})[plan.ID]
 		next := current
 		if req.Tags != nil {
 			next.Tags = normalizeProductLines(*req.Tags)
 		}
-		if req.TotalQuota != nil {
-			next.TotalQuota = req.TotalQuota
-		}
-		if req.DailyQuota != nil {
-			next.DailyQuota = req.DailyQuota
+		if shouldDeriveQuota {
+			next.TotalQuota = derivedQuota.TotalQuota
+			next.DailyQuota = derivedQuota.DailyQuota
 		}
 		if req.DisplayNotes != nil {
 			next.DisplayNotes = strings.TrimSpace(*req.DisplayNotes)
@@ -303,6 +389,17 @@ func (s *PaymentConfigService) UpdatePlan(ctx context.Context, id int64, req Upd
 		}
 	}
 	return s.GetPlan(ctx, id)
+}
+
+func (s *PaymentConfigService) getActiveSubscriptionGroup(ctx context.Context, groupID int64) (*dbent.Group, error) {
+	groupInfo, err := s.entClient.Group.Get(ctx, groupID)
+	if err != nil || groupInfo.Status != StatusActive {
+		return nil, infraerrors.NotFound("GROUP_NOT_FOUND", "subscription group is no longer available")
+	}
+	if groupInfo.SubscriptionType != SubscriptionTypeSubscription {
+		return nil, infraerrors.BadRequest("GROUP_TYPE_MISMATCH", "group is not a subscription type")
+	}
+	return groupInfo, nil
 }
 
 func (s *PaymentConfigService) updatePlanDisplayFields(ctx context.Context, planID int64, info *PlanDisplayInfo) error {

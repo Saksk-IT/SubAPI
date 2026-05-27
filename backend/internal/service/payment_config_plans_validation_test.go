@@ -5,6 +5,7 @@ package service
 import (
 	"testing"
 
+	dbent "github.com/Wei-Shaw/sub2api/ent"
 	"github.com/stretchr/testify/require"
 )
 
@@ -190,4 +191,61 @@ func TestValidatePlanPatch_ValidValidityUnit(t *testing.T) {
 func TestValidatePlanPatch_AllNil(t *testing.T) {
 	err := validatePlanPatch(UpdatePlanRequest{})
 	require.NoError(t, err)
+}
+
+func TestDerivePlanQuotaFromGroup_Daily(t *testing.T) {
+	daily := 23.0
+	weekly := 140.0
+	monthly := 500.0
+	got := derivePlanQuotaFromGroup(&dbent.Group{
+		DailyLimitUsd:   &daily,
+		WeeklyLimitUsd:  &weekly,
+		MonthlyLimitUsd: &monthly,
+	}, 30, "days")
+
+	require.NotNil(t, got.DailyQuota)
+	require.NotNil(t, got.TotalQuota)
+	require.Equal(t, 23.0, *got.DailyQuota)
+	require.Equal(t, 690.0, *got.TotalQuota)
+}
+
+func TestDerivePlanQuotaFromGroup_Weekly(t *testing.T) {
+	daily := 23.0
+	weekly := 140.0
+	monthly := 500.0
+	got := derivePlanQuotaFromGroup(&dbent.Group{
+		DailyLimitUsd:   &daily,
+		WeeklyLimitUsd:  &weekly,
+		MonthlyLimitUsd: &monthly,
+	}, 4, "weeks")
+
+	require.NotNil(t, got.DailyQuota)
+	require.NotNil(t, got.TotalQuota)
+	require.Equal(t, 23.0, *got.DailyQuota)
+	require.Equal(t, 560.0, *got.TotalQuota)
+}
+
+func TestDerivePlanQuotaFromGroup_Monthly(t *testing.T) {
+	daily := 23.0
+	weekly := 140.0
+	monthly := 500.0
+	got := derivePlanQuotaFromGroup(&dbent.Group{
+		DailyLimitUsd:   &daily,
+		WeeklyLimitUsd:  &weekly,
+		MonthlyLimitUsd: &monthly,
+	}, 2, "months")
+
+	require.NotNil(t, got.DailyQuota)
+	require.NotNil(t, got.TotalQuota)
+	require.Equal(t, 23.0, *got.DailyQuota)
+	require.Equal(t, 1000.0, *got.TotalQuota)
+}
+
+func TestDerivePlanQuotaFromGroup_UnlimitedCycleKeepsTotalNil(t *testing.T) {
+	daily := 23.0
+	got := derivePlanQuotaFromGroup(&dbent.Group{DailyLimitUsd: &daily}, 2, "months")
+
+	require.NotNil(t, got.DailyQuota)
+	require.Nil(t, got.TotalQuota)
+	require.Equal(t, 23.0, *got.DailyQuota)
 }

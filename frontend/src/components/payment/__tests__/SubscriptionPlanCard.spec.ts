@@ -1,30 +1,24 @@
 import { mount } from "@vue/test-utils";
-import { describe, expect, it } from "vitest";
-import { createI18n } from "vue-i18n";
+import { describe, expect, it, vi } from "vitest";
 import SubscriptionPlanCard from "../SubscriptionPlanCard.vue";
 
-const i18n = createI18n({
-  legacy: false,
-  locale: "en",
-  fallbackWarn: false,
-  missingWarn: false,
-  messages: {
-    en: {
-      payment: {
-        days: "days",
-        models: "Models",
-        planCard: {
-          quota: "Quota",
-          rate: "Rate",
-          unlimited: "Unlimited",
-        },
-        subscribeNow: "Subscribe now",
-      },
-    },
-  },
-});
+const messages: Record<string, string> = {
+  "payment.days": "days",
+  "payment.months": "months",
+  "payment.admin.weeks": "weeks",
+  "payment.planCard.quota": "Quota",
+  "payment.planCard.rate": "Rate",
+  "payment.planCard.unlimited": "Unlimited",
+  "payment.subscribeNow": "Subscribe now",
+};
 
-const mountPlanCard = (groupPlatform: string) =>
+vi.mock("vue-i18n", () => ({
+  useI18n: () => ({
+    t: (key: string) => messages[key] ?? key,
+  }),
+}));
+
+const mountPlanCard = (groupPlatform: string, validityUnit = "day") =>
   mount(SubscriptionPlanCard, {
     props: {
       plan: {
@@ -37,12 +31,11 @@ const mountPlanCard = (groupPlatform: string) =>
         features: [],
         rate_multiplier: 1,
         validity_days: 30,
-        validity_unit: "day",
+        validity_unit: validityUnit,
         supported_model_scopes: ["claude", "gemini_text", "gemini_image"],
         is_active: true,
       },
     },
-    global: { plugins: [i18n] },
   });
 
 describe("SubscriptionPlanCard", () => {
@@ -60,5 +53,10 @@ describe("SubscriptionPlanCard", () => {
     expect(text).toContain("Claude");
     expect(text).toContain("Gemini");
     expect(text).toContain("Imagen");
+  });
+
+  it("formats plural validity units", () => {
+    expect(mountPlanCard("openai", "weeks").text()).toContain("30weeks");
+    expect(mountPlanCard("openai", "months").text()).toContain("30months");
   });
 });

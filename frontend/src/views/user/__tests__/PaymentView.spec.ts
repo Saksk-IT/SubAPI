@@ -596,7 +596,7 @@ describe('PaymentView WeChat JSAPI flow', () => {
     }))
   })
 
-  it('uses four-column product grids and calculates subscription total quota from daily quota and validity days', async () => {
+  it('uses four-column product grids and displays stored subscription total quota first', async () => {
     routeState.query = {
       tab: 'subscription',
     }
@@ -620,8 +620,40 @@ describe('PaymentView WeChat JSAPI flow', () => {
     const dailyQuota = metrics.find(item => item.label === 'payment.product.dailyQuota')?.value || ''
 
     expect(wrapper.html()).toContain('lg:grid-cols-4')
-    expect(totalQuota).toContain('$1,260.00')
-    expect(totalQuota).not.toContain('999')
+    expect(totalQuota).toContain('$999.00')
     expect(dailyQuota).toContain('$42.00')
+  })
+
+  it('calculates subscription total quota from the selected validity unit when no stored quota exists', async () => {
+    routeState.query = {
+      tab: 'subscription',
+    }
+    const checkout = checkoutInfoWithPlansFixture()
+    checkout.data.plans[0] = {
+      ...checkout.data.plans[0],
+      validity_days: 4,
+      validity_unit: 'weeks',
+      total_quota: null,
+      weekly_limit_usd: 140,
+    }
+    getCheckoutInfo.mockResolvedValue(checkout)
+
+    const wrapper = shallowMount(PaymentView, {
+      global: {
+        stubs: {
+          AppLayout: { template: '<div><slot /></div>' },
+          Teleport: true,
+          Transition: false,
+        },
+      },
+    })
+    await flushPromises()
+    await flushPromises()
+
+    const card = wrapper.findComponent(PurchaseProductCard)
+    const metrics = card.props('metrics') as { label: string; value: string }[]
+    const totalQuota = metrics.find(item => item.label === 'payment.product.totalQuota')?.value || ''
+
+    expect(totalQuota).toContain('$560.00')
   })
 })
