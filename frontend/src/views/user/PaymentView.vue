@@ -84,8 +84,8 @@
               <h2 class="mt-2 text-xl font-black leading-tight text-gray-950 dark:text-white">
                 {{ t('payment.purchaseGuide.contactTitle') }}
               </h2>
-              <p class="mt-3 text-sm leading-6 text-gray-600 dark:text-gray-300">
-                {{ t('payment.purchaseGuide.contactSubtitle') }}
+              <p v-if="supportContactSubtitle" class="mt-3 text-sm leading-6 text-gray-600 dark:text-gray-300">
+                {{ supportContactSubtitle }}
               </p>
               <div class="mt-5 space-y-4">
                 <button
@@ -588,6 +588,7 @@ const validAmount = computed(() => amount.value ?? 0)
 const supportContactInfo = computed(() => appStore.contactInfo.trim())
 const supportHelpText = computed(() => checkout.value.help_text.trim())
 const supportImageUrl = computed(() => checkout.value.help_image_url.trim())
+const supportContactSubtitle = computed(() => t('payment.purchaseGuide.contactSubtitle').trim())
 
 const productGridClass = 'grid gap-4 sm:grid-cols-2 lg:grid-cols-4'
 
