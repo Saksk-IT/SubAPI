@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import {
   calculateSubscriptionTotalQuotaUSD,
+  deriveSubscriptionValidityUnitFromQuota,
   formatSubscriptionValidityUnit,
+  getLargestActiveSubscriptionQuotaUnit,
   getSubscriptionCycleLimitUSD,
 } from '../subscriptionQuota'
 
@@ -27,6 +29,34 @@ describe('subscriptionQuota', () => {
   it('treats missing or zero cycle limits as unlimited', () => {
     expect(calculateSubscriptionTotalQuotaUSD({ validity_days: 2, validity_unit: 'months' }, { ...quotaSource, monthly_limit_usd: null })).toBeNull()
     expect(calculateSubscriptionTotalQuotaUSD({ validity_days: 2, validity_unit: 'months' }, { ...quotaSource, monthly_limit_usd: 0 })).toBeNull()
+  })
+
+  it('derives the validity unit from the largest active quota period', () => {
+    expect(getLargestActiveSubscriptionQuotaUnit({
+      daily_limit_usd: 10,
+      weekly_limit_usd: 50,
+      monthly_limit_usd: 0,
+    })).toBe('weeks')
+    expect(getLargestActiveSubscriptionQuotaUnit({
+      daily_limit_usd: 10,
+      weekly_limit_usd: 50,
+      monthly_limit_usd: 200,
+    })).toBe('months')
+    expect(getLargestActiveSubscriptionQuotaUnit({
+      daily_limit_usd: 10,
+      weekly_limit_usd: 0,
+      monthly_limit_usd: null,
+    })).toBe('days')
+    expect(getLargestActiveSubscriptionQuotaUnit({
+      daily_limit_usd: 0,
+      weekly_limit_usd: null,
+      monthly_limit_usd: 0,
+    })).toBeNull()
+    expect(deriveSubscriptionValidityUnitFromQuota({
+      daily_limit_usd: 0,
+      weekly_limit_usd: null,
+      monthly_limit_usd: 0,
+    })).toBe('days')
   })
 
   it('formats validity unit labels from the selected unit', () => {

@@ -64,14 +64,12 @@ func TestValidatePlanRequired_NegativeValidityDays(t *testing.T) {
 
 func TestValidatePlanRequired_EmptyValidityUnit(t *testing.T) {
 	err := validatePlanRequired("Pro", 1, 9.99, 30, "", nil)
-	require.Error(t, err)
-	require.Contains(t, err.Error(), "validity unit")
+	require.NoError(t, err)
 }
 
 func TestValidatePlanRequired_WhitespaceValidityUnit(t *testing.T) {
 	err := validatePlanRequired("Pro", 1, 9.99, 30, "   ", nil)
-	require.Error(t, err)
-	require.Contains(t, err.Error(), "validity unit")
+	require.NoError(t, err)
 }
 
 func TestValidatePlanRequired_NameValidatedFirst(t *testing.T) {
@@ -248,4 +246,56 @@ func TestDerivePlanQuotaFromGroup_UnlimitedCycleKeepsTotalNil(t *testing.T) {
 	require.NotNil(t, got.DailyQuota)
 	require.Nil(t, got.TotalQuota)
 	require.Equal(t, 23.0, *got.DailyQuota)
+}
+
+func TestDerivePlanValidityUnitFromGroup_PrefersLargestActivePeriod(t *testing.T) {
+	daily := 10.0
+	weekly := 50.0
+	monthly := 0.0
+
+	got := derivePlanValidityUnitFromGroup(&dbent.Group{
+		DailyLimitUsd:   &daily,
+		WeeklyLimitUsd:  &weekly,
+		MonthlyLimitUsd: &monthly,
+	})
+
+	require.Equal(t, "weeks", got)
+}
+
+func TestDerivePlanValidityUnitFromGroup_MonthlyWins(t *testing.T) {
+	daily := 10.0
+	weekly := 50.0
+	monthly := 200.0
+
+	got := derivePlanValidityUnitFromGroup(&dbent.Group{
+		DailyLimitUsd:   &daily,
+		WeeklyLimitUsd:  &weekly,
+		MonthlyLimitUsd: &monthly,
+	})
+
+	require.Equal(t, "months", got)
+}
+
+func TestDerivePlanValidityUnitFromGroup_DailyFallback(t *testing.T) {
+	daily := 10.0
+	weekly := 0.0
+
+	got := derivePlanValidityUnitFromGroup(&dbent.Group{
+		DailyLimitUsd:  &daily,
+		WeeklyLimitUsd: &weekly,
+	})
+
+	require.Equal(t, "days", got)
+}
+
+func TestDerivePlanValidityUnitFromGroup_NoActiveQuotaFallback(t *testing.T) {
+	daily := 0.0
+	monthly := 0.0
+
+	got := derivePlanValidityUnitFromGroup(&dbent.Group{
+		DailyLimitUsd:   &daily,
+		MonthlyLimitUsd: &monthly,
+	})
+
+	require.Equal(t, "days", got)
 }

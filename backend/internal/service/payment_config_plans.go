@@ -33,9 +33,6 @@ func validatePlanRequired(name string, groupID int64, price float64, validityDay
 	if validityDays <= 0 {
 		return infraerrors.BadRequest("PLAN_VALIDITY_REQUIRED", "validity days must be > 0")
 	}
-	if strings.TrimSpace(validityUnit) == "" {
-		return infraerrors.BadRequest("PLAN_VALIDITY_UNIT_REQUIRED", "validity unit is required")
-	}
 	if originalPrice != nil && *originalPrice < 0 {
 		return infraerrors.BadRequest("PLAN_ORIGINAL_PRICE_INVALID", "original price must be >= 0")
 	}
@@ -107,6 +104,22 @@ func derivePlanQuotaFromGroup(group *dbent.Group, validityDays int, validityUnit
 		TotalQuota: totalQuota,
 		DailyQuota: positiveQuotaPtr(group.DailyLimitUsd),
 	}
+}
+
+func derivePlanValidityUnitFromGroup(group *dbent.Group) string {
+	if group == nil {
+		return "days"
+	}
+	if positiveQuotaPtr(group.MonthlyLimitUsd) != nil {
+		return "months"
+	}
+	if positiveQuotaPtr(group.WeeklyLimitUsd) != nil {
+		return "weeks"
+	}
+	if positiveQuotaPtr(group.DailyLimitUsd) != nil {
+		return "days"
+	}
+	return "days"
 }
 
 // validatePlanPatch validates only the non-nil fields in a patch update.
@@ -274,10 +287,11 @@ func (s *PaymentConfigService) CreatePlan(ctx context.Context, req CreatePlanReq
 	if err != nil {
 		return nil, err
 	}
-	derivedQuota := derivePlanQuotaFromGroup(groupInfo, req.ValidityDays, req.ValidityUnit)
+	derivedValidityUnit := derivePlanValidityUnitFromGroup(groupInfo)
+	derivedQuota := derivePlanQuotaFromGroup(groupInfo, req.ValidityDays, derivedValidityUnit)
 	b := s.entClient.SubscriptionPlan.Create().
 		SetGroupID(req.GroupID).SetName(req.Name).SetDescription(req.Description).
-		SetPrice(req.Price).SetValidityDays(req.ValidityDays).SetValidityUnit(req.ValidityUnit).
+		SetPrice(req.Price).SetValidityDays(req.ValidityDays).SetValidityUnit(derivedValidityUnit).
 		SetFeatures(normalizeProductLines(req.Features)).SetProductName(req.ProductName).
 		SetForSale(req.ForSale).SetSortOrder(req.SortOrder)
 	if req.OriginalPrice != nil {
@@ -319,18 +333,16 @@ func (s *PaymentConfigService) UpdatePlan(ctx context.Context, id int64, req Upd
 	if req.ValidityDays != nil {
 		nextValidityDays = *req.ValidityDays
 	}
-	nextValidityUnit := currentPlan.ValidityUnit
-	if req.ValidityUnit != nil {
-		nextValidityUnit = *req.ValidityUnit
-	}
 	shouldDeriveQuota := isFullPlanSave || req.GroupID != nil || req.ValidityDays != nil || req.ValidityUnit != nil || req.TotalQuota != nil || req.DailyQuota != nil
 	var derivedQuota planDerivedQuota
+	var derivedValidityUnit string
 	if shouldDeriveQuota {
 		groupInfo, err := s.getActiveSubscriptionGroup(ctx, nextGroupID)
 		if err != nil {
 			return nil, err
 		}
-		derivedQuota = derivePlanQuotaFromGroup(groupInfo, nextValidityDays, nextValidityUnit)
+		derivedValidityUnit = derivePlanValidityUnitFromGroup(groupInfo)
+		derivedQuota = derivePlanQuotaFromGroup(groupInfo, nextValidityDays, derivedValidityUnit)
 	}
 	u := s.entClient.SubscriptionPlan.UpdateOneID(id)
 	if req.GroupID != nil {
@@ -351,8 +363,8 @@ func (s *PaymentConfigService) UpdatePlan(ctx context.Context, id int64, req Upd
 	if req.ValidityDays != nil {
 		u.SetValidityDays(*req.ValidityDays)
 	}
-	if req.ValidityUnit != nil {
-		u.SetValidityUnit(*req.ValidityUnit)
+	if shouldDeriveQuota {
+		u.SetValidityUnit(derivedValidityUnit)
 	}
 	if req.Features != nil {
 		features := normalizeProductLines(*req.Features)

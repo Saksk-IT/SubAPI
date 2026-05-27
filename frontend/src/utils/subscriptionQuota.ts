@@ -75,6 +75,22 @@ export function getSubscriptionCycleLimitUSD(
   return normalizePositiveQuota(source.daily_limit_usd)
 }
 
+export function getLargestActiveSubscriptionQuotaUnit(
+  source: SubscriptionQuotaSource | null | undefined,
+): SubscriptionValidityUnit | null {
+  if (!source) return null
+  if (normalizePositiveQuota(source.monthly_limit_usd) != null) return 'months'
+  if (normalizePositiveQuota(source.weekly_limit_usd) != null) return 'weeks'
+  if (normalizePositiveQuota(source.daily_limit_usd) != null) return 'days'
+  return null
+}
+
+export function deriveSubscriptionValidityUnitFromQuota(
+  source: SubscriptionQuotaSource | null | undefined,
+): SubscriptionValidityUnit {
+  return getLargestActiveSubscriptionQuotaUnit(source) ?? 'days'
+}
+
 export function calculateSubscriptionTotalQuotaUSD(
   plan: SubscriptionValiditySource,
   source: SubscriptionQuotaSource | null | undefined,

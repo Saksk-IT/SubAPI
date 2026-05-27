@@ -203,19 +203,19 @@
                         <span :class="['text-lg font-bold', planTextClass]">×{{ selectedPlan.rate_multiplier ?? 1 }}</span>
                       </div>
                     </div>
-                    <div v-if="selectedPlan.daily_limit_usd != null">
+                    <div v-if="selectedDailyLimit != null">
                       <span class="text-xs text-gray-400 dark:text-gray-500">{{ t('payment.planCard.dailyLimit') }}</span>
-                      <div class="break-words text-lg font-semibold text-gray-800 [overflow-wrap:anywhere] dark:text-gray-200">${{ selectedPlan.daily_limit_usd }}</div>
+                      <div class="break-words text-lg font-semibold text-gray-800 [overflow-wrap:anywhere] dark:text-gray-200">${{ selectedDailyLimit }}</div>
                     </div>
-                    <div v-if="selectedPlan.weekly_limit_usd != null">
+                    <div v-if="selectedWeeklyLimit != null">
                       <span class="text-xs text-gray-400 dark:text-gray-500">{{ t('payment.planCard.weeklyLimit') }}</span>
-                      <div class="break-words text-lg font-semibold text-gray-800 [overflow-wrap:anywhere] dark:text-gray-200">${{ selectedPlan.weekly_limit_usd }}</div>
+                      <div class="break-words text-lg font-semibold text-gray-800 [overflow-wrap:anywhere] dark:text-gray-200">${{ selectedWeeklyLimit }}</div>
                     </div>
-                    <div v-if="selectedPlan.monthly_limit_usd != null">
+                    <div v-if="selectedMonthlyLimit != null">
                       <span class="text-xs text-gray-400 dark:text-gray-500">{{ t('payment.planCard.monthlyLimit') }}</span>
-                      <div class="break-words text-lg font-semibold text-gray-800 [overflow-wrap:anywhere] dark:text-gray-200">${{ selectedPlan.monthly_limit_usd }}</div>
+                      <div class="break-words text-lg font-semibold text-gray-800 [overflow-wrap:anywhere] dark:text-gray-200">${{ selectedMonthlyLimit }}</div>
                     </div>
-                    <div v-if="selectedPlan.daily_limit_usd == null && selectedPlan.weekly_limit_usd == null && selectedPlan.monthly_limit_usd == null">
+                    <div v-if="selectedDailyLimit == null && selectedWeeklyLimit == null && selectedMonthlyLimit == null">
                       <span class="text-xs text-gray-400 dark:text-gray-500">{{ t('payment.planCard.quota') }}</span>
                       <div class="text-lg font-semibold text-gray-800 dark:text-gray-200">{{ t('payment.planCard.unlimited') }}</div>
                     </div>
@@ -364,7 +364,7 @@ import type { PurchaseProductMetric, PurchaseProductViewModel } from '@/componen
 import Icon from '@/components/icons/Icon.vue'
 import { formatPaymentAmount, normalizePaymentCurrency } from '@/components/payment/currency'
 import type { PaymentMethodOption } from '@/components/payment/PaymentMethodSelector.vue'
-import { calculateSubscriptionTotalQuotaUSD, formatSubscriptionValidityUnit } from '@/utils/subscriptionQuota'
+import { calculateSubscriptionTotalQuotaUSD, formatSubscriptionValidityUnit, normalizePositiveQuota } from '@/utils/subscriptionQuota'
 import { buildPaymentErrorToastMessage, describePaymentScenarioError } from './paymentUx'
 import { hasWechatResumeQuery, parseWechatResumeRoute, stripWechatResumeQuery } from './paymentWechatResume'
 
@@ -659,6 +659,10 @@ function formatQuota(value: number | null | undefined): string {
   return formatQuotaAmount(Number(value))
 }
 
+function getPlanTotalQuota(plan: SubscriptionPlan): number | null {
+  return normalizePositiveQuota(plan.total_quota) ?? calculateSubscriptionTotalQuotaUSD(plan, plan)
+}
+
 const balanceProductCards = computed<PurchaseCardItem<BalanceProduct>[]>(() =>
   (checkout.value.balance_products || []).map((product) => ({
     raw: product,
@@ -681,8 +685,23 @@ const balanceProductCards = computed<PurchaseCardItem<BalanceProduct>[]>(() =>
 
 const subscriptionProductCards = computed<PurchaseCardItem<SubscriptionPlan>[]>(() =>
   checkout.value.plans.map((plan) => {
-    const dailyQuota = plan.daily_quota ?? plan.daily_limit_usd ?? null
-    const totalQuota = plan.total_quota ?? calculateSubscriptionTotalQuotaUSD(plan, plan)
+    const totalQuota = getPlanTotalQuota(plan)
+    const metrics: PurchaseProductMetric[] = [
+      { label: t('payment.product.totalQuota'), value: formatQuota(totalQuota) },
+    ]
+    const dailyQuota = normalizePositiveQuota(plan.daily_quota) ?? normalizePositiveQuota(plan.daily_limit_usd)
+    const weeklyQuota = normalizePositiveQuota(plan.weekly_limit_usd)
+    const monthlyQuota = normalizePositiveQuota(plan.monthly_limit_usd)
+    if (dailyQuota != null) {
+      metrics.push({ label: t('payment.product.dailyQuota'), value: formatQuota(dailyQuota) })
+    }
+    if (weeklyQuota != null) {
+      metrics.push({ label: t('payment.product.weeklyQuota'), value: formatQuota(weeklyQuota) })
+    }
+    if (monthlyQuota != null) {
+      metrics.push({ label: t('payment.product.monthlyQuota'), value: formatQuota(monthlyQuota) })
+    }
+    metrics.push({ label: t('payment.product.validity'), value: formatPlanValidity(plan) })
     return {
       raw: plan,
       product: {
@@ -695,11 +714,7 @@ const subscriptionProductCards = computed<PurchaseCardItem<SubscriptionPlan>[]>(
         tags: normalizeTextList(plan.tags),
         features: normalizeTextList(plan.features),
       },
-      metrics: [
-        { label: t('payment.product.totalQuota'), value: formatQuota(totalQuota) },
-        { label: t('payment.product.dailyQuota'), value: formatQuota(dailyQuota) },
-        { label: t('payment.product.validity'), value: formatPlanValidity(plan) },
-      ],
+      metrics,
       methods: amountMethodOptions(Number(plan.price) || 0),
       priceSuffix: `/ ${formatPlanValidity(plan)}`,
     }
@@ -773,6 +788,10 @@ const planValiditySuffix = computed(() => {
   if (!selectedPlan.value) return ''
   return formatPlanValidity(selectedPlan.value)
 })
+
+const selectedDailyLimit = computed(() => normalizePositiveQuota(selectedPlan.value?.daily_limit_usd))
+const selectedWeeklyLimit = computed(() => normalizePositiveQuota(selectedPlan.value?.weekly_limit_usd))
+const selectedMonthlyLimit = computed(() => normalizePositiveQuota(selectedPlan.value?.monthly_limit_usd))
 
 function formatPlanValidity(plan: SubscriptionPlan): string {
   return formatSubscriptionValidityUnit(plan.validity_days, plan.validity_unit, {

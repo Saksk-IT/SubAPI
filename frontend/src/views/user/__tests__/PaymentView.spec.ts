@@ -624,6 +624,45 @@ describe('PaymentView WeChat JSAPI flow', () => {
     expect(dailyQuota).toContain('$42.00')
   })
 
+  it('shows only active subscription quota periods on product cards', async () => {
+    routeState.query = {
+      tab: 'subscription',
+    }
+    const checkout = checkoutInfoWithPlansFixture()
+    checkout.data.plans[0] = {
+      ...checkout.data.plans[0],
+      validity_days: 4,
+      validity_unit: 'weeks',
+      daily_limit_usd: 10,
+      daily_quota: null,
+      weekly_limit_usd: 50,
+      monthly_limit_usd: 0,
+      total_quota: null,
+    }
+    getCheckoutInfo.mockResolvedValue(checkout)
+
+    const wrapper = shallowMount(PaymentView, {
+      global: {
+        stubs: {
+          AppLayout: { template: '<div><slot /></div>' },
+          Teleport: true,
+          Transition: false,
+        },
+      },
+    })
+    await flushPromises()
+    await flushPromises()
+
+    const card = wrapper.findComponent(PurchaseProductCard)
+    const metrics = card.props('metrics') as { label: string; value: string }[]
+    const labels = metrics.map(item => item.label)
+
+    expect(labels).toContain('payment.product.dailyQuota')
+    expect(labels).toContain('payment.product.weeklyQuota')
+    expect(labels).not.toContain('payment.product.monthlyQuota')
+    expect(metrics.find(item => item.label === 'payment.product.totalQuota')?.value).toContain('$200.00')
+  })
+
   it('calculates subscription total quota from the selected validity unit when no stored quota exists', async () => {
     routeState.query = {
       tab: 'subscription',

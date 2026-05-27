@@ -27,9 +27,9 @@
           <GroupBadge :name="selectedGroupInfo.name" :platform="selectedGroupInfo.platform" :rate-multiplier="selectedGroupInfo.rate_multiplier" />
         </div>
         <div class="grid grid-cols-1 gap-2 text-xs sm:grid-cols-2">
-          <div><span class="text-gray-500">{{ t('payment.admin.dailyLimit') }}:</span> <span class="ml-1 font-medium text-gray-700 dark:text-gray-300">{{ selectedGroupInfo.daily_limit_usd != null ? '$' + selectedGroupInfo.daily_limit_usd : t('payment.admin.unlimited') }}</span></div>
-          <div><span class="text-gray-500">{{ t('payment.admin.weeklyLimit') }}:</span> <span class="ml-1 font-medium text-gray-700 dark:text-gray-300">{{ selectedGroupInfo.weekly_limit_usd != null ? '$' + selectedGroupInfo.weekly_limit_usd : t('payment.admin.unlimited') }}</span></div>
-          <div><span class="text-gray-500">{{ t('payment.admin.monthlyLimit') }}:</span> <span class="ml-1 font-medium text-gray-700 dark:text-gray-300">{{ selectedGroupInfo.monthly_limit_usd != null ? '$' + selectedGroupInfo.monthly_limit_usd : t('payment.admin.unlimited') }}</span></div>
+          <div><span class="text-gray-500">{{ t('payment.admin.dailyLimit') }}:</span> <span class="ml-1 font-medium text-gray-700 dark:text-gray-300">{{ dailyQuotaDisplay }}</span></div>
+          <div><span class="text-gray-500">{{ t('payment.admin.weeklyLimit') }}:</span> <span class="ml-1 font-medium text-gray-700 dark:text-gray-300">{{ weeklyQuotaDisplay }}</span></div>
+          <div><span class="text-gray-500">{{ t('payment.admin.monthlyLimit') }}:</span> <span class="ml-1 font-medium text-gray-700 dark:text-gray-300">{{ monthlyQuotaDisplay }}</span></div>
         </div>
       </div>
 
@@ -40,7 +40,11 @@
       </div>
       <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <div><label class="input-label">{{ validityCountLabel }} <span class="text-red-500">*</span></label><input v-model.number="planForm.validity_days" type="number" min="1" class="input" required /></div>
-        <div><label class="input-label">{{ t('payment.admin.validityUnit') }} <span class="text-red-500">*</span></label><Select v-model="planForm.validity_unit" :options="validityUnitOptions" /></div>
+        <div>
+          <label class="input-label">{{ t('payment.admin.validityUnit') }} <span class="text-red-500">*</span></label>
+          <Select v-model="planForm.validity_unit" :options="validityUnitOptions" disabled />
+          <p class="input-hint">{{ t('payment.admin.validityUnitAutoHint') }}</p>
+        </div>
       </div>
       <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <div><label class="input-label">{{ t('payment.admin.sortOrder') }}</label><input v-model.number="planForm.sort_order" type="number" min="0" class="input" /></div>
@@ -128,6 +132,7 @@ import GroupBadge from '@/components/common/GroupBadge.vue'
 import { platformTextClass } from '@/utils/platformColors'
 import {
   calculateSubscriptionTotalQuotaUSD,
+  deriveSubscriptionValidityUnitFromQuota,
   normalizePositiveQuota,
   normalizeSubscriptionValidityUnit,
 } from '@/utils/subscriptionQuota'
@@ -172,6 +177,7 @@ const selectedGroupInfo = computed(() => {
   return props.groups.find(g => g.id === planForm.group_id) || null
 })
 
+const derivedValidityUnit = computed(() => deriveSubscriptionValidityUnitFromQuota(selectedGroupInfo.value))
 const normalizedValidityUnit = computed(() => normalizeSubscriptionValidityUnit(planForm.validity_unit))
 
 const validityCountLabel = computed(() => {
@@ -209,13 +215,19 @@ watch(() => props.show, (visible) => {
   if (!visible) return
   if (props.plan) {
     Object.assign(planForm, { name: props.plan.name, group_id: props.plan.group_id, description: props.plan.description, price: props.plan.price, original_price: props.plan.original_price || 0, validity_days: props.plan.validity_days, validity_unit: props.plan.validity_unit || 'days', display_notes: props.plan.display_notes || '', sort_order: props.plan.sort_order || 0, for_sale: props.plan.for_sale })
+    planForm.validity_unit = derivedValidityUnit.value
     planFeaturesText.value = (props.plan.features || []).join('\n')
     planTagsText.value = Array.isArray(props.plan.tags) ? props.plan.tags.join('\n') : (props.plan.tags || '')
   } else {
     Object.assign(planForm, { name: '', group_id: null, description: '', price: 0, original_price: 0, validity_days: 30, validity_unit: 'days', display_notes: '', sort_order: 0, for_sale: true })
+    planForm.validity_unit = derivedValidityUnit.value
     planFeaturesText.value = ''
     planTagsText.value = ''
   }
+})
+
+watch(derivedValidityUnit, (unit) => {
+  planForm.validity_unit = unit
 })
 
 /** Build request payload with snake_case keys matching backend JSON tags */
