@@ -169,6 +169,8 @@ function checkoutInfoWithPlansFixture() {
           daily_limit_usd: null,
           weekly_limit_usd: null,
           monthly_limit_usd: null,
+          total_quota: 999,
+          daily_quota: 42,
           features: [],
           group_platform: 'openai',
           sort_order: 1,
@@ -504,6 +506,33 @@ describe('PaymentView WeChat JSAPI flow', () => {
     }))
   })
 
+  it('shows product pay prices in CNY and received credits in USD', async () => {
+    routeState.query = {}
+    getCheckoutInfo.mockResolvedValue(checkoutInfoWithBalanceProductsFixture())
+
+    const wrapper = shallowMount(PaymentView, {
+      global: {
+        stubs: {
+          AppLayout: { template: '<div><slot /></div>' },
+          Teleport: true,
+          Transition: false,
+        },
+      },
+    })
+    await flushPromises()
+    await flushPromises()
+
+    const card = wrapper.findComponent(PurchaseProductCard)
+    const metrics = card.props('metrics') as { label: string; value: string }[]
+    const payPrice = metrics.find(item => item.label === 'payment.product.payPrice')?.value || ''
+    const balanceAmount = metrics.find(item => item.label === 'payment.product.balanceAmount')?.value || ''
+
+    expect(card.props('currency')).toBe('CNY')
+    expect(payPrice).toContain('¥')
+    expect(balanceAmount).toContain('$')
+    expect(balanceAmount).not.toContain('¥')
+  })
+
   it('shows customer purchase guidance and administrator support details', async () => {
     routeState.query = {}
     appStoreState.contactInfo = '微信: subapi-support'
@@ -565,5 +594,34 @@ describe('PaymentView WeChat JSAPI flow', () => {
       order_type: 'subscription',
       plan_id: 7,
     }))
+  })
+
+  it('uses four-column product grids and calculates subscription total quota from daily quota and validity days', async () => {
+    routeState.query = {
+      tab: 'subscription',
+    }
+    getCheckoutInfo.mockResolvedValue(checkoutInfoWithPlansFixture())
+
+    const wrapper = shallowMount(PaymentView, {
+      global: {
+        stubs: {
+          AppLayout: { template: '<div><slot /></div>' },
+          Teleport: true,
+          Transition: false,
+        },
+      },
+    })
+    await flushPromises()
+    await flushPromises()
+
+    const card = wrapper.findComponent(PurchaseProductCard)
+    const metrics = card.props('metrics') as { label: string; value: string }[]
+    const totalQuota = metrics.find(item => item.label === 'payment.product.totalQuota')?.value || ''
+    const dailyQuota = metrics.find(item => item.label === 'payment.product.dailyQuota')?.value || ''
+
+    expect(wrapper.html()).toContain('lg:grid-cols-4')
+    expect(totalQuota).toContain('$1,260.00')
+    expect(totalQuota).not.toContain('999')
+    expect(dailyQuota).toContain('$42.00')
   })
 })

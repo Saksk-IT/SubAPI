@@ -20,7 +20,9 @@
         @click="method.available && emit('select', method.type)"
       >
         <span class="flex items-center gap-2">
-          <img :src="methodIcon(method.type)" :alt="t(`payment.methods.${method.type}`)" class="h-7 w-7 object-contain" />
+          <span class="flex h-8 w-8 items-center justify-center rounded-full bg-white shadow-sm dark:bg-white">
+            <img :src="methodIcon(method.type)" :alt="t(`payment.methods.${method.type}`)" class="h-6 w-6 object-contain" />
+          </span>
           <span class="flex flex-col items-start leading-none">
             <span class="text-base font-semibold">{{ t(`payment.methods.${method.type}`) }}</span>
             <span

@@ -163,7 +163,7 @@
                     :product="item.product"
                     :metrics="item.metrics"
                     :methods="item.methods"
-                    :currency="selectedCurrency"
+                    :currency="paymentPriceCurrency"
                     :locale="localeCode"
                     :submitting="submittingProductKey === `balance:${item.product.id}`"
                     @pay="handleSubmitBalanceProduct(item.raw, $event)"
@@ -266,7 +266,7 @@
                     :product="item.product"
                     :metrics="item.metrics"
                     :methods="item.methods"
-                    :currency="selectedCurrency"
+                    :currency="paymentPriceCurrency"
                     :locale="localeCode"
                     :price-suffix="item.priceSuffix"
                     :submitting="submittingProductKey === `subscription:${item.product.id}`"
@@ -589,7 +589,7 @@ const supportContactInfo = computed(() => appStore.contactInfo.trim())
 const supportHelpText = computed(() => checkout.value.help_text.trim())
 const supportImageUrl = computed(() => checkout.value.help_image_url.trim())
 
-const productGridClass = 'grid gap-6 [grid-template-columns:repeat(auto-fit,minmax(min(100%,26rem),1fr))]'
+const productGridClass = 'grid gap-4 sm:grid-cols-2 lg:grid-cols-4'
 
 // Check if an amount fits a method's [min, max]. 0 = no limit.
 function amountFitsMethod(amt: number, methodType: string): boolean {
@@ -604,6 +604,8 @@ function amountFitsMethod(amt: number, methodType: string): boolean {
 // Selected method's limits (for validation and error messages)
 const selectedLimit = computed(() => visibleMethods.value[selectedMethod.value])
 const selectedCurrency = computed(() => normalizePaymentCurrency(selectedLimit.value?.currency))
+const paymentPriceCurrency = 'CNY'
+const quotaDisplayCurrency = 'USD'
 const localeCode = computed(() => {
   const raw = i18n.locale as unknown
   if (typeof raw === 'string') return raw
@@ -615,6 +617,14 @@ const localeCode = computed(() => {
 
 function formatSelectedPaymentAmount(value: number): string {
   return formatPaymentAmount(value, selectedCurrency.value, localeCode.value)
+}
+
+function formatPayAmount(value: number): string {
+  return formatPaymentAmount(value, paymentPriceCurrency, localeCode.value)
+}
+
+function formatQuotaAmount(value: number): string {
+  return formatPaymentAmount(value, quotaDisplayCurrency, localeCode.value)
 }
 
 type PurchaseCardItem<T> = {
@@ -644,7 +654,27 @@ function amountMethodOptions(value: number): PaymentMethodOption[] {
 
 function formatQuota(value: number | null | undefined): string {
   if (value == null || value <= 0) return t('payment.planCard.unlimited')
-  return formatSelectedPaymentAmount(Number(value))
+  return formatQuotaAmount(Number(value))
+}
+
+function getPlanEffectiveDays(plan: Pick<SubscriptionPlan, 'validity_days' | 'validity_unit'>): number {
+  const days = Number(plan.validity_days) || 0
+  const unit = String(plan.validity_unit || 'day').toLowerCase()
+  if (unit === 'week' || unit === 'weeks') return days * 7
+  if (unit === 'month' || unit === 'months') return days * 30
+  if (unit === 'year' || unit === 'years') return days * 365
+  return days
+}
+
+function calculateSubscriptionTotalQuota(
+  plan: Pick<SubscriptionPlan, 'validity_days' | 'validity_unit'>,
+  dailyQuota: number | null | undefined,
+): number | null {
+  const normalizedDailyQuota = Number(dailyQuota) || 0
+  if (normalizedDailyQuota <= 0) return null
+  const effectiveDays = getPlanEffectiveDays(plan)
+  if (effectiveDays <= 0) return null
+  return Math.round(normalizedDailyQuota * effectiveDays * 100) / 100
 }
 
 const balanceProductCards = computed<PurchaseCardItem<BalanceProduct>[]>(() =>
@@ -660,8 +690,8 @@ const balanceProductCards = computed<PurchaseCardItem<BalanceProduct>[]>(() =>
       features: normalizeTextList(product.features),
     },
     metrics: [
-      { label: t('payment.product.payPrice'), value: formatSelectedPaymentAmount(Number(product.price) || 0) },
-      { label: t('payment.product.balanceAmount'), value: formatSelectedPaymentAmount(Number(product.amount) || 0) },
+      { label: t('payment.product.payPrice'), value: formatPayAmount(Number(product.price) || 0) },
+      { label: t('payment.product.balanceAmount'), value: formatQuotaAmount(Number(product.amount) || 0) },
     ],
     methods: amountMethodOptions(Number(product.price) || 0),
   })),
@@ -670,7 +700,7 @@ const balanceProductCards = computed<PurchaseCardItem<BalanceProduct>[]>(() =>
 const subscriptionProductCards = computed<PurchaseCardItem<SubscriptionPlan>[]>(() =>
   checkout.value.plans.map((plan) => {
     const dailyQuota = plan.daily_quota ?? plan.daily_limit_usd ?? null
-    const totalQuota = plan.total_quota ?? plan.monthly_limit_usd ?? null
+    const totalQuota = calculateSubscriptionTotalQuota(plan, dailyQuota)
     return {
       raw: plan,
       product: {

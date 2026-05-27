@@ -7035,6 +7035,8 @@ export default {
       payPrice: 'Actual Pay Price',
       creditAmount: 'Credited Quota',
       totalQuota: 'Total Quota',
+      totalQuotaAuto: 'Total Quota (Auto)',
+      totalQuotaAutoHint: 'Calculated from effective days × daily quota. No manual entry needed.',
       dailyQuota: 'Daily Quota',
       displayNotes: 'Display Notes',
       productNameRequired: 'Please enter product name',

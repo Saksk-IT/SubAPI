@@ -7215,6 +7215,8 @@ export default {
       payPrice: '实际支付价格',
       creditAmount: '获得额度',
       totalQuota: '总额度',
+      totalQuotaAuto: '总额度（自动计算）',
+      totalQuotaAutoHint: '按有效天数 × 每天额度自动计算，无需手动填写。',
       dailyQuota: '每天额度',
       displayNotes: '展示说明',
       productNameRequired: '请输入商品名称',
