@@ -528,7 +528,7 @@ describe('PaymentView WeChat JSAPI flow', () => {
     const balanceAmount = metrics.find(item => item.label === 'payment.product.balanceAmount')?.value || ''
 
     expect(card.props('currency')).toBe('CNY')
-    expect(exchangeRate).toBe('1:10')
+    expect(exchangeRate).toBe('1¥:10$')
     expect(balanceAmount).toContain('$')
     expect(balanceAmount).not.toContain('¥')
   })

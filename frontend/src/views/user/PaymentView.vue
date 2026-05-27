@@ -657,7 +657,7 @@ function formatQuota(value: number | null | undefined): string {
 
 function formatExchangeRate(amount: number, price: number): string {
   if (amount <= 0 || price <= 0) return t('payment.planCard.unlimited')
-  return `1:${Number((amount / price).toFixed(2))}`
+  return `1¥:${Number((amount / price).toFixed(2))}$`
 }
 
 function getPlanTotalQuota(plan: SubscriptionPlan): number | null {
