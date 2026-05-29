@@ -6,14 +6,14 @@
  *
  * `public settings` reach the frontend through two channels:
  *
- *   1. **SSR injection** — the backend embeds `window.__APP_CONFIG__` into the
- *      HTML. `main.ts` calls `appStore.initFromInjectedConfig()` synchronously
- *      before Vue mounts, so `cachedPublicSettings` is populated on first
- *      render.
+ *   1. **SSR injection** — the backend embeds a non-executable meta config in
+ *      the HTML. `main.ts` calls `appStore.initFromInjectedConfig()`
+ *      synchronously before Vue mounts, so `cachedPublicSettings` is populated
+ *      on first render.
  *   2. **Async API** — `App.vue` awaits `appStore.fetchPublicSettings()` on
  *      mount as a fallback (used when injection is missing or stale).
  *
- * If the SSR injection struct forgets to include a feature flag field — the
+ * If the SSR injection payload forgets to include a feature flag field — the
  * exact bug that hid the "可用渠道" menu after every refresh — the frontend
  * reads `undefined` until the async call resolves. An opt-in flag written as
  * `settings?.xxx_enabled === true` then evaluates to `false` and the menu
@@ -33,7 +33,7 @@
  *     that ship disabled (Available Channels).
  *
  * For `opt-in` flags to render immediately on refresh, the backend **must**
- * inject the field through `PublicSettingsInjectionPayload`. A drift test in
+ * include the field in `PublicSettingsInjectionPayload`. A drift test in
  * `backend/internal/handler/dto/public_settings_injection_schema_test.go`
  * catches omissions.
  *

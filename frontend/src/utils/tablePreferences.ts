@@ -1,3 +1,5 @@
+import { getInjectedAppConfig } from '@/utils/injectedAppConfig'
+
 const MIN_TABLE_PAGE_SIZE = 5
 const MAX_TABLE_PAGE_SIZE = 1000
 
@@ -16,11 +18,6 @@ const parsePageSizeForSelection = (value: unknown): number | null => {
   if (!Number.isInteger(size)) return null
   if (size < MIN_TABLE_PAGE_SIZE) return null
   return size
-}
-
-const getInjectedAppConfig = () => {
-  if (typeof window === 'undefined') return null
-  return window.__APP_CONFIG__ ?? null
 }
 
 const getSanitizedConfiguredOptions = (): number[] => {

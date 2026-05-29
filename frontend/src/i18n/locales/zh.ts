@@ -5991,7 +5991,7 @@ export default {
         supportTitle: '购买页客服信息',
         supportDescription: '配置用户充值/订阅页右侧展示的客服联系方式、二维码图片和购买说明。',
         supportContactInfo: '客服联系方式',
-        supportContactInfoPlaceholder: '例如：微信：subapi-support\nQQ：123456789\n邮箱：support@example.com',
+        supportContactInfoPlaceholder: "例如：微信：subapi-support\nQQ：123456789\n邮箱：support{'@'}example.com",
         supportContactInfoHint: '保存后会展示在购买页、兑换页和个人资料页等客服信息位置。',
         helpText: '购买说明',
         helpImageUrl: '客服图片链接',

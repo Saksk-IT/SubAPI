@@ -5835,7 +5835,7 @@ export default {
         supportTitle: 'Purchase Page Support',
         supportDescription: 'Configure the support contact, QR/image, and purchase notes shown on the user top-up/subscription page.',
         supportContactInfo: 'Support contact',
-        supportContactInfoPlaceholder: 'Example: WeChat: subapi-support\nQQ: 123456789\nEmail: support@example.com',
+        supportContactInfoPlaceholder: "Example: WeChat: subapi-support\nQQ: 123456789\nEmail: support{'@'}example.com",
         supportContactInfoHint: 'After saving, this appears wherever support contact details are shown, including purchase, redeem, and profile pages.',
         helpText: 'Purchase Notes',
         helpImageUrl: 'Support Image URL',

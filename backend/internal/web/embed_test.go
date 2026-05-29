@@ -5,6 +5,7 @@ package web
 import (
 	"bytes"
 	"context"
+	"encoding/base64"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -147,6 +148,12 @@ func TestNonceHTMLPlaceholder(t *testing.T) {
 	})
 }
 
+func TestAppConfigMetaName(t *testing.T) {
+	t.Run("constant_value", func(t *testing.T) {
+		assert.Equal(t, "sub2api-app-config", AppConfigMetaName)
+	})
+}
+
 // mockSettingsProvider implements PublicSettingsProvider for testing
 type mockSettingsProvider struct {
 	settings any
@@ -160,7 +167,7 @@ func (m *mockSettingsProvider) GetPublicSettingsForInjection(ctx context.Context
 }
 
 func TestFrontendServer_InjectSettings(t *testing.T) {
-	t.Run("injects_settings_with_nonce_placeholder", func(t *testing.T) {
+	t.Run("injects_settings_as_meta_config", func(t *testing.T) {
 		provider := &mockSettingsProvider{
 			settings: map[string]string{"key": "value"},
 		}
@@ -170,11 +177,11 @@ func TestFrontendServer_InjectSettings(t *testing.T) {
 
 		settingsJSON := []byte(`{"test":"data"}`)
 		result := server.injectSettings(settingsJSON)
+		expectedContent := base64.StdEncoding.EncodeToString(settingsJSON)
 
-		// Should contain the script with nonce placeholder
-		assert.Contains(t, string(result), `<script nonce="__CSP_NONCE_VALUE__">`)
-		assert.Contains(t, string(result), `window.__APP_CONFIG__={"test":"data"};`)
-		assert.Contains(t, string(result), `</script></head>`)
+		assert.Contains(t, string(result), `<meta name="`+AppConfigMetaName+`" content="`+expectedContent+`">`)
+		assert.NotContains(t, string(result), `window.__APP_CONFIG__`)
+		assert.NotContains(t, string(result), `<script nonce="`+NonceHTMLPlaceholder+`"`)
 	})
 
 	t.Run("injects_before_head_close", func(t *testing.T) {
@@ -188,11 +195,11 @@ func TestFrontendServer_InjectSettings(t *testing.T) {
 		settingsJSON := []byte(`{}`)
 		result := server.injectSettings(settingsJSON)
 
-		// Script should be injected before </head>
+		// Meta config should be injected before </head>
 		headCloseIndex := bytes.Index(result, []byte("</head>"))
-		scriptIndex := bytes.Index(result, []byte(`<script nonce="`))
+		metaIndex := bytes.Index(result, []byte(`<meta name="`+AppConfigMetaName+`"`))
 
-		assert.True(t, scriptIndex < headCloseIndex, "script should be before </head>")
+		assert.True(t, metaIndex < headCloseIndex, "meta config should be before </head>")
 	})
 
 	t.Run("handles_complex_settings", func(t *testing.T) {
@@ -209,8 +216,9 @@ func TestFrontendServer_InjectSettings(t *testing.T) {
 
 		settingsJSON := []byte(`{"nested":{"array":[1,2,3]},"special":"<>&"}`)
 		result := server.injectSettings(settingsJSON)
+		expectedContent := base64.StdEncoding.EncodeToString(settingsJSON)
 
-		assert.Contains(t, string(result), `window.__APP_CONFIG__={"nested":{"array":[1,2,3]},"special":"<>&"};`)
+		assert.Contains(t, string(result), `content="`+expectedContent+`"`)
 	})
 }
 
@@ -238,9 +246,10 @@ func TestFrontendServer_ServeIndexHTML(t *testing.T) {
 		assert.Contains(t, w.Header().Get("Content-Type"), "text/html")
 
 		body := w.Body.String()
-		// Nonce placeholder should be replaced
+		// No inline script is injected, so CSP nonce is not required for config hydration.
 		assert.NotContains(t, body, NonceHTMLPlaceholder)
-		assert.Contains(t, body, `nonce="`+testNonce+`"`)
+		assert.Contains(t, body, `<meta name="`+AppConfigMetaName+`"`)
+		assert.NotContains(t, body, `window.__APP_CONFIG__`)
 	})
 
 	t.Run("caches_html_content", func(t *testing.T) {
@@ -270,8 +279,9 @@ func TestFrontendServer_ServeIndexHTML(t *testing.T) {
 		// Settings provider should not be called again
 		assert.Equal(t, 1, provider.called)
 
-		// But nonce should be different
-		assert.Contains(t, w2.Body.String(), `nonce="nonce2"`)
+		// Cached HTML should keep using non-executable meta config.
+		assert.Contains(t, w2.Body.String(), `<meta name="`+AppConfigMetaName+`"`)
+		assert.NotContains(t, w2.Body.String(), `window.__APP_CONFIG__`)
 	})
 
 	t.Run("sets_etag_header", func(t *testing.T) {
@@ -736,7 +746,7 @@ func TestHTMLCache(t *testing.T) {
 
 // Benchmark tests
 func BenchmarkReplaceNoncePlaceholder(b *testing.B) {
-	html := []byte(`<!DOCTYPE html><html><head><script nonce="__CSP_NONCE_VALUE__">window.__APP_CONFIG__={"test":"data"};</script></head><body></body></html>`)
+	html := []byte(`<!DOCTYPE html><html><head><script nonce="__CSP_NONCE_VALUE__">console.log("ready");</script></head><body></body></html>`)
 	nonce := "abcdefghijklmnop123456=="
 
 	b.ResetTimer()

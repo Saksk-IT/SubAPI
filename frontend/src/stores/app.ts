@@ -13,6 +13,7 @@ import {
   type ReleaseInfo
 } from '@/api/admin/system'
 import { getPublicSettings as fetchPublicSettingsAPI } from '@/api/auth'
+import { getInjectedAppConfig } from '@/utils/injectedAppConfig'
 
 export const useAppStore = defineStore('app', () => {
   // ==================== State ====================
@@ -307,9 +308,10 @@ export const useAppStore = defineStore('app', () => {
    */
   async function fetchPublicSettings(force = false): Promise<PublicSettings | null> {
     // Check for injected config from server (eliminates flash)
-    if (!publicSettingsLoaded.value && !force && window.__APP_CONFIG__) {
-      applySettings(window.__APP_CONFIG__)
-      return window.__APP_CONFIG__
+    const injectedConfig = getInjectedAppConfig()
+    if (!publicSettingsLoaded.value && !force && injectedConfig) {
+      applySettings(injectedConfig)
+      return { ...injectedConfig }
     }
 
     // Return cached data if available and not forcing refresh
@@ -389,13 +391,14 @@ export const useAppStore = defineStore('app', () => {
   }
 
   /**
-   * Initialize settings from injected config (window.__APP_CONFIG__)
+   * Initialize settings from injected config (meta tag or window fallback)
    * This is called synchronously before Vue app mounts to prevent flash
    * @returns true if config was found and applied, false otherwise
    */
   function initFromInjectedConfig(): boolean {
-    if (window.__APP_CONFIG__) {
-      applySettings(window.__APP_CONFIG__)
+    const injectedConfig = getInjectedAppConfig()
+    if (injectedConfig) {
+      applySettings(injectedConfig)
       return true
     }
     return false

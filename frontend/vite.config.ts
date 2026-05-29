@@ -2,6 +2,9 @@ import { defineConfig, loadEnv, Plugin } from 'vite'
 import vue from '@vitejs/plugin-vue'
 import checker from 'vite-plugin-checker'
 import { resolve } from 'path'
+import { Buffer } from 'node:buffer'
+
+const appConfigMetaName = 'sub2api-app-config'
 
 /**
  * Vite 插件：开发模式下注入公开配置到 index.html
@@ -21,8 +24,9 @@ function injectPublicSettings(backendUrl: string): Plugin {
           if (response.ok) {
             const data = await response.json()
             if (data.code === 0 && data.data) {
-              const script = `<script>window.__APP_CONFIG__=${JSON.stringify(data.data)};</script>`
-              return html.replace('</head>', `${script}\n</head>`)
+              const encodedConfig = Buffer.from(JSON.stringify(data.data), 'utf8').toString('base64')
+              const meta = `<meta name="${appConfigMetaName}" content="${encodedConfig}">`
+              return html.replace('</head>', `${meta}\n</head>`)
             }
           }
         } catch (e) {
