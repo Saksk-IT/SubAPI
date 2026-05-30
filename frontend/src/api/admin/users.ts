@@ -48,8 +48,13 @@ export interface BatchAssignUsersRequest {
   user_ids?: number[]
   all?: boolean
   balance?: {
-    operation: 'add' | 'subtract'
-    amount: number
+    operation: 'add' | 'subtract' | 'rule'
+    amount?: number
+    rules?: {
+      min_balance: number
+      max_balance: number
+      multiplier: number
+    }[]
     notes?: string
   }
   subscription?: {

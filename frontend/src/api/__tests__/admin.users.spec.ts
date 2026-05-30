@@ -64,8 +64,13 @@ type ExpectedBatchAssignUsersRequest = {
   user_ids?: number[]
   all?: boolean
   balance?: {
-    operation: 'add' | 'subtract'
-    amount: number
+    operation: 'add' | 'subtract' | 'rule'
+    amount?: number
+    rules?: {
+      min_balance: number
+      max_balance: number
+      multiplier: number
+    }[]
     notes?: string
   }
   subscription?: {
@@ -167,6 +172,35 @@ describe('admin users api auth identity binding', () => {
         operation: 'subtract',
         amount: 2.5,
         notes: 'manual batch adjustment',
+      },
+    }
+
+    const result = await batchAssign(payload)
+
+    expect(post).toHaveBeenCalledWith('/admin/users/batch-assign', payload)
+    expect(result).toEqual(response)
+  })
+
+  it('posts rule-based batch balance adjustment payloads', async () => {
+    const response: BatchAssignUsersResult = {
+      target_count: 2,
+      success_count: 2,
+      failed_count: 0,
+      balance_affected_count: 2,
+      subscription_assigned: 0,
+      subscription_extended: 0,
+    }
+    post.mockResolvedValue({ data: response })
+
+    const payload: BatchAssignUsersRequest = {
+      all: true,
+      balance: {
+        operation: 'rule',
+        rules: [
+          { min_balance: 0, max_balance: 100, multiplier: 1.5 },
+          { min_balance: 100, max_balance: 200, multiplier: 1.2 },
+        ],
+        notes: 'tiered adjustment',
       },
     }
 

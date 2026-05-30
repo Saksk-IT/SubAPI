@@ -168,6 +168,101 @@ func TestAdminService_BatchAssignUsers_AddsBalanceForAllUsers(t *testing.T) {
 	require.Len(t, redeemRepo.created, 2)
 }
 
+func TestAdminService_BatchAssignUsers_AdjustsBalanceByRules(t *testing.T) {
+	users := []User{{ID: 1, Balance: 50}, {ID: 2, Balance: 100}}
+	repo := &balanceUserRepoStub{
+		userRepoStub: &userRepoStub{},
+		users: map[int64]*User{
+			1: &users[0],
+			2: &users[1],
+		},
+	}
+	redeemRepo := &balanceRedeemRepoStub{redeemRepoStub: &redeemRepoStub{}}
+	svc := &adminServiceImpl{
+		userRepo:       repo,
+		redeemCodeRepo: redeemRepo,
+	}
+
+	result, err := svc.BatchAssignUsers(context.Background(), &BatchAssignUsersInput{
+		Target: BatchAssignUserTarget{UserIDs: []int64{1, 2}},
+		Balance: &BatchAssignBalanceInput{
+			Operation: "rule",
+			Rules: []BatchAssignBalanceRuleInput{
+				{MinBalance: 0, MaxBalance: 100, Multiplier: 1.5},
+				{MinBalance: 100, MaxBalance: 200, Multiplier: 1.2},
+			},
+			Notes: "tiered adjustment",
+		},
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, 2, result.TargetCount)
+	require.Equal(t, 2, result.SuccessCount)
+	require.Equal(t, 2, result.BalanceAffectedCount)
+	require.Equal(t, 75.0, repo.users[1].Balance)
+	require.Equal(t, 120.0, repo.users[2].Balance)
+	require.Len(t, redeemRepo.created, 2)
+	require.Equal(t, 25.0, redeemRepo.created[0].Value)
+	require.Equal(t, 20.0, redeemRepo.created[1].Value)
+}
+
+func TestAdminService_BatchAssignUsers_RuleAdjustmentRejectsUnmatchedWithoutWrites(t *testing.T) {
+	users := []User{{ID: 1, Balance: 50}, {ID: 2, Balance: 250}}
+	repo := &balanceUserRepoStub{
+		userRepoStub: &userRepoStub{},
+		users: map[int64]*User{
+			1: &users[0],
+			2: &users[1],
+		},
+	}
+	redeemRepo := &balanceRedeemRepoStub{redeemRepoStub: &redeemRepoStub{}}
+	svc := &adminServiceImpl{
+		userRepo:       repo,
+		redeemCodeRepo: redeemRepo,
+	}
+
+	result, err := svc.BatchAssignUsers(context.Background(), &BatchAssignUsersInput{
+		Target: BatchAssignUserTarget{UserIDs: []int64{1, 2}},
+		Balance: &BatchAssignBalanceInput{
+			Operation: "rule",
+			Rules: []BatchAssignBalanceRuleInput{
+				{MinBalance: 0, MaxBalance: 100, Multiplier: 1.5},
+			},
+		},
+	})
+
+	require.Error(t, err)
+	require.Nil(t, result)
+	require.Empty(t, repo.updated)
+	require.Empty(t, redeemRepo.created)
+	require.Equal(t, 50.0, repo.users[1].Balance)
+	require.Equal(t, 250.0, repo.users[2].Balance)
+}
+
+func TestValidateBatchAssignBalanceInput_Rules(t *testing.T) {
+	require.NoError(t, validateBatchAssignBalanceInput(&BatchAssignBalanceInput{
+		Operation: "rule",
+		Rules: []BatchAssignBalanceRuleInput{
+			{MinBalance: 100, MaxBalance: 200, Multiplier: 1.2},
+			{MinBalance: 0, MaxBalance: 100, Multiplier: 1.5},
+		},
+	}))
+
+	cases := []BatchAssignBalanceInput{
+		{Operation: "rule"},
+		{Operation: "rule", Rules: []BatchAssignBalanceRuleInput{{MinBalance: 0, MaxBalance: 100, Multiplier: 0}}},
+		{Operation: "rule", Rules: []BatchAssignBalanceRuleInput{{MinBalance: 0, MaxBalance: 100, Multiplier: -1}}},
+		{Operation: "rule", Rules: []BatchAssignBalanceRuleInput{{MinBalance: 100, MaxBalance: 100, Multiplier: 1}}},
+		{Operation: "rule", Rules: []BatchAssignBalanceRuleInput{{MinBalance: 200, MaxBalance: 100, Multiplier: 1}}},
+		{Operation: "rule", Rules: []BatchAssignBalanceRuleInput{{MinBalance: 0, MaxBalance: 100, Multiplier: 1}, {MinBalance: 50, MaxBalance: 150, Multiplier: 1}}},
+		{Operation: "rule", Rules: []BatchAssignBalanceRuleInput{{MinBalance: 0, MaxBalance: 100, Multiplier: 1}, {MinBalance: 0, MaxBalance: 100, Multiplier: 1}}},
+	}
+	for _, tc := range cases {
+		input := tc
+		require.Error(t, validateBatchAssignBalanceInput(&input))
+	}
+}
+
 func TestAdminService_BatchAssignUsers_SubtractBalanceReportsPartialFailure(t *testing.T) {
 	users := []User{{ID: 1, Balance: 10}, {ID: 2, Balance: 2}}
 	repo := &balanceUserRepoStub{

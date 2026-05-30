@@ -51,7 +51,7 @@
       <section v-if="form.action === 'balance'" class="space-y-4">
         <div>
           <label class="input-label">{{ t('admin.users.batchAssign.balanceMode') }}</label>
-          <div class="grid grid-cols-2 gap-2">
+          <div class="grid grid-cols-1 gap-2 sm:grid-cols-3">
             <button
               type="button"
               :class="modeButtonClass('add')"
@@ -66,10 +66,17 @@
             >
               {{ t('admin.users.batchAssign.subtractBalance') }}
             </button>
+            <button
+              type="button"
+              :class="modeButtonClass('rule')"
+              @click="form.balanceOperation = 'rule'"
+            >
+              {{ t('admin.users.batchAssign.ruleBalance') }}
+            </button>
           </div>
         </div>
 
-        <div>
+        <div v-if="form.balanceOperation !== 'rule'">
           <label class="input-label">{{ t('admin.users.batchAssign.amount') }}</label>
           <div class="relative">
             <span class="absolute left-3 top-1/2 -translate-y-1/2 text-sm font-medium text-gray-500">$</span>
@@ -84,6 +91,93 @@
             />
           </div>
           <p class="input-hint">{{ t('admin.users.batchAssign.amountHint') }}</p>
+        </div>
+
+        <div v-else class="space-y-3">
+          <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <label class="input-label mb-0">{{ t('admin.users.batchAssign.ruleList') }}</label>
+              <p class="input-hint mt-1">{{ t('admin.users.batchAssign.ruleHint') }}</p>
+            </div>
+            <button
+              type="button"
+              class="btn btn-secondary inline-flex items-center justify-center gap-2"
+              @click="addBalanceRule"
+            >
+              <Icon name="plus" size="sm" />
+              {{ t('admin.users.batchAssign.addRule') }}
+            </button>
+          </div>
+
+          <div class="space-y-3">
+            <div
+              v-for="(rule, index) in form.balanceRules"
+              :key="rule.id"
+              class="rounded-lg border border-gray-200 p-3 dark:border-dark-600"
+            >
+              <div class="grid grid-cols-1 gap-3 sm:grid-cols-[1fr_1fr_1fr_auto] sm:items-end">
+                <div>
+                  <label class="input-label">{{ t('admin.users.batchAssign.ruleMin') }}</label>
+                  <input
+                    :value="rule.minBalance"
+                    type="number"
+                    min="0"
+                    step="any"
+                    required
+                    class="input"
+                    :placeholder="t('admin.users.batchAssign.ruleMinPlaceholder')"
+                    @input="updateBalanceRule(rule.id, 'minBalance', ($event.target as HTMLInputElement).value)"
+                  />
+                </div>
+                <div>
+                  <label class="input-label">{{ t('admin.users.batchAssign.ruleMax') }}</label>
+                  <input
+                    :value="rule.maxBalance"
+                    type="number"
+                    min="0"
+                    step="any"
+                    required
+                    class="input"
+                    :placeholder="t('admin.users.batchAssign.ruleMaxPlaceholder')"
+                    @input="updateBalanceRule(rule.id, 'maxBalance', ($event.target as HTMLInputElement).value)"
+                  />
+                </div>
+                <div>
+                  <label class="input-label">{{ t('admin.users.batchAssign.ruleMultiplier') }}</label>
+                  <input
+                    :value="rule.multiplier"
+                    type="number"
+                    min="0"
+                    step="any"
+                    required
+                    class="input"
+                    :placeholder="t('admin.users.batchAssign.ruleMultiplierPlaceholder')"
+                    @input="updateBalanceRule(rule.id, 'multiplier', ($event.target as HTMLInputElement).value)"
+                  />
+                </div>
+                <button
+                  type="button"
+                  class="btn btn-secondary inline-flex items-center justify-center gap-2 text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300"
+                  :aria-label="t('admin.users.batchAssign.removeRule')"
+                  :disabled="form.balanceRules.length <= 1"
+                  @click="removeBalanceRule(rule.id)"
+                >
+                  <Icon name="trash" size="sm" />
+                  <span class="sm:hidden">{{ t('admin.users.batchAssign.removeRule') }}</span>
+                </button>
+              </div>
+              <p class="mt-2 text-xs text-gray-500 dark:text-dark-400">
+                {{ t('admin.users.batchAssign.rulePreview', { index: index + 1 }) }}
+              </p>
+            </div>
+          </div>
+
+          <p
+            v-if="balanceRuleValidationMessage"
+            class="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-800 dark:bg-red-950/30 dark:text-red-300"
+          >
+            {{ balanceRuleValidationMessage }}
+          </p>
         </div>
 
         <div>
@@ -226,7 +320,15 @@ import Select from '@/components/common/Select.vue'
 import Icon from '@/components/icons/Icon.vue'
 
 type BatchAction = 'balance' | 'subscription'
-type BalanceOperation = 'add' | 'subtract'
+type BalanceOperation = 'add' | 'subtract' | 'rule'
+type BalanceRuleField = 'minBalance' | 'maxBalance' | 'multiplier'
+
+interface BalanceRuleForm {
+  id: number
+  minBalance: number | string
+  maxBalance: number | string
+  multiplier: number | string
+}
 
 interface GroupOption extends Record<string, unknown> {
   value: number
@@ -252,10 +354,24 @@ const { t } = useI18n()
 const appStore = useAppStore()
 const submitting = ref(false)
 const lastResult = ref<BatchAssignUsersResult | null>(null)
+let nextBalanceRuleId = 1
+
+const createBalanceRule = (
+  minBalance: number | string = 0,
+  maxBalance: number | string = 100,
+  multiplier: number | string = 1
+): BalanceRuleForm => ({
+  id: nextBalanceRuleId++,
+  minBalance,
+  maxBalance,
+  multiplier
+})
+
 const form = reactive({
   action: 'balance' as BatchAction,
   balanceOperation: 'add' as BalanceOperation,
   amount: 0,
+  balanceRules: [createBalanceRule()],
   groupId: null as number | null,
   validityDays: 30,
   notes: ''
@@ -276,10 +392,15 @@ const subscriptionGroupOptions = computed<GroupOption[]>(() =>
 
 const canSubmit = computed(() => {
   if (form.action === 'balance') {
-    return form.amount > 0
+    if (form.balanceOperation === 'rule') {
+      return balanceRuleValidationMessage.value === ''
+    }
+    return toFiniteNumber(form.amount) > 0
   }
   return !!form.groupId && form.validityDays > 0 && form.validityDays <= 36500
 })
+
+const balanceRuleValidationMessage = computed(() => validateBalanceRules(form.balanceRules))
 
 watch(
   () => props.show,
@@ -289,6 +410,7 @@ watch(
     form.action = 'balance'
     form.balanceOperation = 'add'
     form.amount = 0
+    form.balanceRules = [createBalanceRule()]
     form.groupId = null
     form.validityDays = 30
     form.notes = ''
@@ -310,6 +432,78 @@ const modeButtonClass = (operation: BalanceOperation) => [
     : 'border-gray-200 bg-white text-gray-700 hover:border-gray-300 dark:border-dark-600 dark:bg-dark-800 dark:text-gray-300 dark:hover:border-dark-500'
 ]
 
+const toFiniteNumber = (value: number | string | null | undefined): number => {
+  if (typeof value === 'number') {
+    return Number.isFinite(value) ? value : Number.NaN
+  }
+  if (value == null || value === '') {
+    return Number.NaN
+  }
+  const parsed = Number(value)
+  return Number.isFinite(parsed) ? parsed : Number.NaN
+}
+
+const normalizeBalanceRules = (rules: BalanceRuleForm[]) =>
+  rules.map((rule) => ({
+    min_balance: toFiniteNumber(rule.minBalance),
+    max_balance: toFiniteNumber(rule.maxBalance),
+    multiplier: toFiniteNumber(rule.multiplier)
+  }))
+
+const validateBalanceRules = (rules: BalanceRuleForm[]): string => {
+  if (rules.length === 0) {
+    return t('admin.users.batchAssign.ruleRequired')
+  }
+  const normalized = normalizeBalanceRules(rules)
+  for (const rule of normalized) {
+    if (!Number.isFinite(rule.min_balance) || !Number.isFinite(rule.max_balance) || !Number.isFinite(rule.multiplier)) {
+      return t('admin.users.batchAssign.ruleInvalidNumber')
+    }
+    if (rule.min_balance < 0) {
+      return t('admin.users.batchAssign.ruleInvalidMin')
+    }
+    if (rule.max_balance <= rule.min_balance) {
+      return t('admin.users.batchAssign.ruleInvalidRange')
+    }
+    if (rule.multiplier <= 0) {
+      return t('admin.users.batchAssign.ruleInvalidMultiplier')
+    }
+  }
+  const sorted = [...normalized].sort((a, b) =>
+    a.min_balance === b.min_balance
+      ? a.max_balance - b.max_balance
+      : a.min_balance - b.min_balance
+  )
+  for (let i = 1; i < sorted.length; i++) {
+    if (sorted[i].min_balance < sorted[i - 1].max_balance) {
+      return t('admin.users.batchAssign.ruleOverlap')
+    }
+  }
+  return ''
+}
+
+const addBalanceRule = () => {
+  const lastRule = form.balanceRules[form.balanceRules.length - 1]
+  const lastMax = toFiniteNumber(lastRule?.maxBalance)
+  const nextMin = Number.isFinite(lastMax) ? lastMax : 0
+  form.balanceRules = [
+    ...form.balanceRules,
+    createBalanceRule(nextMin, nextMin + 100, 1)
+  ]
+}
+
+const removeBalanceRule = (id: number) => {
+  if (form.balanceRules.length <= 1) return
+  form.balanceRules = form.balanceRules.filter((rule) => rule.id !== id)
+}
+
+const updateBalanceRule = (id: number, field: BalanceRuleField, rawValue: string) => {
+  const value = rawValue === '' ? '' : Number(rawValue)
+  form.balanceRules = form.balanceRules.map((rule) =>
+    rule.id === id ? { ...rule, [field]: value } : rule
+  )
+}
+
 const handleClose = () => {
   if (!submitting.value) {
     emit('close')
@@ -324,15 +518,22 @@ const handleSubmit = async () => {
   submitting.value = true
   lastResult.value = null
   try {
+    const balancePayload = form.balanceOperation === 'rule'
+      ? {
+          operation: 'rule' as const,
+          rules: normalizeBalanceRules(form.balanceRules),
+          notes: form.notes
+        }
+      : {
+          operation: form.balanceOperation,
+          amount: form.amount,
+          notes: form.notes
+        }
     const result = await adminAPI.users.batchAssign({
       all: true,
       ...(form.action === 'balance'
         ? {
-            balance: {
-              operation: form.balanceOperation,
-              amount: form.amount,
-              notes: form.notes
-            }
+            balance: balancePayload
           }
         : {
             subscription: {

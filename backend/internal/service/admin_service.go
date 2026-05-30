@@ -176,7 +176,14 @@ type BatchAssignUserTarget struct {
 type BatchAssignBalanceInput struct {
 	Operation string
 	Amount    float64
+	Rules     []BatchAssignBalanceRuleInput
 	Notes     string
+}
+
+type BatchAssignBalanceRuleInput struct {
+	MinBalance float64
+	MaxBalance float64
+	Multiplier float64
 }
 
 type BatchAssignSubscriptionInput struct {

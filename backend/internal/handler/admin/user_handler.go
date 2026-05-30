@@ -90,9 +90,16 @@ type BatchAssignUsersRequest struct {
 }
 
 type BatchAssignBalanceRequest struct {
-	Operation string  `json:"operation"`
-	Amount    float64 `json:"amount"`
-	Notes     string  `json:"notes"`
+	Operation string                          `json:"operation"`
+	Amount    float64                         `json:"amount"`
+	Rules     []BatchAssignBalanceRuleRequest `json:"rules"`
+	Notes     string                          `json:"notes"`
+}
+
+type BatchAssignBalanceRuleRequest struct {
+	MinBalance float64 `json:"min_balance"`
+	MaxBalance float64 `json:"max_balance"`
+	Multiplier float64 `json:"multiplier"`
 }
 
 type BatchAssignSubscriptionRequest struct {
@@ -399,9 +406,18 @@ func (h *UserHandler) BatchAssign(c *gin.Context) {
 		},
 	}
 	if req.Balance != nil {
+		rules := make([]service.BatchAssignBalanceRuleInput, 0, len(req.Balance.Rules))
+		for _, rule := range req.Balance.Rules {
+			rules = append(rules, service.BatchAssignBalanceRuleInput{
+				MinBalance: rule.MinBalance,
+				MaxBalance: rule.MaxBalance,
+				Multiplier: rule.Multiplier,
+			})
+		}
 		input.Balance = &service.BatchAssignBalanceInput{
 			Operation: req.Balance.Operation,
 			Amount:    req.Balance.Amount,
+			Rules:     rules,
 			Notes:     req.Balance.Notes,
 		}
 	}
