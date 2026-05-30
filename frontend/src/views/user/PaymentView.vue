@@ -152,11 +152,55 @@
                 <p class="text-gray-500 dark:text-gray-400">{{ t('payment.notAvailable') }}</p>
               </div>
               <template v-else>
-                <div v-if="balanceProductCards.length === 0" class="card py-16 text-center">
-                  <Icon name="gift" size="xl" class="mx-auto mb-3 text-gray-300 dark:text-dark-600" />
-                  <p class="text-gray-500 dark:text-gray-400">{{ t('payment.noBalanceProducts') }}</p>
+                <div class="card p-5 sm:p-6">
+                  <div class="grid gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(280px,380px)]">
+                    <AmountInput
+                      v-model="amount"
+                      :amounts="[10, 20, 50, 100, 200, 500, 1000, 2000, 5000]"
+                      :min="globalMinAmount"
+                      :max="globalMaxAmount"
+                      :input-prefix="amountInputPrefix"
+                    />
+                    <div class="min-w-0 space-y-4">
+                      <PaymentMethodSelector
+                        :methods="methodOptions"
+                        :selected="selectedMethod"
+                        @select="selectedMethod = $event"
+                      />
+                      <div v-if="validAmount > 0" class="space-y-2 border-t border-gray-200 pt-4 text-sm dark:border-dark-600">
+                        <div class="flex justify-between gap-3">
+                          <span class="text-gray-500 dark:text-gray-400">{{ t('payment.paymentAmount') }}</span>
+                          <span class="break-words text-right text-gray-900 [overflow-wrap:anywhere] dark:text-white">{{ formatSelectedPaymentAmount(validAmount) }}</span>
+                        </div>
+                        <div v-if="feeRate > 0" class="flex justify-between gap-3">
+                          <span class="text-gray-500 dark:text-gray-400">{{ t('payment.fee') }} ({{ feeRate }}%)</span>
+                          <span class="break-words text-right text-gray-900 [overflow-wrap:anywhere] dark:text-white">{{ formatSelectedPaymentAmount(feeAmount) }}</span>
+                        </div>
+                        <div v-if="feeRate > 0" class="flex justify-between gap-3 border-t border-gray-200 pt-2 dark:border-dark-600">
+                          <span class="font-medium text-gray-700 dark:text-gray-300">{{ t('payment.actualPay') }}</span>
+                          <span class="break-words text-right text-lg font-bold text-primary-600 [overflow-wrap:anywhere] dark:text-primary-400">{{ formatSelectedPaymentAmount(totalAmount) }}</span>
+                        </div>
+                        <div v-if="balanceRechargeMultiplier !== 1" class="flex justify-between gap-3" :class="{ 'border-t border-gray-200 pt-2 dark:border-dark-600': feeRate <= 0 }">
+                          <span class="text-gray-500 dark:text-gray-400">{{ t('payment.creditedBalance') }}</span>
+                          <span class="break-words text-right text-gray-900 [overflow-wrap:anywhere] dark:text-white">{{ formatQuotaAmount(creditedAmount) }}</span>
+                        </div>
+                        <p v-if="balanceRechargeMultiplier !== 1" class="border-t border-gray-200 pt-2 text-xs text-gray-500 dark:border-dark-600 dark:text-gray-400">
+                          {{ t('payment.rechargeRatePreview', { usd: balanceRechargeMultiplier.toFixed(2) }) }}
+                        </p>
+                        <p v-if="amountError" class="text-xs text-amber-600 dark:text-amber-300">{{ amountError }}</p>
+                      </div>
+                      <p v-else-if="amountError" class="text-xs text-amber-600 dark:text-amber-300">{{ amountError }}</p>
+                      <button :class="['btn w-full py-3 text-base font-medium', paymentButtonClass]" :disabled="!canSubmit || submitting" @click="handleSubmitRecharge">
+                        <span v-if="submitting && submittingProductKey === ''" class="flex items-center justify-center gap-2">
+                          <span class="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent"></span>
+                          {{ t('common.processing') }}
+                        </span>
+                        <span v-else>{{ t('payment.createOrder') }} {{ formatSelectedPaymentAmount(totalAmount) }}</span>
+                      </button>
+                    </div>
+                  </div>
                 </div>
-                <div v-else :class="productGridClass">
+                <div v-if="balanceProductCards.length > 0" :class="productGridClass">
                   <PurchaseProductCard
                     v-for="item in balanceProductCards"
                     :key="item.product.id"
@@ -343,6 +387,7 @@ import { extractApiErrorMessage, extractI18nErrorMessage } from '@/utils/apiErro
 import { isMobileDevice } from '@/utils/device'
 import type { BalanceProduct, SubscriptionPlan, CheckoutInfoResponse, CreateOrderResult, OrderType } from '@/types/payment'
 import AppLayout from '@/components/layout/AppLayout.vue'
+import AmountInput from '@/components/payment/AmountInput.vue'
 import PaymentMethodSelector from '@/components/payment/PaymentMethodSelector.vue'
 import { METHOD_ORDER, getPaymentPopupFeatures } from '@/components/payment/providerConfig'
 import {
@@ -586,6 +631,11 @@ const tabs = computed(() => {
 const visibleMethods = computed(() => getVisibleMethods(checkout.value.methods))
 const enabledMethods = computed(() => Object.keys(visibleMethods.value))
 const validAmount = computed(() => amount.value ?? 0)
+const balanceRechargeMultiplier = computed(() => {
+  const multiplier = checkout.value.balance_recharge_multiplier
+  return multiplier > 0 ? multiplier : 1
+})
+const creditedAmount = computed(() => Math.round((validAmount.value * balanceRechargeMultiplier.value) * 100) / 100)
 const supportContactInfo = computed(() => appStore.contactInfo.trim())
 const supportHelpText = computed(() => checkout.value.help_text.trim())
 const supportImageUrl = computed(() => checkout.value.help_image_url.trim())
@@ -602,6 +652,19 @@ function amountFitsMethod(amt: number, methodType: string): boolean {
   if (ml.single_max > 0 && amt > ml.single_max) return false
   return true
 }
+
+const globalMinAmount = computed(() => {
+  const limits = Object.values(visibleMethods.value)
+  if (limits.length === 0) return 0
+  if (limits.some(limit => limit.single_min <= 0)) return 0
+  return Math.min(...limits.map(limit => limit.single_min))
+})
+const globalMaxAmount = computed(() => {
+  const limits = Object.values(visibleMethods.value)
+  if (limits.length === 0) return 0
+  if (limits.some(limit => limit.single_max <= 0)) return 0
+  return Math.max(...limits.map(limit => limit.single_max))
+})
 
 // Selected method's limits (for validation and error messages)
 const selectedLimit = computed(() => visibleMethods.value[selectedMethod.value])
@@ -624,6 +687,21 @@ function formatSelectedPaymentAmount(value: number): string {
 function formatQuotaAmount(value: number): string {
   return formatPaymentAmount(value, quotaDisplayCurrency, localeCode.value)
 }
+
+const amountInputPrefix = computed(() => {
+  try {
+    const part = new Intl.NumberFormat(localeCode.value || undefined, {
+      style: 'currency',
+      currency: selectedCurrency.value,
+      currencyDisplay: 'narrowSymbol',
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0,
+    }).formatToParts(0).find(item => item.type === 'currency')
+    return part?.value || selectedCurrency.value
+  } catch {
+    return selectedCurrency.value
+  }
+})
 
 type PurchaseCardItem<T> = {
   raw: T
@@ -659,6 +737,53 @@ function formatExchangeRate(amount: number, price: number): string {
   if (amount <= 0 || price <= 0) return t('payment.planCard.unlimited')
   return `1¥:${Number((amount / price).toFixed(2))}$`
 }
+
+const feeRate = computed(() => checkout.value?.recharge_fee_rate ?? 0)
+
+const methodOptions = computed<PaymentMethodOption[]>(() =>
+  enabledMethods.value.map((type) => {
+    const ml = visibleMethods.value[type]
+    return {
+      type,
+      fee_rate: ml?.fee_rate ?? 0,
+      available: ml?.available !== false && amountFitsMethod(validAmount.value, type),
+    }
+  }),
+)
+
+const feeAmount = computed(() =>
+  feeRate.value > 0 && validAmount.value > 0
+    ? Math.ceil(((validAmount.value * feeRate.value) / 100) * 100) / 100
+    : 0,
+)
+const totalAmount = computed(() =>
+  feeRate.value > 0 && validAmount.value > 0
+    ? Math.round((validAmount.value + feeAmount.value) * 100) / 100
+    : validAmount.value,
+)
+
+const amountError = computed(() => {
+  if (validAmount.value <= 0) return ''
+  if (!enabledMethods.value.some((method) => amountFitsMethod(validAmount.value, method))) {
+    return t('payment.amountNoMethod')
+  }
+  const limit = selectedLimit.value
+  if (limit) {
+    if (limit.single_min > 0 && validAmount.value < limit.single_min) {
+      return t('payment.amountTooLow', { min: formatSelectedPaymentAmount(limit.single_min) })
+    }
+    if (limit.single_max > 0 && validAmount.value > limit.single_max) {
+      return t('payment.amountTooHigh', { max: formatSelectedPaymentAmount(limit.single_max) })
+    }
+  }
+  return ''
+})
+
+const canSubmit = computed(() =>
+  validAmount.value > 0
+    && amountFitsMethod(validAmount.value, selectedMethod.value)
+    && selectedLimit.value?.available !== false
+)
 
 function getPlanTotalQuota(plan: SubscriptionPlan): number | null {
   return normalizePositiveQuota(plan.total_quota) ?? calculateSubscriptionTotalQuotaUSD(plan, plan)
@@ -725,8 +850,6 @@ const subscriptionProductCards = computed<PurchaseCardItem<SubscriptionPlan>[]>(
     }
   }),
 )
-
-const feeRate = computed(() => checkout.value?.recharge_fee_rate ?? 0)
 
 // Subscription-specific: method options based on plan price
 const subMethodOptions = computed<PaymentMethodOption[]>(() => {
@@ -816,6 +939,11 @@ function selectPlanFromModal(plan: SubscriptionPlan) {
 function closeRenewalModal() {
   showRenewalModal.value = false
   renewGroupId.value = null
+}
+
+async function handleSubmitRecharge() {
+  if (!canSubmit.value || submitting.value) return
+  await createOrder(validAmount.value, 'balance')
 }
 
 async function handleSubmitBalanceProduct(product: BalanceProduct, paymentType: string) {

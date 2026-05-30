@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises, shallowMount } from '@vue/test-utils'
 import PaymentView from '../PaymentView.vue'
+import AmountInput from '@/components/payment/AmountInput.vue'
 import PurchaseProductCard from '@/components/payment/PurchaseProductCard.vue'
 import { PAYMENT_RECOVERY_STORAGE_KEY } from '@/components/payment/paymentFlow'
 
@@ -504,6 +505,48 @@ describe('PaymentView WeChat JSAPI flow', () => {
       order_type: 'balance',
       balance_product_id: 9,
     }))
+  })
+
+  it('creates a custom balance recharge order without a product id', async () => {
+    routeState.query = {}
+    getCheckoutInfo.mockResolvedValue(checkoutInfoWithBalanceProductsFixture())
+    createOrder.mockResolvedValue({
+      order_id: 903,
+      amount: 100,
+      pay_amount: 100,
+      fee_rate: 0,
+      expires_at: '2099-01-01T00:10:00.000Z',
+      payment_type: 'alipay',
+      qr_code: 'https://pay.example.test/custom-qr',
+      out_trade_no: 'sub2_custom_903',
+    })
+
+    const wrapper = shallowMount(PaymentView, {
+      global: {
+        stubs: {
+          AppLayout: { template: '<div><slot /></div>' },
+          Teleport: true,
+          Transition: false,
+        },
+      },
+    })
+    await flushPromises()
+    await flushPromises()
+
+    await wrapper.findComponent(AmountInput).vm.$emit('update:modelValue', 100)
+    await flushPromises()
+
+    const customButtons = wrapper.findAll('button').filter(button => button.text().includes('payment.createOrder'))
+    expect(customButtons.length).toBeGreaterThan(0)
+    await customButtons[0].trigger('click')
+    await flushPromises()
+
+    expect(createOrder).toHaveBeenCalledWith(expect.objectContaining({
+      amount: 100,
+      payment_type: 'alipay',
+      order_type: 'balance',
+    }))
+    expect(createOrder.mock.calls[0][0]).not.toHaveProperty('balance_product_id')
   })
 
   it('shows product exchange rate and received credits in USD', async () => {
