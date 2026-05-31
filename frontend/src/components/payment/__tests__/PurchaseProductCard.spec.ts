@@ -85,5 +85,12 @@ describe('PurchaseProductCard', () => {
     expect(text).toContain('¥88.00')
     expect(text.indexOf('获得额度')).toBeLessThan(text.indexOf('对应汇率'))
     expect(text.indexOf('支付价格')).toBeLessThan(text.indexOf('payment.product.autoApply'))
+
+    const summary = wrapper.get('[data-testid="product-price-summary"]')
+    expect(summary.classes()).toEqual(expect.arrayContaining(['bg-white', 'shadow-sm', 'ring-1']))
+
+    const priceValues = wrapper.findAll('[data-testid="product-price-row-value"]')
+    expect(priceValues.at(0)?.classes()).toContain('line-through')
+    expect(priceValues.at(1)?.classes()).toEqual(expect.arrayContaining(['text-lg', 'sm:text-xl']))
   })
 })

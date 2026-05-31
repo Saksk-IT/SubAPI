@@ -86,17 +86,22 @@
     <div class="mt-auto pt-4">
       <div
         v-if="priceRows.length > 0"
-        class="mb-3 rounded-2xl border border-gray-200 bg-gray-50 px-4 py-3 dark:border-dark-600 dark:bg-dark-900/50"
+        data-testid="product-price-summary"
+        class="mb-3 rounded-2xl border border-gray-300 bg-white px-4 py-3 shadow-sm ring-1 ring-gray-100 dark:border-dark-500 dark:bg-dark-900/70 dark:ring-dark-700"
       >
         <div
           v-for="row in priceRows"
           :key="row.label"
-          class="flex items-baseline justify-between gap-3 text-sm"
+          class="flex items-center justify-between gap-3 py-0.5"
         >
-          <span class="shrink-0 text-gray-500 dark:text-gray-400">{{ row.label }}</span>
           <span
+            class="shrink-0 text-sm"
+            :class="row.tone === 'muted' ? 'font-semibold text-gray-500 dark:text-gray-400' : 'font-black text-gray-700 dark:text-gray-200'"
+          >{{ row.label }}</span>
+          <span
+            data-testid="product-price-row-value"
             class="min-w-0 break-words text-right font-black [overflow-wrap:anywhere]"
-            :class="row.tone === 'muted' ? 'text-gray-400 line-through dark:text-gray-500' : 'text-gray-950 dark:text-white'"
+            :class="row.tone === 'muted' ? 'text-sm text-gray-400 line-through dark:text-gray-500' : 'text-lg leading-none text-gray-950 sm:text-xl dark:text-white'"
           >
             {{ row.value }}
           </span>
