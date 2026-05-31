@@ -7050,6 +7050,7 @@ export default {
       weeklyQuota: 'Weekly Quota',
       monthlyQuota: 'Monthly Quota',
       validity: 'Validity',
+      permanent: 'Permanent',
     },
     days: 'days',
     months: 'months',

@@ -7228,6 +7228,7 @@ export default {
       weeklyQuota: '每周可用',
       monthlyQuota: '每月可用',
       validity: '有效期',
+      permanent: '永久',
     },
     days: '天',
     months: '个月',

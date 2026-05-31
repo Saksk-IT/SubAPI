@@ -854,6 +854,7 @@ const balanceProductCards = computed<PurchaseCardItem<BalanceProduct>[]>(() =>
       ],
       metrics: [
         { label: t('payment.product.exchangeRate'), value: formatExchangeRate(amount, price) },
+        { label: t('payment.product.validity'), value: t('payment.product.permanent') },
       ],
       priceRows: buildProductPriceRows(price, product.original_price),
       methods: amountMethodOptions(price),

@@ -574,10 +574,12 @@ describe('PaymentView WeChat JSAPI flow', () => {
     const heroMetrics = card.props('heroMetrics') as { label: string; value: string }[]
     const priceRows = card.props('priceRows') as { label: string; value: string }[]
     const exchangeRate = metrics.find(item => item.label === 'payment.product.exchangeRate')?.value || ''
+    const validity = metrics.find(item => item.label === 'payment.product.validity')?.value || ''
     const balanceAmount = heroMetrics.find(item => item.label === 'payment.product.balanceAmount')?.value || ''
 
     expect(card.props('currency')).toBe('CNY')
     expect(exchangeRate).toBe('1¥:10$')
+    expect(validity).toBe('payment.product.permanent')
     expect(metrics.some(item => item.label === 'payment.product.balanceAmount')).toBe(false)
     expect(balanceAmount).toContain('$')
     expect(balanceAmount).not.toContain('¥')
