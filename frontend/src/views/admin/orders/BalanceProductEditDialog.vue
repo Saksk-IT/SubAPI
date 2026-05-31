@@ -1,15 +1,9 @@
 <template>
   <BaseDialog :show="show" :title="product ? t('payment.admin.editBalanceProduct') : t('payment.admin.createBalanceProduct')" width="wide" @close="emit('close')">
     <form id="balance-product-form" class="space-y-4" @submit.prevent="handleSave">
-      <div class="grid grid-cols-2 gap-4">
-        <div>
-          <label class="input-label">{{ t('payment.admin.productName') }} <span class="text-red-500">*</span></label>
-          <input v-model="form.name" type="text" class="input" required />
-        </div>
-        <div>
-          <label class="input-label">{{ t('payment.admin.sortOrder') }}</label>
-          <input v-model.number="form.sort_order" type="number" min="0" class="input" />
-        </div>
+      <div>
+        <label class="input-label">{{ t('payment.admin.productName') }} <span class="text-red-500">*</span></label>
+        <input v-model="form.name" type="text" class="input" required />
       </div>
       <div class="grid grid-cols-2 gap-4">
         <div>
@@ -103,7 +97,6 @@ const form = reactive({
   features: '',
   product_name: '',
   for_sale: true,
-  sort_order: 0,
 })
 
 function textList(value: string | string[] | undefined): string {
@@ -124,7 +117,6 @@ watch(() => props.show, (visible) => {
       features: textList(props.product.features),
       product_name: props.product.product_name || '',
       for_sale: props.product.for_sale,
-      sort_order: props.product.sort_order || 0,
     })
   } else {
     Object.assign(form, {
@@ -137,7 +129,6 @@ watch(() => props.show, (visible) => {
       features: '',
       product_name: '',
       for_sale: true,
-      sort_order: 0,
     })
   }
 })
@@ -153,7 +144,6 @@ function buildPayload() {
     features: form.features,
     product_name: form.product_name,
     for_sale: form.for_sale,
-    sort_order: Number(form.sort_order) || 0,
   }
 }
 
