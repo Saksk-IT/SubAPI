@@ -533,6 +533,10 @@ describe('PaymentView WeChat JSAPI flow', () => {
     await flushPromises()
     await flushPromises()
 
+    const html = wrapper.html()
+    expect(html.indexOf('purchase-product-card-stub')).toBeGreaterThanOrEqual(0)
+    expect(html.indexOf('amount-input-stub')).toBeGreaterThan(html.indexOf('purchase-product-card-stub'))
+
     await wrapper.findComponent(AmountInput).vm.$emit('update:modelValue', 100)
     await flushPromises()
 

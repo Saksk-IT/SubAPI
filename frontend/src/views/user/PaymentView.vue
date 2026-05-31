@@ -152,6 +152,19 @@
                 <p class="text-gray-500 dark:text-gray-400">{{ t('payment.notAvailable') }}</p>
               </div>
               <template v-else>
+                <div v-if="balanceProductCards.length > 0" :class="productGridClass">
+                  <PurchaseProductCard
+                    v-for="item in balanceProductCards"
+                    :key="item.product.id"
+                    :product="item.product"
+                    :metrics="item.metrics"
+                    :methods="item.methods"
+                    :currency="paymentPriceCurrency"
+                    :locale="localeCode"
+                    :submitting="submittingProductKey === `balance:${item.product.id}`"
+                    @pay="handleSubmitBalanceProduct(item.raw, $event)"
+                  />
+                </div>
                 <div class="card p-5 sm:p-6">
                   <div class="grid gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(280px,380px)]">
                     <AmountInput
@@ -199,19 +212,6 @@
                       </button>
                     </div>
                   </div>
-                </div>
-                <div v-if="balanceProductCards.length > 0" :class="productGridClass">
-                  <PurchaseProductCard
-                    v-for="item in balanceProductCards"
-                    :key="item.product.id"
-                    :product="item.product"
-                    :metrics="item.metrics"
-                    :methods="item.methods"
-                    :currency="paymentPriceCurrency"
-                    :locale="localeCode"
-                    :submitting="submittingProductKey === `balance:${item.product.id}`"
-                    @pay="handleSubmitBalanceProduct(item.raw, $event)"
-                  />
                 </div>
               </template>
             </template>
