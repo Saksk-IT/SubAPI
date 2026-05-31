@@ -604,6 +604,29 @@ describe('PaymentView WeChat JSAPI flow', () => {
     expect(wrapper.find('img[src="https://example.test/support-qr.png"]').exists()).toBe(true)
   })
 
+  it('shows administrator purchase notes below the custom recharge amount area', async () => {
+    routeState.query = {}
+    getCheckoutInfo.mockResolvedValue(checkoutInfoWithSupportFixture())
+
+    const wrapper = shallowMount(PaymentView, {
+      global: {
+        stubs: {
+          AppLayout: { template: '<div><slot /></div>' },
+          Teleport: true,
+          Transition: false,
+        },
+      },
+    })
+    await flushPromises()
+    await flushPromises()
+
+    const helpText = wrapper.get('[data-testid="payment-recharge-help-text"]')
+    expect(helpText.text()).toContain('payment.purchaseGuide.helpTitle')
+    expect(helpText.text()).toContain('充值前可咨询客服确认套餐')
+    expect(wrapper.html().indexOf('amount-input-stub')).toBeLessThan(wrapper.html().indexOf('payment-recharge-help-text'))
+    expect(wrapper.html().indexOf('payment-recharge-help-text')).toBeLessThan(wrapper.html().indexOf('payment-method-selector-stub'))
+  })
+
   it('creates a subscription order from a product card with the selected payment method and plan id', async () => {
     routeState.query = {
       tab: 'subscription',

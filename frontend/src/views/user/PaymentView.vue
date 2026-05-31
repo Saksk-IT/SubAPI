@@ -167,13 +167,27 @@
                 </div>
                 <div class="card p-5 sm:p-6">
                   <div class="grid gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(280px,380px)]">
-                    <AmountInput
-                      v-model="amount"
-                      :amounts="[10, 20, 50, 100, 200, 500, 1000, 2000, 5000]"
-                      :min="globalMinAmount"
-                      :max="globalMaxAmount"
-                      :input-prefix="amountInputPrefix"
-                    />
+                    <div class="min-w-0 space-y-4">
+                      <AmountInput
+                        v-model="amount"
+                        :amounts="[10, 20, 50, 100, 200, 500, 1000, 2000, 5000]"
+                        :min="globalMinAmount"
+                        :max="globalMaxAmount"
+                        :input-prefix="amountInputPrefix"
+                      />
+                      <div
+                        v-if="supportHelpText"
+                        class="rounded-xl border border-gray-100 bg-gray-50 px-4 py-3 dark:border-dark-700 dark:bg-dark-900/60"
+                        data-testid="payment-recharge-help-text"
+                      >
+                        <p class="text-sm font-medium text-gray-700 dark:text-gray-300">
+                          {{ t('payment.purchaseGuide.helpTitle') }}
+                        </p>
+                        <p class="mt-2 whitespace-pre-line break-words text-sm leading-6 text-gray-500 [overflow-wrap:anywhere] dark:text-gray-400">
+                          {{ supportHelpText }}
+                        </p>
+                      </div>
+                    </div>
                     <div class="min-w-0 space-y-4">
                       <PaymentMethodSelector
                         :methods="methodOptions"
