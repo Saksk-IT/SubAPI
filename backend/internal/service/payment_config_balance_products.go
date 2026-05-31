@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Wei-Shaw/sub2api/ent/balanceproduct"
 	infraerrors "github.com/Wei-Shaw/sub2api/internal/pkg/errors"
 )
 
@@ -19,19 +20,19 @@ const (
 
 // BalanceProduct is an admin-configured recharge product.
 type BalanceProduct struct {
-	ID            int64      `json:"id"`
-	Name          string     `json:"name"`
-	Description   string     `json:"description"`
-	Price         float64    `json:"price"`
-	Amount        float64    `json:"amount"`
-	OriginalPrice *float64   `json:"original_price,omitempty"`
-	Tags          string     `json:"tags"`
-	Features      string     `json:"features"`
-	ProductName   string     `json:"product_name"`
-	ForSale       bool       `json:"for_sale"`
-	SortOrder     int        `json:"sort_order"`
-	CreatedAt     time.Time  `json:"created_at"`
-	UpdatedAt     time.Time  `json:"updated_at"`
+	ID            int64     `json:"id"`
+	Name          string    `json:"name"`
+	Description   string    `json:"description"`
+	Price         float64   `json:"price"`
+	Amount        float64   `json:"amount"`
+	OriginalPrice *float64  `json:"original_price,omitempty"`
+	Tags          string    `json:"tags"`
+	Features      string    `json:"features"`
+	ProductName   string    `json:"product_name"`
+	ForSale       bool      `json:"for_sale"`
+	SortOrder     int       `json:"sort_order"`
+	CreatedAt     time.Time `json:"created_at"`
+	UpdatedAt     time.Time `json:"updated_at"`
 }
 
 type CreateBalanceProductRequest struct {
@@ -291,6 +292,36 @@ RETURNING id, name, description, price, amount, original_price, tags, features, 
 		return nil, infraerrors.NotFound("BALANCE_PRODUCT_NOT_FOUND", "balance product not found")
 	}
 	return scanBalanceProduct(rows)
+}
+
+func (s *PaymentConfigService) UpdateBalanceProductSortOrders(ctx context.Context, updates []ProductSortOrderUpdate) error {
+	ids, sortOrderByID := compactProductSortUpdates(updates)
+	if len(ids) == 0 {
+		return nil
+	}
+
+	existingCount, err := s.entClient.BalanceProduct.Query().Where(balanceproduct.IDIn(ids...)).Count(ctx)
+	if err != nil {
+		return fmt.Errorf("count balance products for sort update: %w", err)
+	}
+	if existingCount != len(ids) {
+		return infraerrors.NotFound("BALANCE_PRODUCT_NOT_FOUND", "balance product not found")
+	}
+
+	tx, err := s.entClient.Tx(ctx)
+	if err != nil {
+		return fmt.Errorf("begin balance product sort update: %w", err)
+	}
+	for _, id := range ids {
+		if err := tx.BalanceProduct.UpdateOneID(id).SetSortOrder(sortOrderByID[id]).Exec(ctx); err != nil {
+			_ = tx.Rollback()
+			return fmt.Errorf("update balance product sort order: %w", err)
+		}
+	}
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("commit balance product sort update: %w", err)
+	}
+	return nil
 }
 
 func (s *PaymentConfigService) DeleteBalanceProduct(ctx context.Context, id int64) error {

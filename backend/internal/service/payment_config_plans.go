@@ -403,6 +403,36 @@ func (s *PaymentConfigService) UpdatePlan(ctx context.Context, id int64, req Upd
 	return s.GetPlan(ctx, id)
 }
 
+func (s *PaymentConfigService) UpdatePlanSortOrders(ctx context.Context, updates []ProductSortOrderUpdate) error {
+	ids, sortOrderByID := compactProductSortUpdates(updates)
+	if len(ids) == 0 {
+		return nil
+	}
+
+	existingCount, err := s.entClient.SubscriptionPlan.Query().Where(subscriptionplan.IDIn(ids...)).Count(ctx)
+	if err != nil {
+		return fmt.Errorf("count subscription plans for sort update: %w", err)
+	}
+	if existingCount != len(ids) {
+		return infraerrors.NotFound("PLAN_NOT_FOUND", "subscription plan not found")
+	}
+
+	tx, err := s.entClient.Tx(ctx)
+	if err != nil {
+		return fmt.Errorf("begin plan sort update: %w", err)
+	}
+	for _, id := range ids {
+		if err := tx.SubscriptionPlan.UpdateOneID(id).SetSortOrder(sortOrderByID[id]).Exec(ctx); err != nil {
+			_ = tx.Rollback()
+			return fmt.Errorf("update plan sort order: %w", err)
+		}
+	}
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("commit plan sort update: %w", err)
+	}
+	return nil
+}
+
 func (s *PaymentConfigService) getActiveSubscriptionGroup(ctx context.Context, groupID int64) (*dbent.Group, error) {
 	groupInfo, err := s.entClient.Group.Get(ctx, groupID)
 	if err != nil || groupInfo.Status != StatusActive {

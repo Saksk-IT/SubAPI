@@ -14,6 +14,11 @@ import type {
 } from '@/types/payment'
 import type { BasePaginationResponse } from '@/types'
 
+export interface ProductSortOrderUpdate {
+  id: number
+  sort_order: number
+}
+
 /** Admin-facing payment config returned by GET /admin/payment/config */
 export interface AdminPaymentConfig {
   enabled: boolean
@@ -148,6 +153,10 @@ export const adminPaymentAPI = {
     return apiClient.put<SubscriptionPlan>(`/admin/payment/plans/${id}`, data)
   },
 
+  updatePlanSortOrder(updates: ProductSortOrderUpdate[]) {
+    return apiClient.put<{ message: string }>('/admin/payment/plan-sort-order', { updates })
+  },
+
   /** Delete a subscription plan */
   deletePlan(id: number) {
     return apiClient.delete(`/admin/payment/plans/${id}`)
@@ -165,6 +174,10 @@ export const adminPaymentAPI = {
 
   updateBalanceProduct(id: number, data: Record<string, unknown>) {
     return apiClient.put<BalanceProduct>(`/admin/payment/balance-products/${id}`, data)
+  },
+
+  updateBalanceProductSortOrder(updates: ProductSortOrderUpdate[]) {
+    return apiClient.put<{ message: string }>('/admin/payment/balance-product-sort-order', { updates })
   },
 
   deleteBalanceProduct(id: number) {

@@ -185,6 +185,11 @@ type UpdatePlanRequest struct {
 	SortOrder     *int     `json:"sort_order"`
 }
 
+type ProductSortOrderUpdate struct {
+	ID        int64 `json:"id"`
+	SortOrder int   `json:"sort_order"`
+}
+
 // PaymentConfigService manages payment configuration and CRUD for
 // provider instances, channels, and subscription plans.
 type PaymentConfigService struct {

@@ -178,22 +178,40 @@ func (h *PaymentHandler) ProcessRefund(c *gin.Context) {
 // --- Subscription Plans ---
 
 type AdminPlanResult struct {
-	ID              int64    `json:"id"`
-	GroupID         int64    `json:"group_id"`
-	Name            string   `json:"name"`
-	Description     string   `json:"description"`
-	Price           float64  `json:"price"`
-	OriginalPrice   *float64 `json:"original_price,omitempty"`
-	ValidityDays    int      `json:"validity_days"`
-	ValidityUnit    string   `json:"validity_unit"`
-	Features        string   `json:"features"`
-	Tags            string   `json:"tags"`
-	TotalQuota      *float64 `json:"total_quota,omitempty"`
-	DailyQuota      *float64 `json:"daily_quota,omitempty"`
-	DisplayNotes    string   `json:"display_notes"`
-	ProductName     string   `json:"product_name"`
-	ForSale         bool     `json:"for_sale"`
-	SortOrder       int      `json:"sort_order"`
+	ID            int64    `json:"id"`
+	GroupID       int64    `json:"group_id"`
+	Name          string   `json:"name"`
+	Description   string   `json:"description"`
+	Price         float64  `json:"price"`
+	OriginalPrice *float64 `json:"original_price,omitempty"`
+	ValidityDays  int      `json:"validity_days"`
+	ValidityUnit  string   `json:"validity_unit"`
+	Features      string   `json:"features"`
+	Tags          string   `json:"tags"`
+	TotalQuota    *float64 `json:"total_quota,omitempty"`
+	DailyQuota    *float64 `json:"daily_quota,omitempty"`
+	DisplayNotes  string   `json:"display_notes"`
+	ProductName   string   `json:"product_name"`
+	ForSale       bool     `json:"for_sale"`
+	SortOrder     int      `json:"sort_order"`
+}
+
+type ProductSortOrderRequest struct {
+	Updates []struct {
+		ID        int64 `json:"id" binding:"required"`
+		SortOrder int   `json:"sort_order"`
+	} `json:"updates" binding:"required,min=1"`
+}
+
+func productSortUpdatesFromRequest(req ProductSortOrderRequest) []service.ProductSortOrderUpdate {
+	updates := make([]service.ProductSortOrderUpdate, 0, len(req.Updates))
+	for _, update := range req.Updates {
+		updates = append(updates, service.ProductSortOrderUpdate{
+			ID:        update.ID,
+			SortOrder: update.SortOrder,
+		})
+	}
+	return updates
 }
 
 // ListPlans returns all subscription plans.
@@ -241,6 +259,19 @@ func (h *PaymentHandler) UpdatePlan(c *gin.Context) {
 		return
 	}
 	response.Success(c, h.buildAdminPlanResults(c, []*dbent.SubscriptionPlan{plan})[0])
+}
+
+func (h *PaymentHandler) UpdatePlanSortOrder(c *gin.Context) {
+	var req ProductSortOrderRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "Invalid request: "+err.Error())
+		return
+	}
+	if err := h.configService.UpdatePlanSortOrders(c.Request.Context(), productSortUpdatesFromRequest(req)); err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	response.Success(c, gin.H{"message": "sort order updated"})
 }
 
 // DeletePlan deletes a subscription plan.
@@ -325,6 +356,19 @@ func (h *PaymentHandler) UpdateBalanceProduct(c *gin.Context) {
 		return
 	}
 	response.Success(c, product)
+}
+
+func (h *PaymentHandler) UpdateBalanceProductSortOrder(c *gin.Context) {
+	var req ProductSortOrderRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "Invalid request: "+err.Error())
+		return
+	}
+	if err := h.configService.UpdateBalanceProductSortOrders(c.Request.Context(), productSortUpdatesFromRequest(req)); err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	response.Success(c, gin.H{"message": "sort order updated"})
 }
 
 func (h *PaymentHandler) DeleteBalanceProduct(c *gin.Context) {

@@ -20,6 +20,10 @@
 
       <!-- Actions -->
       <div class="flex items-center justify-end gap-2">
+        <button @click="openSortDialog" :disabled="activeLoading" class="btn btn-secondary" :title="t('payment.admin.sortProducts')">
+          <Icon name="sort" size="md" />
+          <span>{{ t('payment.admin.sortProducts') }}</span>
+        </button>
         <button @click="activeProductTab === 'balance' ? loadBalanceProducts() : loadPlans()" :disabled="activeLoading" class="btn btn-secondary" :title="t('common.refresh')">
           <Icon name="refresh" size="md" :class="activeLoading ? 'animate-spin' : ''" />
         </button>
@@ -129,6 +133,104 @@
     <PlanEditDialog :show="showPlanDialog" :plan="editingPlan" :groups="groups" @close="showPlanDialog = false" @saved="loadPlans" />
     <BalanceProductEditDialog :show="showBalanceProductDialog" :product="editingBalanceProduct" @close="showBalanceProductDialog = false" @saved="loadBalanceProducts" />
 
+    <BaseDialog
+      :show="showSortDialog"
+      :title="t('payment.admin.sortProducts')"
+      width="normal"
+      @close="closeSortDialog"
+    >
+      <div class="space-y-4">
+        <p class="text-sm text-gray-500 dark:text-gray-400">
+          {{ sortDialogHint }}
+        </p>
+        <div class="max-h-[65vh] overflow-y-auto pr-1">
+          <VueDraggable
+            v-if="sortingProductTab === 'balance'"
+            v-model="sortableBalanceProducts"
+            :animation="200"
+            class="space-y-2"
+            handle=".product-sort-handle"
+          >
+            <div
+              v-for="product in sortableBalanceProducts"
+              :key="product.id"
+              class="flex cursor-grab items-center gap-3 rounded-lg border border-gray-200 bg-white p-3 transition-shadow hover:shadow-md active:cursor-grabbing dark:border-dark-600 dark:bg-dark-700"
+            >
+              <div class="product-sort-handle text-gray-400">
+                <Icon name="menu" size="md" />
+              </div>
+              <div class="min-w-0 flex-1">
+                <div class="truncate font-medium text-gray-900 dark:text-white">
+                  {{ product.name }}
+                </div>
+                <div class="mt-1 flex flex-wrap items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
+                  <span class="rounded-full bg-emerald-100 px-2 py-0.5 font-medium text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400">
+                    ${{ (product.amount ?? 0).toFixed(2) }}
+                  </span>
+                  <span>¥{{ (product.price ?? 0).toFixed(2) }}</span>
+                </div>
+              </div>
+              <div class="text-sm text-gray-400">#{{ product.id }}</div>
+            </div>
+          </VueDraggable>
+
+          <VueDraggable
+            v-else
+            v-model="sortablePlans"
+            :animation="200"
+            class="space-y-2"
+            handle=".product-sort-handle"
+          >
+            <div
+              v-for="plan in sortablePlans"
+              :key="plan.id"
+              class="flex cursor-grab items-center gap-3 rounded-lg border border-gray-200 bg-white p-3 transition-shadow hover:shadow-md active:cursor-grabbing dark:border-dark-600 dark:bg-dark-700"
+            >
+              <div class="product-sort-handle text-gray-400">
+                <Icon name="menu" size="md" />
+              </div>
+              <div class="min-w-0 flex-1">
+                <div class="truncate font-medium" :class="getPlanNameClass(plan.group_id)">
+                  {{ plan.name }}
+                </div>
+                <div class="mt-1 flex flex-wrap items-center gap-2">
+                  <GroupBadge
+                    v-if="getGroup(plan.group_id)"
+                    :name="getGroup(plan.group_id)!.name"
+                    :platform="getGroup(plan.group_id)!.platform"
+                    :rate-multiplier="getGroup(plan.group_id)!.rate_multiplier"
+                  />
+                  <span v-else class="text-xs text-gray-400">#{{ plan.group_id }}</span>
+                  <span class="text-xs text-gray-500 dark:text-gray-400">¥{{ (plan.price ?? 0).toFixed(2) }}</span>
+                </div>
+              </div>
+              <div class="text-sm text-gray-400">#{{ plan.id }}</div>
+            </div>
+          </VueDraggable>
+        </div>
+      </div>
+
+      <template #footer>
+        <div class="flex justify-end gap-3 pt-4">
+          <button
+            type="button"
+            class="btn btn-secondary"
+            @click="closeSortDialog"
+          >
+            {{ t('common.cancel') }}
+          </button>
+          <button
+            class="btn btn-primary"
+            :disabled="sortSubmitting || sortableProductCount === 0"
+            @click="saveSortOrder"
+          >
+            <Icon v-if="sortSubmitting" name="refresh" size="sm" class="animate-spin" />
+            <span>{{ sortSubmitting ? t('common.saving') : t('common.save') }}</span>
+          </button>
+        </div>
+      </template>
+    </BaseDialog>
+
     <ConfirmDialog :show="showDeletePlanDialog" :title="t('payment.admin.deletePlan')" :message="t('payment.admin.deletePlanConfirm')" :confirm-text="t('common.delete')" danger @confirm="handleDeletePlan" @cancel="showDeletePlanDialog = false" />
     <ConfirmDialog :show="showDeleteBalanceProductDialog" :title="t('payment.admin.deleteBalanceProduct')" :message="t('payment.admin.deleteBalanceProductConfirm')" :confirm-text="t('common.delete')" danger @confirm="handleDeleteBalanceProduct" @cancel="showDeleteBalanceProductDialog = false" />
   </AppLayout>
@@ -137,6 +239,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { VueDraggable } from 'vue-draggable-plus'
 import { useAppStore } from '@/stores/app'
 import { adminPaymentAPI } from '@/api/admin/payment'
 import { extractI18nErrorMessage } from '@/utils/apiError'
@@ -146,6 +249,7 @@ import type { AdminGroup } from '@/types'
 import type { Column } from '@/components/common/types'
 import AppLayout from '@/components/layout/AppLayout.vue'
 import DataTable from '@/components/common/DataTable.vue'
+import BaseDialog from '@/components/common/BaseDialog.vue'
 import ConfirmDialog from '@/components/common/ConfirmDialog.vue'
 import Icon from '@/components/icons/Icon.vue'
 import GroupBadge from '@/components/common/GroupBadge.vue'
@@ -155,7 +259,9 @@ import { platformTextClass } from '@/utils/platformColors'
 
 const { t } = useI18n()
 const appStore = useAppStore()
-const activeProductTab = ref<'balance' | 'subscription'>('balance')
+type ProductTab = 'balance' | 'subscription'
+
+const activeProductTab = ref<ProductTab>('balance')
 const activeLoading = computed(() => activeProductTab.value === 'balance' ? balanceProductsLoading.value : plansLoading.value)
 
 // ==================== Groups ====================
@@ -197,6 +303,20 @@ const showBalanceProductDialog = ref(false)
 const showDeleteBalanceProductDialog = ref(false)
 const editingBalanceProduct = ref<BalanceProduct | null>(null)
 const deletingBalanceProductId = ref<number | null>(null)
+const showSortDialog = ref(false)
+const sortSubmitting = ref(false)
+const sortingProductTab = ref<ProductTab>('balance')
+const sortableBalanceProducts = ref<BalanceProduct[]>([])
+const sortablePlans = ref<SubscriptionPlan[]>([])
+
+const sortDialogHint = computed(() =>
+  sortingProductTab.value === 'balance'
+    ? t('payment.admin.balanceSortOrderHint')
+    : t('payment.admin.planSortOrderHint'),
+)
+const sortableProductCount = computed(() =>
+  sortingProductTab.value === 'balance' ? sortableBalanceProducts.value.length : sortablePlans.value.length,
+)
 
 const balanceProductColumns = computed((): Column[] => [
   { key: 'id', label: 'ID' },
@@ -248,6 +368,52 @@ async function loadBalanceProducts() {
     appStore.showError(extractI18nErrorMessage(err, t, 'payment.errors', t('common.error')))
   } finally {
     balanceProductsLoading.value = false
+  }
+}
+
+function bySortOrder<T extends { id: number; sort_order: number }>(items: T[]): T[] {
+  return [...items].sort((a, b) => a.sort_order - b.sort_order || a.id - b.id)
+}
+
+function openSortDialog() {
+  sortingProductTab.value = activeProductTab.value
+  sortableBalanceProducts.value = bySortOrder(balanceProducts.value)
+  sortablePlans.value = bySortOrder(plans.value)
+  showSortDialog.value = true
+}
+
+function closeSortDialog() {
+  if (sortSubmitting.value) return
+  resetSortDialog()
+}
+
+function resetSortDialog() {
+  showSortDialog.value = false
+  sortableBalanceProducts.value = []
+  sortablePlans.value = []
+}
+
+async function saveSortOrder() {
+  sortSubmitting.value = true
+  try {
+    if (sortingProductTab.value === 'balance') {
+      const updates = sortableBalanceProducts.value.map((product, index) => ({ id: product.id, sort_order: index * 10 }))
+      await adminPaymentAPI.updateBalanceProductSortOrder(updates)
+      appStore.showSuccess(t('payment.admin.sortOrderUpdated'))
+      resetSortDialog()
+      await loadBalanceProducts()
+      return
+    }
+
+    const updates = sortablePlans.value.map((plan, index) => ({ id: plan.id, sort_order: index * 10 }))
+    await adminPaymentAPI.updatePlanSortOrder(updates)
+    appStore.showSuccess(t('payment.admin.sortOrderUpdated'))
+    resetSortDialog()
+    await loadPlans()
+  } catch (err: unknown) {
+    appStore.showError(extractI18nErrorMessage(err, t, 'payment.errors', t('payment.admin.failedToUpdateSortOrder')))
+  } finally {
+    sortSubmitting.value = false
   }
 }
 
