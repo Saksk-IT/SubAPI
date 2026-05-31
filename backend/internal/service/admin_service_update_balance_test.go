@@ -169,12 +169,13 @@ func TestAdminService_BatchAssignUsers_AddsBalanceForAllUsers(t *testing.T) {
 }
 
 func TestAdminService_BatchAssignUsers_AdjustsBalanceByRules(t *testing.T) {
-	users := []User{{ID: 1, Balance: 50}, {ID: 2, Balance: 100}}
+	users := []User{{ID: 1, Balance: 50}, {ID: 2, Balance: 100}, {ID: 3, Balance: -5}}
 	repo := &balanceUserRepoStub{
 		userRepoStub: &userRepoStub{},
 		users: map[int64]*User{
 			1: &users[0],
 			2: &users[1],
+			3: &users[2],
 		},
 	}
 	redeemRepo := &balanceRedeemRepoStub{redeemRepoStub: &redeemRepoStub{}}
@@ -184,7 +185,7 @@ func TestAdminService_BatchAssignUsers_AdjustsBalanceByRules(t *testing.T) {
 	}
 
 	result, err := svc.BatchAssignUsers(context.Background(), &BatchAssignUsersInput{
-		Target: BatchAssignUserTarget{UserIDs: []int64{1, 2}},
+		Target: BatchAssignUserTarget{UserIDs: []int64{1, 2, 3}},
 		Balance: &BatchAssignBalanceInput{
 			Operation: "rule",
 			Rules: []BatchAssignBalanceRuleInput{
@@ -196,11 +197,12 @@ func TestAdminService_BatchAssignUsers_AdjustsBalanceByRules(t *testing.T) {
 	})
 
 	require.NoError(t, err)
-	require.Equal(t, 2, result.TargetCount)
-	require.Equal(t, 2, result.SuccessCount)
+	require.Equal(t, 3, result.TargetCount)
+	require.Equal(t, 3, result.SuccessCount)
 	require.Equal(t, 2, result.BalanceAffectedCount)
 	require.Equal(t, 75.0, repo.users[1].Balance)
 	require.Equal(t, 120.0, repo.users[2].Balance)
+	require.Equal(t, -5.0, repo.users[3].Balance)
 	require.Len(t, redeemRepo.created, 2)
 	require.Equal(t, 25.0, redeemRepo.created[0].Value)
 	require.Equal(t, 20.0, redeemRepo.created[1].Value)

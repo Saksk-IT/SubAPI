@@ -210,6 +210,9 @@ func (s *adminServiceImpl) ensureBatchAssignBalanceRuleCoverage(ctx context.Cont
 		if err != nil {
 			return err
 		}
+		if user.Balance < 0 {
+			continue
+		}
 		if _, ok := findBatchAssignBalanceRule(user.Balance, rules); !ok {
 			return infraerrors.BadRequest(
 				"BATCH_BALANCE_RULE_UNMATCHED_USER",
@@ -238,6 +241,9 @@ func (s *adminServiceImpl) applyBatchAssignBalanceToUser(ctx context.Context, us
 	user, err := s.userRepo.GetByID(ctx, userID)
 	if err != nil {
 		return false, err
+	}
+	if user.Balance < 0 {
+		return false, nil
 	}
 	rule, ok := findBatchAssignBalanceRule(user.Balance, input.Rules)
 	if !ok {

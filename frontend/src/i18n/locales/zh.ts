@@ -1985,7 +1985,7 @@ export default {
         amountPlaceholder: '请输入金额',
         amountHint: '金额必须大于 0。',
         ruleList: '规则列表',
-        ruleHint: '按用户调整前余额匹配区间，区间采用左闭右开，例如 0~100 不包含 100。',
+        ruleHint: '按用户调整前余额匹配区间，区间采用左闭右开，例如 0~100 不包含 100；余额小于 0 的用户自动保持不变。',
         addRule: '添加规则',
         removeRule: '删除规则',
         ruleMin: '最低额度',

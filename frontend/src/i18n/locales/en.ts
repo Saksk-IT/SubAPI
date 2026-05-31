@@ -1929,7 +1929,7 @@ export default {
         amountPlaceholder: 'Enter amount',
         amountHint: 'Must be greater than 0.',
         ruleList: 'Rules',
-        ruleHint: 'Rules match each user\'s balance before adjustment. Ranges are left-inclusive and right-exclusive, so 0-100 excludes 100.',
+        ruleHint: 'Rules match each user\'s balance before adjustment. Ranges are left-inclusive and right-exclusive, so 0-100 excludes 100. Users with balances below 0 are kept unchanged.',
         addRule: 'Add Rule',
         removeRule: 'Remove Rule',
         ruleMin: 'Minimum Balance',
