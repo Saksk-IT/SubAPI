@@ -571,13 +571,20 @@ describe('PaymentView WeChat JSAPI flow', () => {
 
     const card = wrapper.findComponent(PurchaseProductCard)
     const metrics = card.props('metrics') as { label: string; value: string }[]
+    const heroMetrics = card.props('heroMetrics') as { label: string; value: string }[]
+    const priceRows = card.props('priceRows') as { label: string; value: string }[]
     const exchangeRate = metrics.find(item => item.label === 'payment.product.exchangeRate')?.value || ''
-    const balanceAmount = metrics.find(item => item.label === 'payment.product.balanceAmount')?.value || ''
+    const balanceAmount = heroMetrics.find(item => item.label === 'payment.product.balanceAmount')?.value || ''
 
     expect(card.props('currency')).toBe('CNY')
     expect(exchangeRate).toBe('1¥:10$')
+    expect(metrics.some(item => item.label === 'payment.product.balanceAmount')).toBe(false)
     expect(balanceAmount).toContain('$')
     expect(balanceAmount).not.toContain('¥')
+    expect(priceRows.map(item => item.label)).toEqual([
+      'payment.product.originalPrice',
+      'payment.product.payPrice',
+    ])
   })
 
   it('shows customer purchase guidance and administrator support details', async () => {
@@ -666,7 +673,7 @@ describe('PaymentView WeChat JSAPI flow', () => {
     }))
   })
 
-  it('uses four-column product grids and displays stored subscription total quota first', async () => {
+  it('uses four-column product grids and displays stored subscription quota clearly', async () => {
     routeState.query = {
       tab: 'subscription',
     }
@@ -686,12 +693,16 @@ describe('PaymentView WeChat JSAPI flow', () => {
 
     const card = wrapper.findComponent(PurchaseProductCard)
     const metrics = card.props('metrics') as { label: string; value: string }[]
+    const heroMetrics = card.props('heroMetrics') as { label: string; value: string }[]
+    const priceRows = card.props('priceRows') as { label: string; value: string }[]
     const totalQuota = metrics.find(item => item.label === 'payment.product.totalQuota')?.value || ''
-    const dailyQuota = metrics.find(item => item.label === 'payment.product.dailyQuota')?.value || ''
+    const dailyQuota = heroMetrics.find(item => item.label === 'payment.product.dailyQuota')?.value || ''
 
     expect(wrapper.html()).toContain('lg:grid-cols-4')
     expect(totalQuota).toContain('$999.00')
+    expect(metrics.some(item => item.label === 'payment.product.dailyQuota')).toBe(false)
     expect(dailyQuota).toContain('$42.00')
+    expect(priceRows.map(item => item.label)).toEqual(['payment.product.payPrice'])
   })
 
   it('shows only active subscription quota periods on product cards', async () => {
@@ -725,11 +736,13 @@ describe('PaymentView WeChat JSAPI flow', () => {
 
     const card = wrapper.findComponent(PurchaseProductCard)
     const metrics = card.props('metrics') as { label: string; value: string }[]
-    const labels = metrics.map(item => item.label)
+    const heroMetrics = card.props('heroMetrics') as { label: string; value: string }[]
+    const labels = heroMetrics.map(item => item.label)
 
     expect(labels).toContain('payment.product.dailyQuota')
     expect(labels).toContain('payment.product.weeklyQuota')
     expect(labels).not.toContain('payment.product.monthlyQuota')
+    expect(metrics.map(item => item.label)).not.toContain('payment.product.dailyQuota')
     expect(metrics.find(item => item.label === 'payment.product.totalQuota')?.value).toContain('$200.00')
   })
 

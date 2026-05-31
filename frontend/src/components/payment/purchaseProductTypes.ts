@@ -1,6 +1,7 @@
 export interface PurchaseProductMetric {
   label: string
   value: string
+  tone?: 'muted' | 'strong'
 }
 
 export interface PurchaseProductViewModel {

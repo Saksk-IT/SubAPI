@@ -157,7 +157,9 @@
                     v-for="item in balanceProductCards"
                     :key="item.product.id"
                     :product="item.product"
+                    :hero-metrics="item.heroMetrics"
                     :metrics="item.metrics"
+                    :price-rows="item.priceRows"
                     :methods="item.methods"
                     :currency="paymentPriceCurrency"
                     :locale="localeCode"
@@ -322,7 +324,9 @@
                     v-for="item in subscriptionProductCards"
                     :key="item.product.id"
                     :product="item.product"
+                    :hero-metrics="item.heroMetrics"
                     :metrics="item.metrics"
+                    :price-rows="item.priceRows"
                     :methods="item.methods"
                     :currency="paymentPriceCurrency"
                     :locale="localeCode"
@@ -720,7 +724,9 @@ const amountInputPrefix = computed(() => {
 type PurchaseCardItem<T> = {
   raw: T
   product: PurchaseProductViewModel
+  heroMetrics?: PurchaseProductMetric[]
   metrics: PurchaseProductMetric[]
+  priceRows?: PurchaseProductMetric[]
   methods: PaymentMethodOption[]
   priceSuffix?: string
 }
@@ -745,6 +751,27 @@ function amountMethodOptions(value: number): PaymentMethodOption[] {
 function formatQuota(value: number | null | undefined): string {
   if (value == null || value <= 0) return t('payment.planCard.unlimited')
   return formatQuotaAmount(Number(value))
+}
+
+function formatProductPriceAmount(value: number): string {
+  return formatPaymentAmount(value, paymentPriceCurrency, localeCode.value)
+}
+
+function buildProductPriceRows(price: number, originalPrice?: number | null, suffix = ''): PurchaseProductMetric[] {
+  const rows: PurchaseProductMetric[] = []
+  if (originalPrice != null && originalPrice > 0) {
+    rows.push({
+      label: t('payment.product.originalPrice'),
+      value: formatProductPriceAmount(originalPrice),
+      tone: 'muted',
+    })
+  }
+  rows.push({
+    label: t('payment.product.payPrice'),
+    value: `${formatProductPriceAmount(price)}${suffix}`,
+    tone: 'strong',
+  })
+  return rows
 }
 
 function formatExchangeRate(amount: number, price: number): string {
@@ -818,10 +845,17 @@ const balanceProductCards = computed<PurchaseCardItem<BalanceProduct>[]>(() =>
         tags: normalizeTextList(product.tags),
         features: normalizeTextList(product.features),
       },
+      heroMetrics: [
+        {
+          label: t('payment.product.balanceAmount'),
+          value: formatQuotaAmount(amount),
+          tone: 'strong',
+        },
+      ],
       metrics: [
         { label: t('payment.product.exchangeRate'), value: formatExchangeRate(amount, price) },
-        { label: t('payment.product.balanceAmount'), value: formatQuotaAmount(amount) },
       ],
+      priceRows: buildProductPriceRows(price, product.original_price),
       methods: amountMethodOptions(price),
     }
   }),
@@ -836,16 +870,21 @@ const subscriptionProductCards = computed<PurchaseCardItem<SubscriptionPlan>[]>(
     const dailyQuota = normalizePositiveQuota(plan.daily_quota) ?? normalizePositiveQuota(plan.daily_limit_usd)
     const weeklyQuota = normalizePositiveQuota(plan.weekly_limit_usd)
     const monthlyQuota = normalizePositiveQuota(plan.monthly_limit_usd)
+    const quotaHeroMetrics: PurchaseProductMetric[] = []
     if (dailyQuota != null) {
-      metrics.push({ label: t('payment.product.dailyQuota'), value: formatQuota(dailyQuota) })
+      quotaHeroMetrics.push({ label: t('payment.product.dailyQuota'), value: formatQuota(dailyQuota), tone: 'strong' })
     }
     if (weeklyQuota != null) {
-      metrics.push({ label: t('payment.product.weeklyQuota'), value: formatQuota(weeklyQuota) })
+      quotaHeroMetrics.push({ label: t('payment.product.weeklyQuota'), value: formatQuota(weeklyQuota), tone: 'strong' })
     }
     if (monthlyQuota != null) {
-      metrics.push({ label: t('payment.product.monthlyQuota'), value: formatQuota(monthlyQuota) })
+      quotaHeroMetrics.push({ label: t('payment.product.monthlyQuota'), value: formatQuota(monthlyQuota), tone: 'strong' })
+    }
+    if (quotaHeroMetrics.length === 0) {
+      quotaHeroMetrics.push({ label: t('payment.product.availableQuota'), value: t('payment.planCard.unlimited'), tone: 'strong' })
     }
     metrics.push({ label: t('payment.product.validity'), value: formatPlanValidity(plan) })
+    const validitySuffix = ` / ${formatPlanValidity(plan)}`
     return {
       raw: plan,
       product: {
@@ -858,9 +897,10 @@ const subscriptionProductCards = computed<PurchaseCardItem<SubscriptionPlan>[]>(
         tags: normalizeTextList(plan.tags),
         features: normalizeTextList(plan.features),
       },
+      heroMetrics: quotaHeroMetrics,
       metrics,
+      priceRows: buildProductPriceRows(Number(plan.price) || 0, plan.original_price, validitySuffix),
       methods: amountMethodOptions(Number(plan.price) || 0),
-      priceSuffix: `/ ${formatPlanValidity(plan)}`,
     }
   }),
 )

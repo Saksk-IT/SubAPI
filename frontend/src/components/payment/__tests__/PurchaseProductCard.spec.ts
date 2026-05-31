@@ -36,8 +36,14 @@ function mountCard() {
         features: [],
       },
       metrics: [
-        { label: '支付价格', value: '¥88.00' },
-        { label: '获得额度', value: '$120.00' },
+        { label: '对应汇率', value: '1¥:10$' },
+      ],
+      heroMetrics: [
+        { label: '获得额度', value: '$120.00', tone: 'strong' },
+      ],
+      priceRows: [
+        { label: '原价', value: '¥108.00', tone: 'muted' },
+        { label: '支付价格', value: '¥88.00', tone: 'strong' },
       ],
       methods: [
         { type: 'alipay', fee_rate: 0, available: true },
@@ -65,5 +71,19 @@ describe('PurchaseProductCard', () => {
     const iconShells = wrapper.findAll('[data-testid="payment-method-icon-shell"]')
     expect(iconShells).toHaveLength(2)
     expect(iconShells.every(shell => shell.classes().includes('bg-white'))).toBe(true)
+  })
+
+  it('highlights quota above details and moves price summary above payment methods', () => {
+    const wrapper = mountCard()
+
+    const text = wrapper.text()
+    expect(text).toContain('获得额度')
+    expect(text).toContain('$120.00')
+    expect(text).toContain('原价')
+    expect(text).toContain('¥108.00')
+    expect(text).toContain('支付价格')
+    expect(text).toContain('¥88.00')
+    expect(text.indexOf('获得额度')).toBeLessThan(text.indexOf('对应汇率'))
+    expect(text.indexOf('支付价格')).toBeLessThan(text.indexOf('payment.product.autoApply'))
   })
 })

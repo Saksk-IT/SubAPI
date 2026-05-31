@@ -7040,9 +7040,11 @@ export default {
     product: {
       detail: 'Details',
       autoApply: 'Applies automatically after purchase',
+      originalPrice: 'Original Price',
       payPrice: 'Pay Price',
       exchangeRate: 'Exchange Rate',
       balanceAmount: 'Credited',
+      availableQuota: 'Available Quota',
       totalQuota: 'Total Quota',
       dailyQuota: 'Daily Quota',
       weeklyQuota: 'Weekly Quota',

@@ -25,7 +25,25 @@
     </div>
 
     <div class="mb-4">
-      <div class="flex flex-wrap items-end gap-2">
+      <div v-if="heroMetrics.length > 0" class="rounded-2xl border border-emerald-100 bg-emerald-50/70 px-4 py-3 dark:border-emerald-500/20 dark:bg-emerald-500/10">
+        <p class="text-xs font-black text-emerald-600 dark:text-emerald-300">{{ heroMetrics[0].label }}</p>
+        <div class="mt-1 flex flex-wrap items-end gap-2">
+          <span class="min-w-0 break-words text-4xl font-black leading-none tracking-normal text-gray-950 [overflow-wrap:anywhere] sm:text-5xl dark:text-white">
+            {{ heroMetrics[0].value }}
+          </span>
+        </div>
+        <div v-if="heroMetrics.length > 1" class="mt-3 grid gap-2" :class="heroMetrics.length >= 3 ? 'grid-cols-2' : 'grid-cols-1'">
+          <div
+            v-for="metric in heroMetrics.slice(1)"
+            :key="metric.label"
+            class="min-w-0 rounded-xl border border-emerald-200 bg-white/70 px-3 py-2 dark:border-emerald-500/25 dark:bg-dark-800/70"
+          >
+            <p class="text-[11px] font-black text-emerald-600 dark:text-emerald-300">{{ metric.label }}</p>
+            <p class="mt-1 break-words text-xl font-black leading-tight text-gray-950 [overflow-wrap:anywhere] dark:text-white">{{ metric.value }}</p>
+          </div>
+        </div>
+      </div>
+      <div v-else class="flex flex-wrap items-end gap-2">
         <span v-if="product.original_price" class="break-words pb-1 text-sm text-gray-400 line-through [overflow-wrap:anywhere] dark:text-gray-500">
           {{ formatAmount(product.original_price) }}
         </span>
@@ -39,10 +57,18 @@
       </p>
     </div>
 
-    <div class="grid grid-cols-2 gap-3" :class="{ 'sm:[grid-template-columns:repeat(3,minmax(0,1fr))]': metrics.length >= 3 }">
-      <div v-for="metric in metrics" :key="metric.label" class="min-w-0 rounded-xl border border-gray-200 p-3 dark:border-dark-600">
+    <div v-if="metrics.length > 0" class="grid grid-cols-2 gap-3" :class="{ 'sm:[grid-template-columns:repeat(3,minmax(0,1fr))]': metrics.length >= 3 }">
+      <div
+        v-for="metric in metrics"
+        :key="metric.label"
+        class="min-w-0 rounded-xl border p-3"
+        :class="metric.tone === 'strong' ? 'border-emerald-200 bg-emerald-50/70 dark:border-emerald-500/25 dark:bg-emerald-500/10' : 'border-gray-200 dark:border-dark-600'"
+      >
         <p class="text-xs text-gray-400 dark:text-gray-500">{{ metric.label }}</p>
-        <p class="mt-1 break-words text-lg font-black leading-snug text-gray-950 [overflow-wrap:anywhere] dark:text-white">{{ metric.value }}</p>
+        <p
+          class="mt-1 break-words text-lg font-black leading-snug [overflow-wrap:anywhere]"
+          :class="metric.tone === 'strong' ? 'text-emerald-700 dark:text-emerald-200' : 'text-gray-950 dark:text-white'"
+        >{{ metric.value }}</p>
       </div>
     </div>
 
@@ -58,6 +84,24 @@
     </div>
 
     <div class="mt-auto pt-4">
+      <div
+        v-if="priceRows.length > 0"
+        class="mb-3 rounded-2xl border border-gray-200 bg-gray-50 px-4 py-3 dark:border-dark-600 dark:bg-dark-900/50"
+      >
+        <div
+          v-for="row in priceRows"
+          :key="row.label"
+          class="flex items-baseline justify-between gap-3 text-sm"
+        >
+          <span class="shrink-0 text-gray-500 dark:text-gray-400">{{ row.label }}</span>
+          <span
+            class="min-w-0 break-words text-right font-black [overflow-wrap:anywhere]"
+            :class="row.tone === 'muted' ? 'text-gray-400 line-through dark:text-gray-500' : 'text-gray-950 dark:text-white'"
+          >
+            {{ row.value }}
+          </span>
+        </div>
+      </div>
       <p class="mb-2 text-xs font-semibold text-green-600 dark:text-green-400">{{ t('payment.product.autoApply') }}</p>
       <div v-if="methods.length > 0" class="space-y-2">
         <button
@@ -98,6 +142,8 @@ import type { PurchaseProductMetric, PurchaseProductViewModel } from './purchase
 const props = defineProps<{
   product: PurchaseProductViewModel
   metrics: PurchaseProductMetric[]
+  heroMetrics?: PurchaseProductMetric[]
+  priceRows?: PurchaseProductMetric[]
   methods: PaymentMethodOption[]
   currency: string
   locale?: string
@@ -116,6 +162,8 @@ const showDetail = ref(false)
 
 const normalizedTags = computed(() => props.product.tags.filter(Boolean).slice(0, 4))
 const visibleFeatures = computed(() => props.product.features.filter(Boolean).slice(0, 5))
+const heroMetrics = computed(() => (props.heroMetrics || []).filter(item => item.label && item.value).slice(0, 3))
+const priceRows = computed(() => (props.priceRows || []).filter(item => item.label && item.value).slice(0, 3))
 const sortedMethods = computed(() => {
   const order: readonly string[] = METHOD_ORDER
   return [...props.methods].sort((a, b) => {
