@@ -194,6 +194,7 @@ type AdminPlanResult struct {
 	ProductName   string   `json:"product_name"`
 	ForSale       bool     `json:"for_sale"`
 	SortOrder     int      `json:"sort_order"`
+	SalesCount    int64    `json:"sales_count"`
 }
 
 type ProductSortOrderRequest struct {
@@ -222,7 +223,12 @@ func (h *PaymentHandler) ListPlans(c *gin.Context) {
 		response.ErrorFrom(c, err)
 		return
 	}
-	response.Success(c, h.buildAdminPlanResults(c, plans))
+	results, err := h.buildAdminPlanResults(c, plans)
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	response.Success(c, results)
 }
 
 // CreatePlan creates a new subscription plan.
@@ -238,7 +244,12 @@ func (h *PaymentHandler) CreatePlan(c *gin.Context) {
 		response.ErrorFrom(c, err)
 		return
 	}
-	response.Created(c, h.buildAdminPlanResults(c, []*dbent.SubscriptionPlan{plan})[0])
+	results, err := h.buildAdminPlanResults(c, []*dbent.SubscriptionPlan{plan})
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	response.Created(c, results[0])
 }
 
 // UpdatePlan updates an existing subscription plan.
@@ -258,7 +269,12 @@ func (h *PaymentHandler) UpdatePlan(c *gin.Context) {
 		response.ErrorFrom(c, err)
 		return
 	}
-	response.Success(c, h.buildAdminPlanResults(c, []*dbent.SubscriptionPlan{plan})[0])
+	results, err := h.buildAdminPlanResults(c, []*dbent.SubscriptionPlan{plan})
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	response.Success(c, results[0])
 }
 
 func (h *PaymentHandler) UpdatePlanSortOrder(c *gin.Context) {
@@ -288,8 +304,12 @@ func (h *PaymentHandler) DeletePlan(c *gin.Context) {
 	response.Success(c, gin.H{"message": "deleted"})
 }
 
-func (h *PaymentHandler) buildAdminPlanResults(c *gin.Context, plans []*dbent.SubscriptionPlan) []AdminPlanResult {
+func (h *PaymentHandler) buildAdminPlanResults(c *gin.Context, plans []*dbent.SubscriptionPlan) ([]AdminPlanResult, error) {
 	displayInfo := h.configService.GetPlanDisplayInfoMap(c.Request.Context(), plans)
+	salesCounts, err := h.configService.GetPlanSalesCountMap(c.Request.Context(), plans)
+	if err != nil {
+		return nil, err
+	}
 	out := make([]AdminPlanResult, 0, len(plans))
 	for _, plan := range plans {
 		display := displayInfo[plan.ID]
@@ -310,9 +330,10 @@ func (h *PaymentHandler) buildAdminPlanResults(c *gin.Context, plans []*dbent.Su
 			ProductName:   plan.ProductName,
 			ForSale:       plan.ForSale,
 			SortOrder:     plan.SortOrder,
+			SalesCount:    salesCounts[plan.ID],
 		})
 	}
-	return out
+	return out, nil
 }
 
 // --- Balance Products ---

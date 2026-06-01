@@ -326,6 +326,7 @@ const balanceProductColumns = computed((): Column[] => [
   { key: 'name', label: t('payment.admin.productName') },
   { key: 'price', label: t('payment.admin.payPrice') },
   { key: 'amount', label: t('payment.admin.creditAmount') },
+  { key: 'sales_count', label: t('payment.admin.salesCount') },
   { key: 'purchase_limit', label: t('payment.admin.purchaseLimit') },
   { key: 'for_sale', label: t('payment.admin.forSale') },
   { key: 'actions', label: t('common.actions') },
@@ -337,6 +338,7 @@ const planColumns = computed((): Column[] => [
   { key: 'group_id', label: t('payment.admin.group') },
   { key: 'price', label: t('payment.admin.price') },
   { key: 'validity_days', label: t('payment.admin.validityDays') },
+  { key: 'sales_count', label: t('payment.admin.salesCount') },
   { key: 'for_sale', label: t('payment.admin.forSale') },
   { key: 'actions', label: t('common.actions') },
 ])

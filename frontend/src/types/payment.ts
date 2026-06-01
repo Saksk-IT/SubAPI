@@ -172,6 +172,7 @@ export interface BalanceProduct {
   for_sale: boolean
   purchase_limit: number
   sort_order: number
+  sales_count?: number
 }
 
 export interface SubscriptionPlan {
@@ -199,6 +200,7 @@ export interface SubscriptionPlan {
   product_name?: string
   for_sale: boolean
   sort_order: number
+  sales_count?: number
 }
 
 export interface PaymentChannel {

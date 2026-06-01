@@ -7269,6 +7269,7 @@ export default {
       productTagsPlaceholder: 'One tag per line, e.g. Light Debug',
       payPrice: 'Actual Pay Price',
       creditAmount: 'Credited Quota',
+      salesCount: 'Sales',
       totalQuota: 'Total Quota',
       totalQuotaAuto: 'Total Quota (Auto)',
       totalQuotaAutoHint: 'Calculated from validity count × the group limit for the derived unit. No manual entry needed.',

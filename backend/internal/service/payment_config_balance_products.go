@@ -32,6 +32,7 @@ type BalanceProduct struct {
 	ForSale       bool      `json:"for_sale"`
 	PurchaseLimit int       `json:"purchase_limit"`
 	SortOrder     int       `json:"sort_order"`
+	SalesCount    int64     `json:"sales_count"`
 	CreatedAt     time.Time `json:"created_at"`
 	UpdatedAt     time.Time `json:"updated_at"`
 }
@@ -165,6 +166,9 @@ ORDER BY sort_order ASC, id ASC`)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, fmt.Errorf("iterate balance products: %w", err)
+	}
+	if err := s.attachBalanceProductSalesCounts(ctx, products); err != nil {
+		return nil, err
 	}
 	return products, nil
 }

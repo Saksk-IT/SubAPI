@@ -7446,6 +7446,7 @@ export default {
       productTagsPlaceholder: '每行一个标签，如：轻度 Debug',
       payPrice: '实际支付价格',
       creditAmount: '获得额度',
+      salesCount: '销量',
       totalQuota: '总额度',
       totalQuotaAuto: '总额度（自动计算）',
       totalQuotaAutoHint: '按有效期数量 × 自动单位对应的分组限额计算，无需手动填写。',
