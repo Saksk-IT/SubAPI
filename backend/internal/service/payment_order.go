@@ -181,6 +181,9 @@ func (s *PaymentService) createOrderInTx(ctx context.Context, req CreateOrderReq
 	if err := s.checkDailyLimit(ctx, tx, req.UserID, limitAmount, cfg.DailyLimit); err != nil {
 		return nil, err
 	}
+	if err := s.checkBalanceProductPurchaseLimit(ctx, tx, req.UserID, balanceProduct); err != nil {
+		return nil, err
+	}
 	tm := cfg.OrderTimeoutMin
 	if tm <= 0 {
 		tm = defaultOrderTimeoutMin
@@ -369,6 +372,42 @@ func (s *PaymentService) checkDailyLimit(ctx context.Context, tx *dbent.Tx, user
 			WithMetadata(map[string]string{"remaining": fmt.Sprintf("%.2f", math.Max(0, limit-used))})
 	}
 	return nil
+}
+
+func (s *PaymentService) checkBalanceProductPurchaseLimit(ctx context.Context, tx *dbent.Tx, userID int64, product *BalanceProduct) error {
+	if product == nil || product.PurchaseLimit <= 0 {
+		return nil
+	}
+	c, err := tx.PaymentOrder.Query().Where(
+		paymentorder.UserIDEQ(userID),
+		paymentorder.BalanceProductIDEQ(product.ID),
+		paymentorder.StatusIn(balanceProductPurchaseCountStatuses()...),
+	).Count(ctx)
+	if err != nil {
+		return fmt.Errorf("count balance product purchases: %w", err)
+	}
+	if c >= product.PurchaseLimit {
+		return infraerrors.TooManyRequests("BALANCE_PRODUCT_PURCHASE_LIMIT_EXCEEDED", "balance_product_purchase_limit_exceeded").
+			WithMetadata(map[string]string{
+				"product_id": strconv.FormatInt(product.ID, 10),
+				"limit":      strconv.Itoa(product.PurchaseLimit),
+			})
+	}
+	return nil
+}
+
+func balanceProductPurchaseCountStatuses() []string {
+	return []string{
+		OrderStatusPending,
+		OrderStatusPaid,
+		OrderStatusRecharging,
+		OrderStatusCompleted,
+		OrderStatusRefundRequested,
+		OrderStatusRefunding,
+		OrderStatusPartiallyRefunded,
+		OrderStatusRefunded,
+		OrderStatusRefundFailed,
+	}
 }
 
 func (s *PaymentService) selectCreateOrderInstance(ctx context.Context, req CreateOrderRequest, cfg *PaymentConfig, payAmount float64) (*payment.InstanceSelection, error) {

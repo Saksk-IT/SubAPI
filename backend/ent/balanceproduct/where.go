@@ -99,6 +99,11 @@ func ForSale(v bool) predicate.BalanceProduct {
 	return predicate.BalanceProduct(sql.FieldEQ(FieldForSale, v))
 }
 
+// PurchaseLimit applies equality check predicate on the "purchase_limit" field. It's identical to PurchaseLimitEQ.
+func PurchaseLimit(v int) predicate.BalanceProduct {
+	return predicate.BalanceProduct(sql.FieldEQ(FieldPurchaseLimit, v))
+}
+
 // SortOrder applies equality check predicate on the "sort_order" field. It's identical to SortOrderEQ.
 func SortOrder(v int) predicate.BalanceProduct {
 	return predicate.BalanceProduct(sql.FieldEQ(FieldSortOrder, v))
@@ -577,6 +582,46 @@ func ForSaleEQ(v bool) predicate.BalanceProduct {
 // ForSaleNEQ applies the NEQ predicate on the "for_sale" field.
 func ForSaleNEQ(v bool) predicate.BalanceProduct {
 	return predicate.BalanceProduct(sql.FieldNEQ(FieldForSale, v))
+}
+
+// PurchaseLimitEQ applies the EQ predicate on the "purchase_limit" field.
+func PurchaseLimitEQ(v int) predicate.BalanceProduct {
+	return predicate.BalanceProduct(sql.FieldEQ(FieldPurchaseLimit, v))
+}
+
+// PurchaseLimitNEQ applies the NEQ predicate on the "purchase_limit" field.
+func PurchaseLimitNEQ(v int) predicate.BalanceProduct {
+	return predicate.BalanceProduct(sql.FieldNEQ(FieldPurchaseLimit, v))
+}
+
+// PurchaseLimitIn applies the In predicate on the "purchase_limit" field.
+func PurchaseLimitIn(vs ...int) predicate.BalanceProduct {
+	return predicate.BalanceProduct(sql.FieldIn(FieldPurchaseLimit, vs...))
+}
+
+// PurchaseLimitNotIn applies the NotIn predicate on the "purchase_limit" field.
+func PurchaseLimitNotIn(vs ...int) predicate.BalanceProduct {
+	return predicate.BalanceProduct(sql.FieldNotIn(FieldPurchaseLimit, vs...))
+}
+
+// PurchaseLimitGT applies the GT predicate on the "purchase_limit" field.
+func PurchaseLimitGT(v int) predicate.BalanceProduct {
+	return predicate.BalanceProduct(sql.FieldGT(FieldPurchaseLimit, v))
+}
+
+// PurchaseLimitGTE applies the GTE predicate on the "purchase_limit" field.
+func PurchaseLimitGTE(v int) predicate.BalanceProduct {
+	return predicate.BalanceProduct(sql.FieldGTE(FieldPurchaseLimit, v))
+}
+
+// PurchaseLimitLT applies the LT predicate on the "purchase_limit" field.
+func PurchaseLimitLT(v int) predicate.BalanceProduct {
+	return predicate.BalanceProduct(sql.FieldLT(FieldPurchaseLimit, v))
+}
+
+// PurchaseLimitLTE applies the LTE predicate on the "purchase_limit" field.
+func PurchaseLimitLTE(v int) predicate.BalanceProduct {
+	return predicate.BalanceProduct(sql.FieldLTE(FieldPurchaseLimit, v))
 }
 
 // SortOrderEQ applies the EQ predicate on the "sort_order" field.

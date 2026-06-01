@@ -35,6 +35,8 @@ type BalanceProduct struct {
 	ProductName string `json:"product_name,omitempty"`
 	// ForSale holds the value of the "for_sale" field.
 	ForSale bool `json:"for_sale,omitempty"`
+	// PurchaseLimit holds the value of the "purchase_limit" field.
+	PurchaseLimit int `json:"purchase_limit,omitempty"`
 	// SortOrder holds the value of the "sort_order" field.
 	SortOrder int `json:"sort_order,omitempty"`
 	// CreatedAt holds the value of the "created_at" field.
@@ -53,7 +55,7 @@ func (*BalanceProduct) scanValues(columns []string) ([]any, error) {
 			values[i] = new(sql.NullBool)
 		case balanceproduct.FieldPrice, balanceproduct.FieldAmount, balanceproduct.FieldOriginalPrice:
 			values[i] = new(sql.NullFloat64)
-		case balanceproduct.FieldID, balanceproduct.FieldSortOrder:
+		case balanceproduct.FieldID, balanceproduct.FieldPurchaseLimit, balanceproduct.FieldSortOrder:
 			values[i] = new(sql.NullInt64)
 		case balanceproduct.FieldName, balanceproduct.FieldDescription, balanceproduct.FieldTags, balanceproduct.FieldFeatures, balanceproduct.FieldProductName:
 			values[i] = new(sql.NullString)
@@ -134,6 +136,12 @@ func (_m *BalanceProduct) assignValues(columns []string, values []any) error {
 				return fmt.Errorf("unexpected type %T for field for_sale", values[i])
 			} else if value.Valid {
 				_m.ForSale = value.Bool
+			}
+		case balanceproduct.FieldPurchaseLimit:
+			if value, ok := values[i].(*sql.NullInt64); !ok {
+				return fmt.Errorf("unexpected type %T for field purchase_limit", values[i])
+			} else if value.Valid {
+				_m.PurchaseLimit = int(value.Int64)
 			}
 		case balanceproduct.FieldSortOrder:
 			if value, ok := values[i].(*sql.NullInt64); !ok {
@@ -217,6 +225,9 @@ func (_m *BalanceProduct) String() string {
 	builder.WriteString(", ")
 	builder.WriteString("for_sale=")
 	builder.WriteString(fmt.Sprintf("%v", _m.ForSale))
+	builder.WriteString(", ")
+	builder.WriteString("purchase_limit=")
+	builder.WriteString(fmt.Sprintf("%v", _m.PurchaseLimit))
 	builder.WriteString(", ")
 	builder.WriteString("sort_order=")
 	builder.WriteString(fmt.Sprintf("%v", _m.SortOrder))

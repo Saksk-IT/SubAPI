@@ -49,6 +49,9 @@ func (BalanceProduct) Fields() []ent.Field {
 			Default(""),
 		field.Bool("for_sale").
 			Default(true),
+		field.Int("purchase_limit").
+			Default(0).
+			NonNegative(),
 		field.Int("sort_order").
 			Default(0),
 		field.Time("created_at").

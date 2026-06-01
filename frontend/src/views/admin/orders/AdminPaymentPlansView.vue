@@ -41,6 +41,9 @@
         <template #cell-amount="{ value }">
           <span class="text-sm font-medium text-gray-900 dark:text-white">${{ (value ?? 0).toFixed(2) }}</span>
         </template>
+        <template #cell-purchase_limit="{ value }">
+          <span class="text-sm text-gray-700 dark:text-gray-300">{{ formatPurchaseLimit(value) }}</span>
+        </template>
         <template #cell-for_sale="{ value, row }">
           <button
             type="button"
@@ -323,6 +326,7 @@ const balanceProductColumns = computed((): Column[] => [
   { key: 'name', label: t('payment.admin.productName') },
   { key: 'price', label: t('payment.admin.payPrice') },
   { key: 'amount', label: t('payment.admin.creditAmount') },
+  { key: 'purchase_limit', label: t('payment.admin.purchaseLimit') },
   { key: 'for_sale', label: t('payment.admin.forSale') },
   { key: 'actions', label: t('common.actions') },
 ])
@@ -336,6 +340,11 @@ const planColumns = computed((): Column[] => [
   { key: 'for_sale', label: t('payment.admin.forSale') },
   { key: 'actions', label: t('common.actions') },
 ])
+
+function formatPurchaseLimit(value: unknown): string {
+  const limit = Number(value) || 0
+  return limit > 0 ? String(limit) : t('payment.admin.unlimited')
+}
 
 async function loadPlans() {
   plansLoading.value = true

@@ -30,6 +30,7 @@ type BalanceProduct struct {
 	Features      string    `json:"features"`
 	ProductName   string    `json:"product_name"`
 	ForSale       bool      `json:"for_sale"`
+	PurchaseLimit int       `json:"purchase_limit"`
 	SortOrder     int       `json:"sort_order"`
 	CreatedAt     time.Time `json:"created_at"`
 	UpdatedAt     time.Time `json:"updated_at"`
@@ -45,6 +46,7 @@ type CreateBalanceProductRequest struct {
 	Features      string   `json:"features"`
 	ProductName   string   `json:"product_name"`
 	ForSale       bool     `json:"for_sale"`
+	PurchaseLimit int      `json:"purchase_limit"`
 	SortOrder     int      `json:"sort_order"`
 }
 
@@ -58,6 +60,7 @@ type UpdateBalanceProductRequest struct {
 	Features      *string  `json:"features"`
 	ProductName   *string  `json:"product_name"`
 	ForSale       *bool    `json:"for_sale"`
+	PurchaseLimit *int     `json:"purchase_limit"`
 	SortOrder     *int     `json:"sort_order"`
 }
 
@@ -73,6 +76,9 @@ func validateBalanceProductRequired(req CreateBalanceProductRequest) error {
 	}
 	if req.OriginalPrice != nil && *req.OriginalPrice < 0 {
 		return infraerrors.BadRequest("BALANCE_PRODUCT_ORIGINAL_PRICE_INVALID", "original price must be >= 0")
+	}
+	if req.PurchaseLimit < 0 {
+		return infraerrors.BadRequest("BALANCE_PRODUCT_PURCHASE_LIMIT_INVALID", "purchase limit must be >= 0")
 	}
 	if err := validateProductLines(req.Tags, maxProductTags, maxProductTagLen, "BALANCE_PRODUCT_TAGS_INVALID"); err != nil {
 		return err
@@ -95,6 +101,9 @@ func validateBalanceProductPatch(req UpdateBalanceProductRequest) error {
 	}
 	if req.OriginalPrice != nil && *req.OriginalPrice < 0 {
 		return infraerrors.BadRequest("BALANCE_PRODUCT_ORIGINAL_PRICE_INVALID", "original price must be >= 0")
+	}
+	if req.PurchaseLimit != nil && *req.PurchaseLimit < 0 {
+		return infraerrors.BadRequest("BALANCE_PRODUCT_PURCHASE_LIMIT_INVALID", "purchase limit must be >= 0")
 	}
 	if req.Tags != nil {
 		if err := validateProductLines(*req.Tags, maxProductTags, maxProductTagLen, "BALANCE_PRODUCT_TAGS_INVALID"); err != nil {
@@ -138,7 +147,7 @@ func splitProductLines(raw string) []string {
 
 func (s *PaymentConfigService) ListBalanceProducts(ctx context.Context) ([]*BalanceProduct, error) {
 	rows, err := s.entClient.QueryContext(ctx, `
-SELECT id, name, description, price, amount, original_price, tags, features, product_name, for_sale, sort_order, created_at, updated_at
+SELECT id, name, description, price, amount, original_price, tags, features, product_name, for_sale, purchase_limit, sort_order, created_at, updated_at
 FROM balance_products
 ORDER BY sort_order ASC, id ASC`)
 	if err != nil {
@@ -162,7 +171,7 @@ ORDER BY sort_order ASC, id ASC`)
 
 func (s *PaymentConfigService) ListBalanceProductsForSale(ctx context.Context) ([]*BalanceProduct, error) {
 	rows, err := s.entClient.QueryContext(ctx, `
-SELECT id, name, description, price, amount, original_price, tags, features, product_name, for_sale, sort_order, created_at, updated_at
+SELECT id, name, description, price, amount, original_price, tags, features, product_name, for_sale, purchase_limit, sort_order, created_at, updated_at
 FROM balance_products
 WHERE for_sale = TRUE
 ORDER BY sort_order ASC, id ASC`)
@@ -187,7 +196,7 @@ ORDER BY sort_order ASC, id ASC`)
 
 func (s *PaymentConfigService) GetBalanceProduct(ctx context.Context, id int64) (*BalanceProduct, error) {
 	rows, err := s.entClient.QueryContext(ctx, `
-SELECT id, name, description, price, amount, original_price, tags, features, product_name, for_sale, sort_order, created_at, updated_at
+SELECT id, name, description, price, amount, original_price, tags, features, product_name, for_sale, purchase_limit, sort_order, created_at, updated_at
 FROM balance_products
 WHERE id = $1`, id)
 	if err != nil {
@@ -217,11 +226,11 @@ func (s *PaymentConfigService) CreateBalanceProduct(ctx context.Context, req Cre
 		originalPrice = *req.OriginalPrice
 	}
 	rows, err := s.entClient.QueryContext(ctx, `
-INSERT INTO balance_products (name, description, price, amount, original_price, tags, features, product_name, for_sale, sort_order, created_at, updated_at)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
-RETURNING id, name, description, price, amount, original_price, tags, features, product_name, for_sale, sort_order, created_at, updated_at`,
+INSERT INTO balance_products (name, description, price, amount, original_price, tags, features, product_name, for_sale, purchase_limit, sort_order, created_at, updated_at)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+RETURNING id, name, description, price, amount, original_price, tags, features, product_name, for_sale, purchase_limit, sort_order, created_at, updated_at`,
 		strings.TrimSpace(req.Name), strings.TrimSpace(req.Description), req.Price, req.Amount, originalPrice,
-		normalizeProductLines(req.Tags), normalizeProductLines(req.Features), strings.TrimSpace(req.ProductName), req.ForSale, req.SortOrder, now, now)
+		normalizeProductLines(req.Tags), normalizeProductLines(req.Features), strings.TrimSpace(req.ProductName), req.ForSale, req.PurchaseLimit, req.SortOrder, now, now)
 	if err != nil {
 		return nil, fmt.Errorf("create balance product: %w", err)
 	}
@@ -268,6 +277,9 @@ func (s *PaymentConfigService) UpdateBalanceProduct(ctx context.Context, id int6
 	if req.ForSale != nil {
 		next.ForSale = *req.ForSale
 	}
+	if req.PurchaseLimit != nil {
+		next.PurchaseLimit = *req.PurchaseLimit
+	}
 	if req.SortOrder != nil {
 		next.SortOrder = *req.SortOrder
 	}
@@ -279,11 +291,11 @@ func (s *PaymentConfigService) UpdateBalanceProduct(ctx context.Context, id int6
 	rows, err := s.entClient.QueryContext(ctx, `
 UPDATE balance_products
 SET name = $2, description = $3, price = $4, amount = $5, original_price = $6, tags = $7, features = $8,
-    product_name = $9, for_sale = $10, sort_order = $11, updated_at = $12
+    product_name = $9, for_sale = $10, purchase_limit = $11, sort_order = $12, updated_at = $13
 WHERE id = $1
-RETURNING id, name, description, price, amount, original_price, tags, features, product_name, for_sale, sort_order, created_at, updated_at`,
+RETURNING id, name, description, price, amount, original_price, tags, features, product_name, for_sale, purchase_limit, sort_order, created_at, updated_at`,
 		id, next.Name, next.Description, next.Price, next.Amount, originalPrice, next.Tags, next.Features,
-		next.ProductName, next.ForSale, next.SortOrder, time.Now())
+		next.ProductName, next.ForSale, next.PurchaseLimit, next.SortOrder, time.Now())
 	if err != nil {
 		return nil, fmt.Errorf("update balance product: %w", err)
 	}
@@ -354,6 +366,7 @@ func scanBalanceProduct(scanner balanceProductScanner) (*BalanceProduct, error) 
 		&product.Features,
 		&product.ProductName,
 		&product.ForSale,
+		&product.PurchaseLimit,
 		&product.SortOrder,
 		&product.CreatedAt,
 		&product.UpdatedAt,

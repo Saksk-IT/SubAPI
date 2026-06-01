@@ -114,6 +114,7 @@ export interface BalanceProduct {
   features: string[] | string
   product_name?: string
   for_sale: boolean
+  purchase_limit: number
   sort_order: number
 }
 

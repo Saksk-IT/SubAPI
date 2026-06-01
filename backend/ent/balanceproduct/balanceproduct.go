@@ -31,6 +31,8 @@ const (
 	FieldProductName = "product_name"
 	// FieldForSale holds the string denoting the for_sale field in the database.
 	FieldForSale = "for_sale"
+	// FieldPurchaseLimit holds the string denoting the purchase_limit field in the database.
+	FieldPurchaseLimit = "purchase_limit"
 	// FieldSortOrder holds the string denoting the sort_order field in the database.
 	FieldSortOrder = "sort_order"
 	// FieldCreatedAt holds the string denoting the created_at field in the database.
@@ -53,6 +55,7 @@ var Columns = []string{
 	FieldFeatures,
 	FieldProductName,
 	FieldForSale,
+	FieldPurchaseLimit,
 	FieldSortOrder,
 	FieldCreatedAt,
 	FieldUpdatedAt,
@@ -83,6 +86,10 @@ var (
 	ProductNameValidator func(string) error
 	// DefaultForSale holds the default value on creation for the "for_sale" field.
 	DefaultForSale bool
+	// DefaultPurchaseLimit holds the default value on creation for the "purchase_limit" field.
+	DefaultPurchaseLimit int
+	// PurchaseLimitValidator is a validator for the "purchase_limit" field. It is called by the builders before save.
+	PurchaseLimitValidator func(int) error
 	// DefaultSortOrder holds the default value on creation for the "sort_order" field.
 	DefaultSortOrder int
 	// DefaultCreatedAt holds the default value on creation for the "created_at" field.
@@ -144,6 +151,11 @@ func ByProductName(opts ...sql.OrderTermOption) OrderOption {
 // ByForSale orders the results by the for_sale field.
 func ByForSale(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldForSale, opts...).ToFunc()
+}
+
+// ByPurchaseLimit orders the results by the purchase_limit field.
+func ByPurchaseLimit(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldPurchaseLimit, opts...).ToFunc()
 }
 
 // BySortOrder orders the results by the sort_order field.

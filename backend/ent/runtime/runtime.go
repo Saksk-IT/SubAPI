@@ -475,16 +475,22 @@ func init() {
 	balanceproductDescForSale := balanceproductFields[8].Descriptor()
 	// balanceproduct.DefaultForSale holds the default value on creation for the for_sale field.
 	balanceproduct.DefaultForSale = balanceproductDescForSale.Default.(bool)
+	// balanceproductDescPurchaseLimit is the schema descriptor for purchase_limit field.
+	balanceproductDescPurchaseLimit := balanceproductFields[9].Descriptor()
+	// balanceproduct.DefaultPurchaseLimit holds the default value on creation for the purchase_limit field.
+	balanceproduct.DefaultPurchaseLimit = balanceproductDescPurchaseLimit.Default.(int)
+	// balanceproduct.PurchaseLimitValidator is a validator for the "purchase_limit" field. It is called by the builders before save.
+	balanceproduct.PurchaseLimitValidator = balanceproductDescPurchaseLimit.Validators[0].(func(int) error)
 	// balanceproductDescSortOrder is the schema descriptor for sort_order field.
-	balanceproductDescSortOrder := balanceproductFields[9].Descriptor()
+	balanceproductDescSortOrder := balanceproductFields[10].Descriptor()
 	// balanceproduct.DefaultSortOrder holds the default value on creation for the sort_order field.
 	balanceproduct.DefaultSortOrder = balanceproductDescSortOrder.Default.(int)
 	// balanceproductDescCreatedAt is the schema descriptor for created_at field.
-	balanceproductDescCreatedAt := balanceproductFields[10].Descriptor()
+	balanceproductDescCreatedAt := balanceproductFields[11].Descriptor()
 	// balanceproduct.DefaultCreatedAt holds the default value on creation for the created_at field.
 	balanceproduct.DefaultCreatedAt = balanceproductDescCreatedAt.Default.(func() time.Time)
 	// balanceproductDescUpdatedAt is the schema descriptor for updated_at field.
-	balanceproductDescUpdatedAt := balanceproductFields[11].Descriptor()
+	balanceproductDescUpdatedAt := balanceproductFields[12].Descriptor()
 	// balanceproduct.DefaultUpdatedAt holds the default value on creation for the updated_at field.
 	balanceproduct.DefaultUpdatedAt = balanceproductDescUpdatedAt.Default.(func() time.Time)
 	// balanceproduct.UpdateDefaultUpdatedAt holds the default value on update for the updated_at field.

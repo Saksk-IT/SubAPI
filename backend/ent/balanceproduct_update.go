@@ -181,6 +181,27 @@ func (_u *BalanceProductUpdate) SetNillableForSale(v *bool) *BalanceProductUpdat
 	return _u
 }
 
+// SetPurchaseLimit sets the "purchase_limit" field.
+func (_u *BalanceProductUpdate) SetPurchaseLimit(v int) *BalanceProductUpdate {
+	_u.mutation.ResetPurchaseLimit()
+	_u.mutation.SetPurchaseLimit(v)
+	return _u
+}
+
+// SetNillablePurchaseLimit sets the "purchase_limit" field if the given value is not nil.
+func (_u *BalanceProductUpdate) SetNillablePurchaseLimit(v *int) *BalanceProductUpdate {
+	if v != nil {
+		_u.SetPurchaseLimit(*v)
+	}
+	return _u
+}
+
+// AddPurchaseLimit adds value to the "purchase_limit" field.
+func (_u *BalanceProductUpdate) AddPurchaseLimit(v int) *BalanceProductUpdate {
+	_u.mutation.AddPurchaseLimit(v)
+	return _u
+}
+
 // SetSortOrder sets the "sort_order" field.
 func (_u *BalanceProductUpdate) SetSortOrder(v int) *BalanceProductUpdate {
 	_u.mutation.ResetSortOrder()
@@ -261,6 +282,11 @@ func (_u *BalanceProductUpdate) check() error {
 			return &ValidationError{Name: "product_name", err: fmt.Errorf(`ent: validator failed for field "BalanceProduct.product_name": %w`, err)}
 		}
 	}
+	if v, ok := _u.mutation.PurchaseLimit(); ok {
+		if err := balanceproduct.PurchaseLimitValidator(v); err != nil {
+			return &ValidationError{Name: "purchase_limit", err: fmt.Errorf(`ent: validator failed for field "BalanceProduct.purchase_limit": %w`, err)}
+		}
+	}
 	return nil
 }
 
@@ -314,6 +340,12 @@ func (_u *BalanceProductUpdate) sqlSave(ctx context.Context) (_node int, err err
 	}
 	if value, ok := _u.mutation.ForSale(); ok {
 		_spec.SetField(balanceproduct.FieldForSale, field.TypeBool, value)
+	}
+	if value, ok := _u.mutation.PurchaseLimit(); ok {
+		_spec.SetField(balanceproduct.FieldPurchaseLimit, field.TypeInt, value)
+	}
+	if value, ok := _u.mutation.AddedPurchaseLimit(); ok {
+		_spec.AddField(balanceproduct.FieldPurchaseLimit, field.TypeInt, value)
 	}
 	if value, ok := _u.mutation.SortOrder(); ok {
 		_spec.SetField(balanceproduct.FieldSortOrder, field.TypeInt, value)
@@ -497,6 +529,27 @@ func (_u *BalanceProductUpdateOne) SetNillableForSale(v *bool) *BalanceProductUp
 	return _u
 }
 
+// SetPurchaseLimit sets the "purchase_limit" field.
+func (_u *BalanceProductUpdateOne) SetPurchaseLimit(v int) *BalanceProductUpdateOne {
+	_u.mutation.ResetPurchaseLimit()
+	_u.mutation.SetPurchaseLimit(v)
+	return _u
+}
+
+// SetNillablePurchaseLimit sets the "purchase_limit" field if the given value is not nil.
+func (_u *BalanceProductUpdateOne) SetNillablePurchaseLimit(v *int) *BalanceProductUpdateOne {
+	if v != nil {
+		_u.SetPurchaseLimit(*v)
+	}
+	return _u
+}
+
+// AddPurchaseLimit adds value to the "purchase_limit" field.
+func (_u *BalanceProductUpdateOne) AddPurchaseLimit(v int) *BalanceProductUpdateOne {
+	_u.mutation.AddPurchaseLimit(v)
+	return _u
+}
+
 // SetSortOrder sets the "sort_order" field.
 func (_u *BalanceProductUpdateOne) SetSortOrder(v int) *BalanceProductUpdateOne {
 	_u.mutation.ResetSortOrder()
@@ -590,6 +643,11 @@ func (_u *BalanceProductUpdateOne) check() error {
 			return &ValidationError{Name: "product_name", err: fmt.Errorf(`ent: validator failed for field "BalanceProduct.product_name": %w`, err)}
 		}
 	}
+	if v, ok := _u.mutation.PurchaseLimit(); ok {
+		if err := balanceproduct.PurchaseLimitValidator(v); err != nil {
+			return &ValidationError{Name: "purchase_limit", err: fmt.Errorf(`ent: validator failed for field "BalanceProduct.purchase_limit": %w`, err)}
+		}
+	}
 	return nil
 }
 
@@ -660,6 +718,12 @@ func (_u *BalanceProductUpdateOne) sqlSave(ctx context.Context) (_node *BalanceP
 	}
 	if value, ok := _u.mutation.ForSale(); ok {
 		_spec.SetField(balanceproduct.FieldForSale, field.TypeBool, value)
+	}
+	if value, ok := _u.mutation.PurchaseLimit(); ok {
+		_spec.SetField(balanceproduct.FieldPurchaseLimit, field.TypeInt, value)
+	}
+	if value, ok := _u.mutation.AddedPurchaseLimit(); ok {
+		_spec.AddField(balanceproduct.FieldPurchaseLimit, field.TypeInt, value)
 	}
 	if value, ok := _u.mutation.SortOrder(); ok {
 		_spec.SetField(balanceproduct.FieldSortOrder, field.TypeInt, value)

@@ -834,6 +834,14 @@ const balanceProductCards = computed<PurchaseCardItem<BalanceProduct>[]>(() =>
   (checkout.value.balance_products || []).map((product) => {
     const price = Number(product.price) || 0
     const amount = Number(product.amount) || 0
+    const purchaseLimit = Math.max(0, Math.floor(Number(product.purchase_limit) || 0))
+    const metrics: PurchaseProductMetric[] = [
+      { label: t('payment.product.exchangeRate'), value: formatExchangeRate(amount, price) },
+      { label: t('payment.product.validity'), value: t('payment.product.permanent') },
+    ]
+    if (purchaseLimit > 0) {
+      metrics.push({ label: t('payment.product.purchaseLimit'), value: t('payment.product.purchaseLimitValue', { count: purchaseLimit }) })
+    }
     return {
       raw: product,
       product: {
@@ -852,10 +860,7 @@ const balanceProductCards = computed<PurchaseCardItem<BalanceProduct>[]>(() =>
           tone: 'strong',
         },
       ],
-      metrics: [
-        { label: t('payment.product.exchangeRate'), value: formatExchangeRate(amount, price) },
-        { label: t('payment.product.validity'), value: t('payment.product.permanent') },
-      ],
+      metrics,
       priceRows: buildProductPriceRows(price, product.original_price),
       methods: amountMethodOptions(price),
     }

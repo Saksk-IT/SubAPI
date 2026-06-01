@@ -144,6 +144,7 @@ function checkoutInfoWithBalanceProductsFixture() {
           tags: ['Debug'],
           features: ['Light tasks'],
           product_name: '',
+          purchase_limit: 0,
           sort_order: 1,
           for_sale: true,
         },

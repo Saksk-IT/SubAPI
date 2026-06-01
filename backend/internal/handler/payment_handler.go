@@ -124,7 +124,8 @@ func (h *PaymentHandler) GetCheckoutInfo(c *gin.Context) {
 	for _, p := range balanceProducts {
 		balanceProductList = append(balanceProductList, checkoutBalanceProduct{
 			ID: p.ID, Name: p.Name, Description: p.Description, Price: p.Price, Amount: p.Amount, OriginalPrice: p.OriginalPrice,
-			Tags: parseFeatures(p.Tags), Features: parseFeatures(p.Features), ProductName: p.ProductName, ForSale: p.ForSale, SortOrder: p.SortOrder,
+			Tags: parseFeatures(p.Tags), Features: parseFeatures(p.Features), ProductName: p.ProductName, ForSale: p.ForSale,
+			PurchaseLimit: p.PurchaseLimit, SortOrder: p.SortOrder,
 		})
 	}
 
@@ -148,7 +149,7 @@ type checkoutInfoResponse struct {
 	Methods                   map[string]service.MethodLimits `json:"methods"`
 	GlobalMin                 float64                         `json:"global_min"`
 	GlobalMax                 float64                         `json:"global_max"`
-	BalanceProducts           []checkoutBalanceProduct         `json:"balance_products"`
+	BalanceProducts           []checkoutBalanceProduct        `json:"balance_products"`
 	Plans                     []checkoutPlan                  `json:"plans"`
 	BalanceDisabled           bool                            `json:"balance_disabled"`
 	BalanceRechargeMultiplier float64                         `json:"balance_recharge_multiplier"`
@@ -170,6 +171,7 @@ type checkoutBalanceProduct struct {
 	Features      []string `json:"features"`
 	ProductName   string   `json:"product_name"`
 	ForSale       bool     `json:"for_sale"`
+	PurchaseLimit int      `json:"purchase_limit"`
 	SortOrder     int      `json:"sort_order"`
 }
 
@@ -274,21 +276,21 @@ func (h *PaymentHandler) CreateOrder(c *gin.Context) {
 		mobile = *req.IsMobile
 	}
 	result, err := h.paymentService.CreateOrder(c.Request.Context(), service.CreateOrderRequest{
-		UserID:          subject.UserID,
-		Amount:          req.Amount,
-		PaymentType:     req.PaymentType,
-		OpenID:          req.OpenID,
-		ClientIP:        c.ClientIP(),
-		IsMobile:        mobile,
-		IsWeChatBrowser: isWeChatBrowser(c),
-		SrcHost:         c.Request.Host,
-		SrcURL:          c.Request.Referer(),
-		ReturnURL:       req.ReturnURL,
-		PaymentSource:   req.PaymentSource,
-		OrderType:       req.OrderType,
-		PlanID:          req.PlanID,
+		UserID:           subject.UserID,
+		Amount:           req.Amount,
+		PaymentType:      req.PaymentType,
+		OpenID:           req.OpenID,
+		ClientIP:         c.ClientIP(),
+		IsMobile:         mobile,
+		IsWeChatBrowser:  isWeChatBrowser(c),
+		SrcHost:          c.Request.Host,
+		SrcURL:           c.Request.Referer(),
+		ReturnURL:        req.ReturnURL,
+		PaymentSource:    req.PaymentSource,
+		OrderType:        req.OrderType,
+		PlanID:           req.PlanID,
 		BalanceProductID: req.BalanceProductID,
-		Locale:          c.GetHeader("Accept-Language"),
+		Locale:           c.GetHeader("Accept-Language"),
 	})
 	if err != nil {
 		response.ErrorFrom(c, err)

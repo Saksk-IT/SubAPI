@@ -26,6 +26,11 @@
         </div>
       </div>
       <div>
+        <label class="input-label">{{ t('payment.admin.purchaseLimit') }}</label>
+        <input v-model.number="form.purchase_limit" type="number" min="0" step="1" class="input" />
+        <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">{{ t('payment.admin.purchaseLimitHint') }}</p>
+      </div>
+      <div>
         <label class="input-label">{{ t('payment.admin.productDescription') }}</label>
         <textarea v-model="form.description" rows="2" class="input"></textarea>
       </div>
@@ -97,6 +102,7 @@ const form = reactive({
   features: '',
   product_name: '',
   for_sale: true,
+  purchase_limit: 0,
 })
 
 function textList(value: string | string[] | undefined): string {
@@ -117,6 +123,7 @@ watch(() => props.show, (visible) => {
       features: textList(props.product.features),
       product_name: props.product.product_name || '',
       for_sale: props.product.for_sale,
+      purchase_limit: props.product.purchase_limit || 0,
     })
   } else {
     Object.assign(form, {
@@ -129,6 +136,7 @@ watch(() => props.show, (visible) => {
       features: '',
       product_name: '',
       for_sale: true,
+      purchase_limit: 0,
     })
   }
 })
@@ -144,6 +152,7 @@ function buildPayload() {
     features: form.features,
     product_name: form.product_name,
     for_sale: form.for_sale,
+    purchase_limit: Math.max(0, Math.floor(Number(form.purchase_limit) || 0)),
   }
 }
 

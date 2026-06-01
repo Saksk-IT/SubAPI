@@ -124,6 +124,20 @@ func (_c *BalanceProductCreate) SetNillableForSale(v *bool) *BalanceProductCreat
 	return _c
 }
 
+// SetPurchaseLimit sets the "purchase_limit" field.
+func (_c *BalanceProductCreate) SetPurchaseLimit(v int) *BalanceProductCreate {
+	_c.mutation.SetPurchaseLimit(v)
+	return _c
+}
+
+// SetNillablePurchaseLimit sets the "purchase_limit" field if the given value is not nil.
+func (_c *BalanceProductCreate) SetNillablePurchaseLimit(v *int) *BalanceProductCreate {
+	if v != nil {
+		_c.SetPurchaseLimit(*v)
+	}
+	return _c
+}
+
 // SetSortOrder sets the "sort_order" field.
 func (_c *BalanceProductCreate) SetSortOrder(v int) *BalanceProductCreate {
 	_c.mutation.SetSortOrder(v)
@@ -221,6 +235,10 @@ func (_c *BalanceProductCreate) defaults() {
 		v := balanceproduct.DefaultForSale
 		_c.mutation.SetForSale(v)
 	}
+	if _, ok := _c.mutation.PurchaseLimit(); !ok {
+		v := balanceproduct.DefaultPurchaseLimit
+		_c.mutation.SetPurchaseLimit(v)
+	}
 	if _, ok := _c.mutation.SortOrder(); !ok {
 		v := balanceproduct.DefaultSortOrder
 		_c.mutation.SetSortOrder(v)
@@ -270,6 +288,14 @@ func (_c *BalanceProductCreate) check() error {
 	}
 	if _, ok := _c.mutation.ForSale(); !ok {
 		return &ValidationError{Name: "for_sale", err: errors.New(`ent: missing required field "BalanceProduct.for_sale"`)}
+	}
+	if _, ok := _c.mutation.PurchaseLimit(); !ok {
+		return &ValidationError{Name: "purchase_limit", err: errors.New(`ent: missing required field "BalanceProduct.purchase_limit"`)}
+	}
+	if v, ok := _c.mutation.PurchaseLimit(); ok {
+		if err := balanceproduct.PurchaseLimitValidator(v); err != nil {
+			return &ValidationError{Name: "purchase_limit", err: fmt.Errorf(`ent: validator failed for field "BalanceProduct.purchase_limit": %w`, err)}
+		}
 	}
 	if _, ok := _c.mutation.SortOrder(); !ok {
 		return &ValidationError{Name: "sort_order", err: errors.New(`ent: missing required field "BalanceProduct.sort_order"`)}
@@ -342,6 +368,10 @@ func (_c *BalanceProductCreate) createSpec() (*BalanceProduct, *sqlgraph.CreateS
 	if value, ok := _c.mutation.ForSale(); ok {
 		_spec.SetField(balanceproduct.FieldForSale, field.TypeBool, value)
 		_node.ForSale = value
+	}
+	if value, ok := _c.mutation.PurchaseLimit(); ok {
+		_spec.SetField(balanceproduct.FieldPurchaseLimit, field.TypeInt, value)
+		_node.PurchaseLimit = value
 	}
 	if value, ok := _c.mutation.SortOrder(); ok {
 		_spec.SetField(balanceproduct.FieldSortOrder, field.TypeInt, value)
@@ -536,6 +566,24 @@ func (u *BalanceProductUpsert) SetForSale(v bool) *BalanceProductUpsert {
 // UpdateForSale sets the "for_sale" field to the value that was provided on create.
 func (u *BalanceProductUpsert) UpdateForSale() *BalanceProductUpsert {
 	u.SetExcluded(balanceproduct.FieldForSale)
+	return u
+}
+
+// SetPurchaseLimit sets the "purchase_limit" field.
+func (u *BalanceProductUpsert) SetPurchaseLimit(v int) *BalanceProductUpsert {
+	u.Set(balanceproduct.FieldPurchaseLimit, v)
+	return u
+}
+
+// UpdatePurchaseLimit sets the "purchase_limit" field to the value that was provided on create.
+func (u *BalanceProductUpsert) UpdatePurchaseLimit() *BalanceProductUpsert {
+	u.SetExcluded(balanceproduct.FieldPurchaseLimit)
+	return u
+}
+
+// AddPurchaseLimit adds v to the "purchase_limit" field.
+func (u *BalanceProductUpsert) AddPurchaseLimit(v int) *BalanceProductUpsert {
+	u.Add(balanceproduct.FieldPurchaseLimit, v)
 	return u
 }
 
@@ -765,6 +813,27 @@ func (u *BalanceProductUpsertOne) SetForSale(v bool) *BalanceProductUpsertOne {
 func (u *BalanceProductUpsertOne) UpdateForSale() *BalanceProductUpsertOne {
 	return u.Update(func(s *BalanceProductUpsert) {
 		s.UpdateForSale()
+	})
+}
+
+// SetPurchaseLimit sets the "purchase_limit" field.
+func (u *BalanceProductUpsertOne) SetPurchaseLimit(v int) *BalanceProductUpsertOne {
+	return u.Update(func(s *BalanceProductUpsert) {
+		s.SetPurchaseLimit(v)
+	})
+}
+
+// AddPurchaseLimit adds v to the "purchase_limit" field.
+func (u *BalanceProductUpsertOne) AddPurchaseLimit(v int) *BalanceProductUpsertOne {
+	return u.Update(func(s *BalanceProductUpsert) {
+		s.AddPurchaseLimit(v)
+	})
+}
+
+// UpdatePurchaseLimit sets the "purchase_limit" field to the value that was provided on create.
+func (u *BalanceProductUpsertOne) UpdatePurchaseLimit() *BalanceProductUpsertOne {
+	return u.Update(func(s *BalanceProductUpsert) {
+		s.UpdatePurchaseLimit()
 	})
 }
 
@@ -1165,6 +1234,27 @@ func (u *BalanceProductUpsertBulk) SetForSale(v bool) *BalanceProductUpsertBulk 
 func (u *BalanceProductUpsertBulk) UpdateForSale() *BalanceProductUpsertBulk {
 	return u.Update(func(s *BalanceProductUpsert) {
 		s.UpdateForSale()
+	})
+}
+
+// SetPurchaseLimit sets the "purchase_limit" field.
+func (u *BalanceProductUpsertBulk) SetPurchaseLimit(v int) *BalanceProductUpsertBulk {
+	return u.Update(func(s *BalanceProductUpsert) {
+		s.SetPurchaseLimit(v)
+	})
+}
+
+// AddPurchaseLimit adds v to the "purchase_limit" field.
+func (u *BalanceProductUpsertBulk) AddPurchaseLimit(v int) *BalanceProductUpsertBulk {
+	return u.Update(func(s *BalanceProductUpsert) {
+		s.AddPurchaseLimit(v)
+	})
+}
+
+// UpdatePurchaseLimit sets the "purchase_limit" field to the value that was provided on create.
+func (u *BalanceProductUpsertBulk) UpdatePurchaseLimit() *BalanceProductUpsertBulk {
+	return u.Update(func(s *BalanceProductUpsert) {
+		s.UpdatePurchaseLimit()
 	})
 }
 
