@@ -32,6 +32,7 @@ type GroupRateScheduleSettings struct {
 	EndTime          string             `json:"end_time"`
 	Percent          int                `json:"percent"`
 	Timezone         string             `json:"timezone"`
+	GroupIDs         []int64            `json:"group_ids"`
 	Active           bool               `json:"active"`
 	OriginalRates    map[string]float64 `json:"original_rates,omitempty"`
 	LastAppliedAt    *time.Time         `json:"last_applied_at,omitempty"`
@@ -127,6 +128,9 @@ func (s *GroupRateScheduleService) UpdateSettings(ctx context.Context, input *Gr
 	normalized.LastRestoredAt = cloneGroupRateScheduleTimePtr(current.LastRestoredAt)
 	normalized.LastTransitionAt = cloneGroupRateScheduleTimePtr(current.LastTransitionAt)
 
+	if err := s.validateTargetGroups(ctx, normalized.GroupIDs); err != nil {
+		return nil, err
+	}
 	if err := saveGroupRateScheduleSettings(ctx, s.settingRepo, normalized); err != nil {
 		return nil, err
 	}
@@ -189,15 +193,56 @@ func (s *GroupRateScheduleService) apply(ctx context.Context, settings *GroupRat
 	}
 
 	discount := float64(settings.Percent) / 100
+	targets := buildGroupRateScheduleTargetSet(settings.GroupIDs, groups)
 	originalRates := copyRateMap(settings.OriginalRates)
 	if originalRates == nil {
 		originalRates = make(map[string]float64, len(groups))
 	}
-	updates := make([]GroupRateMultiplierUpdate, 0, len(groups))
-	updatedGroupIDs := make([]int64, 0, len(groups))
+	updates := make([]GroupRateMultiplierUpdate, 0, len(groups)+len(originalRates))
+	updatedGroupIDs := make([]int64, 0, len(groups)+len(originalRates))
 	changedOriginalRates := false
+	groupByID := make(map[int64]Group, len(groups))
 	for i := range groups {
 		group := groups[i]
+		groupByID[group.ID] = group
+	}
+
+	originalKeys := make([]string, 0, len(originalRates))
+	for key := range originalRates {
+		originalKeys = append(originalKeys, key)
+	}
+	sort.Strings(originalKeys)
+	for _, key := range originalKeys {
+		groupID, err := strconv.ParseInt(key, 10, 64)
+		if err != nil || groupID <= 0 {
+			delete(originalRates, key)
+			changedOriginalRates = true
+			continue
+		}
+		if _, selected := targets[groupID]; selected {
+			continue
+		}
+		group, exists := groupByID[groupID]
+		rate := originalRates[key]
+		delete(originalRates, key)
+		changedOriginalRates = true
+		if !exists || rate <= 0 {
+			continue
+		}
+		if math.Abs(group.RateMultiplier-rate) > groupRateScheduleApplyTolerance {
+			updates = append(updates, GroupRateMultiplierUpdate{
+				ID:             groupID,
+				RateMultiplier: rate,
+			})
+			updatedGroupIDs = append(updatedGroupIDs, groupID)
+		}
+	}
+
+	for i := range groups {
+		group := groups[i]
+		if _, selected := targets[group.ID]; !selected {
+			continue
+		}
 		key := strconv.FormatInt(group.ID, 10)
 		if _, exists := originalRates[key]; !exists {
 			originalRates[key] = group.RateMultiplier
@@ -257,6 +302,26 @@ func (s *GroupRateScheduleService) listAllGroups(ctx context.Context) ([]Group, 
 			return allGroups, nil
 		}
 	}
+}
+
+func (s *GroupRateScheduleService) validateTargetGroups(ctx context.Context, groupIDs []int64) error {
+	if len(groupIDs) == 0 || s.groupRepo == nil {
+		return nil
+	}
+	groups, err := s.listAllGroups(ctx)
+	if err != nil {
+		return fmt.Errorf("list groups: %w", err)
+	}
+	existing := make(map[int64]struct{}, len(groups))
+	for i := range groups {
+		existing[groups[i].ID] = struct{}{}
+	}
+	for _, groupID := range groupIDs {
+		if _, ok := existing[groupID]; !ok {
+			return infraerrors.BadRequest("INVALID_GROUP_RATE_SCHEDULE", fmt.Sprintf("group_id %d does not exist", groupID))
+		}
+	}
+	return nil
 }
 
 func (s *GroupRateScheduleService) restore(ctx context.Context, settings *GroupRateScheduleSettings) error {
@@ -334,6 +399,7 @@ func DefaultGroupRateScheduleSettings() *GroupRateScheduleSettings {
 		EndTime:       defaultGroupRateScheduleEndTime,
 		Percent:       defaultGroupRateSchedulePercent,
 		Timezone:      "",
+		GroupIDs:      nil,
 		Active:        false,
 		OriginalRates: nil,
 	}
@@ -409,18 +475,60 @@ func normalizeGroupRateScheduleSettings(input *GroupRateScheduleSettings) (*Grou
 	if percent < 1 || percent > 100 {
 		return nil, infraerrors.BadRequest("INVALID_GROUP_RATE_SCHEDULE", "percent must be between 1 and 100")
 	}
+	groupIDs, err := normalizeGroupRateScheduleGroupIDs(input.GroupIDs)
+	if err != nil {
+		return nil, err
+	}
 	return &GroupRateScheduleSettings{
 		Enabled:          input.Enabled,
 		StartTime:        startTime,
 		EndTime:          endTime,
 		Percent:          percent,
 		Timezone:         strings.TrimSpace(input.Timezone),
+		GroupIDs:         groupIDs,
 		Active:           input.Active,
 		OriginalRates:    copyRateMap(input.OriginalRates),
 		LastAppliedAt:    cloneGroupRateScheduleTimePtr(input.LastAppliedAt),
 		LastRestoredAt:   cloneGroupRateScheduleTimePtr(input.LastRestoredAt),
 		LastTransitionAt: cloneGroupRateScheduleTimePtr(input.LastTransitionAt),
 	}, nil
+}
+
+func normalizeGroupRateScheduleGroupIDs(input []int64) ([]int64, error) {
+	if len(input) == 0 {
+		return nil, nil
+	}
+	seen := make(map[int64]struct{}, len(input))
+	groupIDs := make([]int64, 0, len(input))
+	for _, groupID := range input {
+		if groupID <= 0 {
+			return nil, infraerrors.BadRequest("INVALID_GROUP_RATE_SCHEDULE", "group_ids must contain positive integers")
+		}
+		if _, ok := seen[groupID]; ok {
+			continue
+		}
+		seen[groupID] = struct{}{}
+		groupIDs = append(groupIDs, groupID)
+	}
+	sort.Slice(groupIDs, func(i, j int) bool {
+		return groupIDs[i] < groupIDs[j]
+	})
+	return groupIDs, nil
+}
+
+func buildGroupRateScheduleTargetSet(groupIDs []int64, groups []Group) map[int64]struct{} {
+	if len(groupIDs) == 0 {
+		targets := make(map[int64]struct{}, len(groups))
+		for i := range groups {
+			targets[groups[i].ID] = struct{}{}
+		}
+		return targets
+	}
+	targets := make(map[int64]struct{}, len(groupIDs))
+	for _, groupID := range groupIDs {
+		targets[groupID] = struct{}{}
+	}
+	return targets
 }
 
 func (s *GroupRateScheduleSettings) inWindow(now time.Time) (bool, error) {
@@ -479,6 +587,7 @@ func cloneGroupRateScheduleSettings(input *GroupRateScheduleSettings) *GroupRate
 		EndTime:          input.EndTime,
 		Percent:          input.Percent,
 		Timezone:         input.Timezone,
+		GroupIDs:         copyInt64Slice(input.GroupIDs),
 		Active:           input.Active,
 		OriginalRates:    copyRateMap(input.OriginalRates),
 		LastAppliedAt:    cloneGroupRateScheduleTimePtr(input.LastAppliedAt),
@@ -495,6 +604,15 @@ func copyRateMap(input map[string]float64) map[string]float64 {
 	for key, value := range input {
 		out[key] = value
 	}
+	return out
+}
+
+func copyInt64Slice(input []int64) []int64 {
+	if len(input) == 0 {
+		return nil
+	}
+	out := make([]int64, len(input))
+	copy(out, input)
 	return out
 }
 

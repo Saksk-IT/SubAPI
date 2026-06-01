@@ -199,6 +199,66 @@ func TestGroupRateScheduleService_ApplyRefreshesActiveSchedule(t *testing.T) {
 	require.Equal(t, map[string]float64{"1": 1.0, "2": 1.5, "3": 2.0}, settings.OriginalRates)
 }
 
+func TestGroupRateScheduleService_ApplyAndRefreshesSelectedGroups(t *testing.T) {
+	repo := &groupRateScheduleSettingRepoStub{}
+	groupRepo := &groupRateScheduleGroupRepoStub{groups: []Group{
+		{ID: 1, RateMultiplier: 1.0},
+		{ID: 2, RateMultiplier: 1.5},
+		{ID: 3, RateMultiplier: 2.0},
+	}}
+	invalidator := &groupRateScheduleInvalidatorStub{}
+	svc := NewGroupRateScheduleService(repo, groupRepo, invalidator)
+	svc.now = func() time.Time {
+		return time.Date(2026, 5, 24, 10, 30, 0, 0, time.UTC)
+	}
+
+	settings, err := svc.UpdateSettings(context.Background(), &GroupRateScheduleSettings{
+		Enabled:   true,
+		StartTime: "10:00",
+		EndTime:   "11:00",
+		Percent:   80,
+		GroupIDs:  []int64{2, 3},
+	})
+	require.NoError(t, err)
+	require.True(t, settings.Active)
+	require.Equal(t, []int64{2, 3}, settings.GroupIDs)
+	require.Equal(t, 1.0, groupRepo.groups[0].RateMultiplier)
+	require.InDelta(t, 1.2, groupRepo.groups[1].RateMultiplier, 0.0000001)
+	require.InDelta(t, 1.6, groupRepo.groups[2].RateMultiplier, 0.0000001)
+	require.Equal(t, map[string]float64{"2": 1.5, "3": 2.0}, settings.OriginalRates)
+	require.ElementsMatch(t, []int64{2, 3}, invalidator.groupIDs)
+
+	settings, err = svc.UpdateSettings(context.Background(), &GroupRateScheduleSettings{
+		Enabled:   true,
+		StartTime: "10:00",
+		EndTime:   "11:00",
+		Percent:   90,
+		GroupIDs:  []int64{1, 3},
+	})
+	require.NoError(t, err)
+	require.True(t, settings.Active)
+	require.Equal(t, []int64{1, 3}, settings.GroupIDs)
+	require.InDelta(t, 0.9, groupRepo.groups[0].RateMultiplier, 0.0000001)
+	require.Equal(t, 1.5, groupRepo.groups[1].RateMultiplier)
+	require.InDelta(t, 1.8, groupRepo.groups[2].RateMultiplier, 0.0000001)
+	require.Equal(t, map[string]float64{"1": 1.0, "3": 2.0}, settings.OriginalRates)
+	require.ElementsMatch(t, []int64{2, 3, 1, 2, 3}, invalidator.groupIDs)
+
+	svc.now = func() time.Time {
+		return time.Date(2026, 5, 24, 11, 0, 0, 0, time.UTC)
+	}
+	err = svc.evaluate(context.Background())
+	require.NoError(t, err)
+	settings, err = svc.GetSettings(context.Background())
+	require.NoError(t, err)
+	require.False(t, settings.Active)
+	require.Empty(t, settings.OriginalRates)
+	require.Equal(t, 1.0, groupRepo.groups[0].RateMultiplier)
+	require.Equal(t, 1.5, groupRepo.groups[1].RateMultiplier)
+	require.Equal(t, 2.0, groupRepo.groups[2].RateMultiplier)
+	require.ElementsMatch(t, []int64{2, 3, 1, 2, 3, 1, 3}, invalidator.groupIDs)
+}
+
 func TestGroupRateScheduleSettings_InWindowAcrossMidnight(t *testing.T) {
 	settings := &GroupRateScheduleSettings{
 		Enabled:   true,

@@ -191,6 +191,7 @@ export interface GroupRateScheduleSettings {
   end_time: string
   percent: number
   timezone: string
+  group_ids?: number[] | null
   active: boolean
   original_rates?: Record<string, number>
   last_applied_at?: string | null
@@ -201,7 +202,9 @@ export interface GroupRateScheduleSettings {
 export type UpdateGroupRateScheduleRequest = Pick<
   GroupRateScheduleSettings,
   'enabled' | 'start_time' | 'end_time' | 'percent' | 'timezone'
->
+> & {
+  group_ids: number[]
+}
 
 /**
  * Get global daily group rate schedule settings.

@@ -3114,12 +3114,107 @@
             >
           </div>
           <p class="input-hint">
-            {{
-              t("admin.groups.rateSchedule.preview", {
-                multiplier: rateScheduleMultiplierPreview,
-              })
-            }}
+            {{ rateSchedulePreviewText }}
           </p>
+        </div>
+
+        <div>
+          <label class="input-label">{{
+            t("admin.groups.rateSchedule.targetGroups")
+          }}</label>
+          <div class="grid grid-cols-1 gap-2 sm:grid-cols-2">
+            <button
+              type="button"
+              :disabled="rateScheduleLoading"
+              @click="setRateScheduleScope('all')"
+              :class="[
+                'rounded-lg border px-3 py-2 text-left transition-colors',
+                rateScheduleScopeMode === 'all'
+                  ? 'border-primary-500 bg-primary-50 text-primary-700 dark:border-primary-400 dark:bg-primary-900/20 dark:text-primary-200'
+                  : 'border-gray-200 text-gray-700 hover:bg-gray-50 dark:border-dark-600 dark:text-gray-200 dark:hover:bg-dark-800',
+              ]"
+            >
+              <span class="block text-sm font-medium">{{
+                t("admin.groups.rateSchedule.allGroupsScope")
+              }}</span>
+              <span class="mt-1 block text-xs text-gray-500 dark:text-gray-400">{{
+                t("admin.groups.rateSchedule.allGroupsHint")
+              }}</span>
+            </button>
+            <button
+              type="button"
+              :disabled="rateScheduleLoading"
+              @click="setRateScheduleScope('selected')"
+              :class="[
+                'rounded-lg border px-3 py-2 text-left transition-colors',
+                rateScheduleScopeMode === 'selected'
+                  ? 'border-primary-500 bg-primary-50 text-primary-700 dark:border-primary-400 dark:bg-primary-900/20 dark:text-primary-200'
+                  : 'border-gray-200 text-gray-700 hover:bg-gray-50 dark:border-dark-600 dark:text-gray-200 dark:hover:bg-dark-800',
+              ]"
+            >
+              <span class="block text-sm font-medium">{{
+                t("admin.groups.rateSchedule.selectedGroupsScope")
+              }}</span>
+              <span class="mt-1 block text-xs text-gray-500 dark:text-gray-400">{{
+                t("admin.groups.rateSchedule.selectedGroupsHint")
+              }}</span>
+            </button>
+          </div>
+
+          <div
+            v-if="rateScheduleScopeMode === 'selected'"
+            class="mt-3 rounded-lg border border-gray-200 dark:border-dark-600"
+          >
+            <div
+              class="flex items-center justify-between gap-3 border-b border-gray-100 px-3 py-2 text-xs text-gray-500 dark:border-dark-700 dark:text-gray-400"
+            >
+              <span>{{
+                t("admin.groups.rateSchedule.selectedCount", {
+                  count: rateScheduleSelectedGroupCount,
+                })
+              }}</span>
+              <span>{{
+                t("admin.groups.rateSchedule.availableCount", {
+                  count: rateScheduleAvailableGroups.length,
+                })
+              }}</span>
+            </div>
+            <div
+              v-if="rateScheduleGroupsLoading"
+              class="px-3 py-4 text-sm text-gray-500 dark:text-gray-400"
+            >
+              {{ t("admin.groups.rateSchedule.loadingGroups") }}
+            </div>
+            <div
+              v-else-if="rateScheduleAvailableGroups.length === 0"
+              class="px-3 py-4 text-sm text-gray-500 dark:text-gray-400"
+            >
+              {{ t("admin.groups.rateSchedule.noGroupsAvailable") }}
+            </div>
+            <div v-else class="max-h-56 overflow-y-auto p-2">
+              <label
+                v-for="group in rateScheduleAvailableGroups"
+                :key="group.id"
+                class="flex cursor-pointer items-center gap-3 rounded-lg px-2 py-2 text-sm hover:bg-gray-50 dark:hover:bg-dark-800"
+              >
+                <input
+                  type="checkbox"
+                  class="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+                  :checked="isRateScheduleGroupSelected(group.id)"
+                  :disabled="rateScheduleLoading || rateScheduleSubmitting"
+                  @change="toggleRateScheduleGroup(group.id)"
+                />
+                <span class="min-w-0 flex-1">
+                  <span class="block truncate font-medium text-gray-800 dark:text-gray-100">
+                    {{ group.name }}
+                  </span>
+                  <span class="block text-xs text-gray-500 dark:text-gray-400">
+                    {{ group.platform }} · {{ group.rate_multiplier }}x
+                  </span>
+                </span>
+              </label>
+            </div>
+          </div>
         </div>
 
         <div
@@ -3476,6 +3571,10 @@ const sortableGroups = ref<AdminGroup[]>([]);
 const createMessagesDispatchDefaults = createDefaultMessagesDispatchFormState();
 const editMessagesDispatchDefaults = createDefaultMessagesDispatchFormState();
 const rateScheduleRuntime = ref<GroupRateScheduleSettings | null>(null);
+const rateScheduleAvailableGroups = ref<AdminGroup[]>([]);
+const rateScheduleGroupsLoading = ref(false);
+const rateScheduleScopeMode = ref<"all" | "selected">("all");
+const rateScheduleSelectedGroupIDs = ref<number[]>([]);
 
 const getBrowserTimezone = () => {
   return Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
@@ -3489,6 +3588,19 @@ const rateScheduleForm = reactive({
   timezone: getBrowserTimezone(),
 });
 
+const normalizeRateScheduleGroupIDs = (groupIDs?: number[] | null) => {
+  if (!Array.isArray(groupIDs)) {
+    return [];
+  }
+  return Array.from(
+    new Set(
+      groupIDs
+        .map((groupID) => Number(groupID))
+        .filter((groupID) => Number.isInteger(groupID) && groupID > 0),
+    ),
+  ).sort((a, b) => a - b);
+};
+
 const applyRateScheduleSettings = (settings: GroupRateScheduleSettings) => {
   rateScheduleRuntime.value = settings;
   rateScheduleForm.enabled = settings.enabled;
@@ -3496,6 +3608,9 @@ const applyRateScheduleSettings = (settings: GroupRateScheduleSettings) => {
   rateScheduleForm.end_time = settings.end_time || "00:00";
   rateScheduleForm.percent = settings.percent || 100;
   rateScheduleForm.timezone = settings.timezone || getBrowserTimezone();
+  const groupIDs = normalizeRateScheduleGroupIDs(settings.group_ids);
+  rateScheduleScopeMode.value = groupIDs.length > 0 ? "selected" : "all";
+  rateScheduleSelectedGroupIDs.value = groupIDs;
 };
 
 const rateScheduleMultiplierPreview = computed(() => {
@@ -3508,6 +3623,72 @@ const rateScheduleMultiplierPreview = computed(() => {
     ? multiplier.toString()
     : multiplier.toFixed(4).replace(/0+$/, "").replace(/\.$/, "");
 });
+
+const rateScheduleSelectedGroupCount = computed(
+  () => rateScheduleSelectedGroupIDs.value.length,
+);
+
+const rateSchedulePreviewText = computed(() => {
+  if (rateScheduleScopeMode.value === "selected") {
+    return t("admin.groups.rateSchedule.selectedPreview", {
+      multiplier: rateScheduleMultiplierPreview.value,
+      count: rateScheduleSelectedGroupCount.value,
+    });
+  }
+  return t("admin.groups.rateSchedule.preview", {
+    multiplier: rateScheduleMultiplierPreview.value,
+  });
+});
+
+const setRateScheduleScope = (mode: "all" | "selected") => {
+  rateScheduleScopeMode.value = mode;
+};
+
+const isRateScheduleGroupSelected = (groupID: number) => {
+  return rateScheduleSelectedGroupIDs.value.includes(groupID);
+};
+
+const toggleRateScheduleGroup = (groupID: number) => {
+  const next = isRateScheduleGroupSelected(groupID)
+    ? rateScheduleSelectedGroupIDs.value.filter((id) => id !== groupID)
+    : [...rateScheduleSelectedGroupIDs.value, groupID];
+  rateScheduleSelectedGroupIDs.value = normalizeRateScheduleGroupIDs(next);
+};
+
+const loadRateScheduleAvailableGroups = async () => {
+  rateScheduleGroupsLoading.value = true;
+  try {
+    const allGroups: AdminGroup[] = [];
+    for (let page = 1; ; page += 1) {
+      const response = await adminAPI.groups.list(
+        page,
+        1000,
+        { sort_by: "sort_order", sort_order: "asc" },
+      );
+      allGroups.push(...response.items);
+      if (page >= response.pages || response.items.length === 0) {
+        break;
+      }
+    }
+    rateScheduleAvailableGroups.value = allGroups;
+  } catch (error) {
+    rateScheduleAvailableGroups.value = [];
+    appStore.showError(t("admin.groups.rateSchedule.groupsLoadFailed"));
+    console.error("Error loading groups for rate schedule:", error);
+  } finally {
+    rateScheduleGroupsLoading.value = false;
+  }
+};
+
+const syncRateScheduleSelectedGroupsWithAvailable = () => {
+  const availableIDs = new Set(
+    rateScheduleAvailableGroups.value.map((group) => group.id),
+  );
+  rateScheduleSelectedGroupIDs.value = rateScheduleSelectedGroupIDs.value.filter(
+    (groupID) => availableIDs.has(groupID),
+  );
+};
+
 const createModelsListState = reactive(createInitialModelsListState());
 const editModelsListState = reactive(createInitialModelsListState());
 const createModelsListLoading = ref(false);
@@ -4538,8 +4719,12 @@ const openRateScheduleModal = async () => {
   showRateScheduleModal.value = true;
   rateScheduleLoading.value = true;
   try {
-    const settings = await adminAPI.groups.getRateSchedule();
+    const [settings] = await Promise.all([
+      adminAPI.groups.getRateSchedule(),
+      loadRateScheduleAvailableGroups(),
+    ]);
     applyRateScheduleSettings(settings);
+    syncRateScheduleSelectedGroupsWithAvailable();
   } catch (error) {
     appStore.showError(t("admin.groups.rateSchedule.loadFailed"));
     console.error("Error loading group rate schedule:", error);
@@ -4577,6 +4762,14 @@ const saveRateSchedule = async () => {
     appStore.showError(t("admin.groups.rateSchedule.invalidPercent"));
     return;
   }
+  const groupIDs =
+    rateScheduleScopeMode.value === "selected"
+      ? normalizeRateScheduleGroupIDs(rateScheduleSelectedGroupIDs.value)
+      : [];
+  if (rateScheduleScopeMode.value === "selected" && groupIDs.length === 0) {
+    appStore.showError(t("admin.groups.rateSchedule.selectGroupsRequired"));
+    return;
+  }
 
   rateScheduleSubmitting.value = true;
   try {
@@ -4586,6 +4779,7 @@ const saveRateSchedule = async () => {
       end_time: rateScheduleForm.end_time,
       percent,
       timezone: rateScheduleForm.timezone || getBrowserTimezone(),
+      group_ids: groupIDs,
     });
     applyRateScheduleSettings(settings);
     appStore.showSuccess(t("admin.groups.rateSchedule.saveSuccess"));

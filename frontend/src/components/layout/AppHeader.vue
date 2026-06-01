@@ -247,6 +247,7 @@ const contactInfo = computed(() => appStore.contactInfo)
 const docUrl = computed(() => appStore.docUrl)
 const avatarUrl = computed(() => user.value?.avatar_url?.trim() || '')
 const rateScheduleActivePercent = ref<number | null>(null)
+const rateScheduleActiveGroupCount = ref(0)
 let rateScheduleTimer: number | null = null
 
 // 只在标准模式的管理员下显示新手引导按钮
@@ -278,7 +279,8 @@ const rateScheduleNotice = computed(() => {
     return ''
   }
   const multiplier = formatRateScheduleMultiplier(rateScheduleActivePercent.value)
-  return `当前处于优惠时间段，消耗倍率为原先的 ${multiplier} 倍`
+  const scope = rateScheduleActiveGroupCount.value > 0 ? '部分分组' : '所有分组'
+  return `当前处于优惠时间段，${scope}消耗倍率为原先的 ${multiplier} 倍`
 })
 
 const pageTitle = computed(() => {
@@ -349,13 +351,16 @@ function formatRateScheduleMultiplier(percent: number): string {
 async function refreshRateScheduleNotice() {
   if (!authStore.isAdmin) {
     rateScheduleActivePercent.value = null
+    rateScheduleActiveGroupCount.value = 0
     return
   }
   try {
     const settings = await adminAPI.groups.getRateSchedule()
     rateScheduleActivePercent.value = settings.active ? settings.percent : null
+    rateScheduleActiveGroupCount.value = settings.active ? (settings.group_ids?.length ?? 0) : 0
   } catch (error) {
     rateScheduleActivePercent.value = null
+    rateScheduleActiveGroupCount.value = 0
     console.error('Error loading group rate schedule notice:', error)
   }
 }
