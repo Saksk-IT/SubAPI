@@ -97,6 +97,24 @@ func RegisterAdminRoutes(
 
 		// 邀请返利（专属用户管理）
 		registerAffiliateRoutes(admin, h)
+
+		// 活动管理
+		registerActivityRoutes(admin, h)
+	}
+}
+
+func registerActivityRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
+	activities := admin.Group("/activities")
+	{
+		firstRecharge := activities.Group("/first-recharge")
+		{
+			firstRecharge.GET("", h.Admin.Activity.GetFirstRecharge)
+			firstRecharge.PUT("", h.Admin.Activity.UpdateFirstRecharge)
+			firstRecharge.GET("/users", h.Admin.Activity.ListFirstRechargeUsers)
+			firstRecharge.GET("/users/lookup", h.Admin.Activity.LookupUsers)
+			firstRecharge.POST("/users", h.Admin.Activity.AddFirstRechargeUser)
+			firstRecharge.DELETE("/users/:user_id", h.Admin.Activity.RemoveFirstRechargeUser)
+		}
 	}
 }
 

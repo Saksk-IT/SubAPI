@@ -11,12 +11,14 @@ describe('parseWechatResumeRoute', () => {
       amount: '12.5',
       order_type: 'subscription',
       plan_id: '7',
+      first_recharge_offer_id: '11',
     }, [], 88)).toEqual({
       wechatResumeToken: 'resume-token-123',
       paymentType: 'wxpay',
       orderType: 'subscription',
       orderAmount: 0,
       planId: 7,
+      firstRechargeOfferId: 11,
     })
   })
 
@@ -27,12 +29,14 @@ describe('parseWechatResumeRoute', () => {
       payment_type: 'wxpay',
       amount: '12.5',
       order_type: 'balance',
+      first_recharge_offer_id: '9',
     }, [], 88)).toEqual({
       openid: 'openid-123',
       paymentType: 'wxpay',
       orderType: 'balance',
       orderAmount: 12.5,
       planId: undefined,
+      firstRechargeOfferId: 9,
     })
   })
 })
@@ -48,6 +52,7 @@ describe('stripWechatResumeQuery', () => {
       amount: '12.5',
       order_type: 'subscription',
       plan_id: '7',
+      first_recharge_offer_id: '9',
       state: 'state-123',
       scope: 'snsapi_base',
     })).toEqual({

@@ -53,6 +53,10 @@ type PaymentOrder struct {
 	PlanID *int64 `json:"plan_id,omitempty"`
 	// BalanceProductID holds the value of the "balance_product_id" field.
 	BalanceProductID *int64 `json:"balance_product_id,omitempty"`
+	// ActivityType holds the value of the "activity_type" field.
+	ActivityType string `json:"activity_type,omitempty"`
+	// FirstRechargeOfferID holds the value of the "first_recharge_offer_id" field.
+	FirstRechargeOfferID *int64 `json:"first_recharge_offer_id,omitempty"`
 	// SubscriptionGroupID holds the value of the "subscription_group_id" field.
 	SubscriptionGroupID *int64 `json:"subscription_group_id,omitempty"`
 	// SubscriptionDays holds the value of the "subscription_days" field.
@@ -136,9 +140,9 @@ func (*PaymentOrder) scanValues(columns []string) ([]any, error) {
 			values[i] = new(sql.NullBool)
 		case paymentorder.FieldAmount, paymentorder.FieldPayAmount, paymentorder.FieldFeeRate, paymentorder.FieldRefundAmount:
 			values[i] = new(sql.NullFloat64)
-		case paymentorder.FieldID, paymentorder.FieldUserID, paymentorder.FieldPlanID, paymentorder.FieldBalanceProductID, paymentorder.FieldSubscriptionGroupID, paymentorder.FieldSubscriptionDays:
+		case paymentorder.FieldID, paymentorder.FieldUserID, paymentorder.FieldPlanID, paymentorder.FieldBalanceProductID, paymentorder.FieldFirstRechargeOfferID, paymentorder.FieldSubscriptionGroupID, paymentorder.FieldSubscriptionDays:
 			values[i] = new(sql.NullInt64)
-		case paymentorder.FieldUserEmail, paymentorder.FieldUserName, paymentorder.FieldUserNotes, paymentorder.FieldRechargeCode, paymentorder.FieldOutTradeNo, paymentorder.FieldPaymentType, paymentorder.FieldPaymentTradeNo, paymentorder.FieldPayURL, paymentorder.FieldQrCode, paymentorder.FieldQrCodeImg, paymentorder.FieldOrderType, paymentorder.FieldProviderInstanceID, paymentorder.FieldProviderKey, paymentorder.FieldStatus, paymentorder.FieldRefundReason, paymentorder.FieldRefundRequestReason, paymentorder.FieldRefundRequestedBy, paymentorder.FieldFailedReason, paymentorder.FieldClientIP, paymentorder.FieldSrcHost, paymentorder.FieldSrcURL:
+		case paymentorder.FieldUserEmail, paymentorder.FieldUserName, paymentorder.FieldUserNotes, paymentorder.FieldRechargeCode, paymentorder.FieldOutTradeNo, paymentorder.FieldPaymentType, paymentorder.FieldPaymentTradeNo, paymentorder.FieldPayURL, paymentorder.FieldQrCode, paymentorder.FieldQrCodeImg, paymentorder.FieldOrderType, paymentorder.FieldActivityType, paymentorder.FieldProviderInstanceID, paymentorder.FieldProviderKey, paymentorder.FieldStatus, paymentorder.FieldRefundReason, paymentorder.FieldRefundRequestReason, paymentorder.FieldRefundRequestedBy, paymentorder.FieldFailedReason, paymentorder.FieldClientIP, paymentorder.FieldSrcHost, paymentorder.FieldSrcURL:
 			values[i] = new(sql.NullString)
 		case paymentorder.FieldRefundAt, paymentorder.FieldRefundRequestedAt, paymentorder.FieldExpiresAt, paymentorder.FieldPaidAt, paymentorder.FieldCompletedAt, paymentorder.FieldFailedAt, paymentorder.FieldCreatedAt, paymentorder.FieldUpdatedAt:
 			values[i] = new(sql.NullTime)
@@ -270,6 +274,19 @@ func (_m *PaymentOrder) assignValues(columns []string, values []any) error {
 			} else if value.Valid {
 				_m.BalanceProductID = new(int64)
 				*_m.BalanceProductID = value.Int64
+			}
+		case paymentorder.FieldActivityType:
+			if value, ok := values[i].(*sql.NullString); !ok {
+				return fmt.Errorf("unexpected type %T for field activity_type", values[i])
+			} else if value.Valid {
+				_m.ActivityType = value.String
+			}
+		case paymentorder.FieldFirstRechargeOfferID:
+			if value, ok := values[i].(*sql.NullInt64); !ok {
+				return fmt.Errorf("unexpected type %T for field first_recharge_offer_id", values[i])
+			} else if value.Valid {
+				_m.FirstRechargeOfferID = new(int64)
+				*_m.FirstRechargeOfferID = value.Int64
 			}
 		case paymentorder.FieldSubscriptionGroupID:
 			if value, ok := values[i].(*sql.NullInt64); !ok {
@@ -526,6 +543,14 @@ func (_m *PaymentOrder) String() string {
 	builder.WriteString(", ")
 	if v := _m.BalanceProductID; v != nil {
 		builder.WriteString("balance_product_id=")
+		builder.WriteString(fmt.Sprintf("%v", *v))
+	}
+	builder.WriteString(", ")
+	builder.WriteString("activity_type=")
+	builder.WriteString(_m.ActivityType)
+	builder.WriteString(", ")
+	if v := _m.FirstRechargeOfferID; v != nil {
+		builder.WriteString("first_recharge_offer_id=")
 		builder.WriteString(fmt.Sprintf("%v", *v))
 	}
 	builder.WriteString(", ")

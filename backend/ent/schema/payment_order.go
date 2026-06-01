@@ -84,6 +84,12 @@ func (PaymentOrder) Fields() []ent.Field {
 		field.Int64("balance_product_id").
 			Optional().
 			Nillable(),
+		field.String("activity_type").
+			MaxLen(32).
+			Default(""),
+		field.Int64("first_recharge_offer_id").
+			Optional().
+			Nillable(),
 		field.Int64("subscription_group_id").
 			Optional().
 			Nillable(),
@@ -199,5 +205,7 @@ func (PaymentOrder) Indexes() []ent.Index {
 		index.Fields("payment_type", "paid_at"),
 		index.Fields("order_type"),
 		index.Fields("balance_product_id"),
+		index.Fields("activity_type"),
+		index.Fields("first_recharge_offer_id"),
 	}
 }

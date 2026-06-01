@@ -21,6 +21,7 @@ export type OrderStatus =
 export type PaymentType = 'alipay' | 'wxpay' | 'alipay_direct' | 'wxpay_direct' | 'stripe' | 'easypay' | 'airwallex'
 
 export type OrderType = 'balance' | 'subscription'
+export type FirstRechargeEligibilityScope = 'new_users_after_enabled' | 'all_users' | 'specified_users'
 
 // ==================== Configuration ====================
 
@@ -98,7 +99,62 @@ export interface PaymentOrder {
   refund_request_reason?: string
   plan_id?: number
   balance_product_id?: number
+  activity_type?: string
+  first_recharge_offer_id?: number
   provider_instance_id?: string
+}
+
+export interface FirstRechargeOffer {
+  id: number
+  name: string
+  description: string
+  price: number
+  amount: number
+  enabled: boolean
+  sort_order: number
+  created_at: string
+  updated_at: string
+}
+
+export interface FirstRechargeStatus {
+  enabled: boolean
+  eligible: boolean
+  completed: boolean
+  popup_dismissed: boolean
+  eligibility_scope: FirstRechargeEligibilityScope
+  eligible_since?: string
+  completed_at?: string
+  offers: FirstRechargeOffer[]
+}
+
+export interface FirstRechargeConfig {
+  enabled: boolean
+  eligibility_scope: FirstRechargeEligibilityScope
+  eligible_since?: string
+  created_at: string
+  updated_at: string
+}
+
+export interface FirstRechargeAdminConfig {
+  config: FirstRechargeConfig
+  offers: FirstRechargeOffer[]
+}
+
+export interface FirstRechargeOfferInput {
+  id?: number
+  name: string
+  description: string
+  price: number
+  amount: number
+  enabled: boolean
+  sort_order: number
+}
+
+export interface FirstRechargeSpecifiedUser {
+  user_id: number
+  email: string
+  username: string
+  created_at: string
 }
 
 // ==================== Plans & Channels ====================
@@ -181,6 +237,7 @@ export interface CreateOrderRequest {
   order_type: string
   plan_id?: number
   balance_product_id?: number
+  first_recharge_offer_id?: number
   return_url?: string
   payment_source?: string
   openid?: string

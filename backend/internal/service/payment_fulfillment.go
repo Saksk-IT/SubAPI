@@ -305,6 +305,14 @@ func (s *PaymentService) markCompleted(ctx context.Context, o *dbent.PaymentOrde
 	if err != nil {
 		return fmt.Errorf("mark completed: %w", err)
 	}
+	if o.ActivityType == FirstRechargeActivityType && s.firstRechargeService != nil {
+		if err := s.firstRechargeService.MarkCompleted(ctx, o.UserID, o.ID); err != nil {
+			s.writeAuditLog(ctx, o.ID, "FIRST_RECHARGE_STATE_FAILED", "system", map[string]any{
+				"error": err.Error(),
+			})
+			return fmt.Errorf("mark first recharge completed: %w", err)
+		}
+	}
 	s.writeAuditLog(ctx, o.ID, auditAction, "system", map[string]any{
 		"rechargeCode":   o.RechargeCode,
 		"creditedAmount": o.Amount,
@@ -455,6 +463,9 @@ func (s *PaymentService) applyAffiliateRebateForOrder(ctx context.Context, o *db
 	if o == nil || o.OrderType != payment.OrderTypeBalance || o.Amount <= 0 {
 		return nil
 	}
+	if o.ActivityType == FirstRechargeActivityType {
+		return s.skipAffiliateRebateForFirstRecharge(ctx, o)
+	}
 	if s.affiliateService == nil {
 		return nil
 	}
@@ -523,6 +534,45 @@ func (s *PaymentService) applyAffiliateRebateForOrder(ctx context.Context, o *db
 			"error": fmt.Sprintf("commit affiliate rebate tx: %v", err),
 		})
 		return fmt.Errorf("commit affiliate rebate tx: %w", err)
+	}
+	return nil
+}
+
+func (s *PaymentService) skipAffiliateRebateForFirstRecharge(ctx context.Context, o *dbent.PaymentOrder) error {
+	tx, err := s.entClient.Tx(ctx)
+	if err != nil {
+		s.writeAuditLog(ctx, o.ID, "AFFILIATE_REBATE_FAILED", "system", map[string]any{
+			"error": fmt.Sprintf("begin first recharge rebate skip tx: %v", err),
+		})
+		return fmt.Errorf("begin first recharge rebate skip tx: %w", err)
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	txCtx := dbent.NewTxContext(ctx, tx)
+	claimed, err := s.tryClaimAffiliateRebateAudit(txCtx, tx.Client(), o.ID, o.Amount)
+	if err != nil {
+		s.writeAuditLog(ctx, o.ID, "AFFILIATE_REBATE_FAILED", "system", map[string]any{
+			"error": err.Error(),
+		})
+		return fmt.Errorf("claim first recharge rebate skip audit: %w", err)
+	}
+	if !claimed {
+		return nil
+	}
+	if err := s.updateClaimedAffiliateRebateAudit(txCtx, tx.Client(), o.ID, "AFFILIATE_REBATE_SKIPPED", map[string]any{
+		"baseAmount": o.Amount,
+		"reason":     "first_recharge_activity",
+	}); err != nil {
+		s.writeAuditLog(ctx, o.ID, "AFFILIATE_REBATE_FAILED", "system", map[string]any{
+			"error": err.Error(),
+		})
+		return fmt.Errorf("update first recharge rebate skip audit: %w", err)
+	}
+	if err := tx.Commit(); err != nil {
+		s.writeAuditLog(ctx, o.ID, "AFFILIATE_REBATE_FAILED", "system", map[string]any{
+			"error": fmt.Sprintf("commit first recharge rebate skip tx: %v", err),
+		})
+		return fmt.Errorf("commit first recharge rebate skip tx: %w", err)
 	}
 	return nil
 }

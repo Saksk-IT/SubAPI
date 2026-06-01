@@ -148,6 +148,43 @@
                 <p class="mt-1 text-base font-semibold text-gray-900 dark:text-white">{{ user?.username || '' }}</p>
                 <p class="mt-0.5 text-sm font-medium text-green-600 dark:text-green-400">{{ t('payment.currentBalance') }}: {{ user?.balance?.toFixed(2) || '0.00' }}</p>
               </div>
+              <section
+                v-if="firstRechargeCards.length > 0"
+                id="first-recharge"
+                class="space-y-4 rounded-2xl border border-amber-200 bg-amber-50/70 p-4 dark:border-amber-500/25 dark:bg-amber-500/10 sm:p-5"
+              >
+                <div class="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+                  <div>
+                    <p class="text-xs font-black uppercase text-amber-600 dark:text-amber-300">
+                      {{ t('firstRecharge.label') }}
+                    </p>
+                    <h2 class="mt-1 text-xl font-black text-gray-950 dark:text-white">
+                      {{ t('payment.firstRecharge.title') }}
+                    </h2>
+                    <p class="mt-1 text-sm leading-6 text-gray-600 dark:text-gray-300">
+                      {{ t('payment.firstRecharge.subtitle') }}
+                    </p>
+                  </div>
+                  <span class="rounded-full bg-white px-3 py-1 text-xs font-black text-amber-700 shadow-sm ring-1 ring-amber-200 dark:bg-dark-900/70 dark:text-amber-200 dark:ring-amber-400/20">
+                    {{ t('firstRecharge.noAffiliateRebate') }}
+                  </span>
+                </div>
+                <div :class="productGridClass">
+                  <PurchaseProductCard
+                    v-for="item in firstRechargeCards"
+                    :key="item.product.id"
+                    :product="item.product"
+                    :hero-metrics="item.heroMetrics"
+                    :metrics="item.metrics"
+                    :price-rows="item.priceRows"
+                    :methods="item.methods"
+                    :currency="paymentPriceCurrency"
+                    :locale="localeCode"
+                    :submitting="submittingProductKey === `first-recharge:${item.raw.id}`"
+                    @pay="handleSubmitFirstRechargeOffer(item.raw, $event)"
+                  />
+                </div>
+              </section>
               <div v-if="enabledMethods.length === 0" class="card py-16 text-center">
                 <p class="text-gray-500 dark:text-gray-400">{{ t('payment.notAvailable') }}</p>
               </div>
@@ -399,11 +436,12 @@ import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { usePaymentStore } from '@/stores/payment'
 import { useSubscriptionStore } from '@/stores/subscriptions'
+import { useFirstRechargeStore } from '@/stores/firstRecharge'
 import { useAppStore } from '@/stores'
 import { paymentAPI } from '@/api/payment'
 import { extractApiErrorMessage, extractI18nErrorMessage } from '@/utils/apiError'
 import { isMobileDevice } from '@/utils/device'
-import type { BalanceProduct, SubscriptionPlan, CheckoutInfoResponse, CreateOrderResult, OrderType } from '@/types/payment'
+import type { BalanceProduct, FirstRechargeOffer, SubscriptionPlan, CheckoutInfoResponse, CreateOrderResult, OrderType } from '@/types/payment'
 import AppLayout from '@/components/layout/AppLayout.vue'
 import AmountInput from '@/components/payment/AmountInput.vue'
 import PaymentMethodSelector from '@/components/payment/PaymentMethodSelector.vue'
@@ -438,6 +476,7 @@ const router = useRouter()
 const authStore = useAuthStore()
 const paymentStore = usePaymentStore()
 const subscriptionStore = useSubscriptionStore()
+const firstRechargeStore = useFirstRechargeStore()
 const appStore = useAppStore()
 
 const user = computed(() => authStore.user)
@@ -466,6 +505,7 @@ interface CreateOrderOptions {
   wechatResumeToken?: string
   paymentType?: string
   balanceProductId?: number
+  firstRechargeOfferId?: number
   isResume?: boolean
   mobileQrFallbackAttempted?: boolean
 }
@@ -572,7 +612,14 @@ async function redirectToPaymentResult(state: PaymentRecoverySnapshot): Promise<
 
 function buildWechatOAuthAuthorizeUrl(
   authorizeUrl: string,
-  context: { paymentType: string; orderType: OrderType; planId?: number; balanceProductId?: number; orderAmount: number },
+  context: {
+    paymentType: string
+    orderType: OrderType
+    planId?: number
+    balanceProductId?: number
+    firstRechargeOfferId?: number
+    orderAmount: number
+  },
 ): string {
   const normalizedUrl = authorizeUrl.trim()
   if (!normalizedUrl || typeof window === 'undefined') {
@@ -598,6 +645,11 @@ function buildWechatOAuthAuthorizeUrl(
     } else {
       redirectUrl.searchParams.delete('balance_product_id')
     }
+    if (context.firstRechargeOfferId) {
+      redirectUrl.searchParams.set('first_recharge_offer_id', String(context.firstRechargeOfferId))
+    } else {
+      redirectUrl.searchParams.delete('first_recharge_offer_id')
+    }
 
     if (context.orderAmount > 0) {
       redirectUrl.searchParams.set('amount', String(context.orderAmount))
@@ -619,6 +671,7 @@ function onPaymentDone() {
   if (wasSubscription) {
     subscriptionStore.fetchActiveSubscriptions(true).catch(() => {})
   }
+  firstRechargeStore.fetchStatus(true).catch(() => {})
 }
 
 function onPaymentSuccess() {
@@ -627,6 +680,7 @@ function onPaymentSuccess() {
   if (paymentState.value.orderType === 'subscription') {
     subscriptionStore.fetchActiveSubscriptions(true).catch(() => {})
   }
+  firstRechargeStore.fetchStatus(true).catch(() => {})
 }
 
 function onPaymentSettled() {
@@ -867,6 +921,44 @@ const balanceProductCards = computed<PurchaseCardItem<BalanceProduct>[]>(() =>
   }),
 )
 
+const firstRechargeCards = computed<PurchaseCardItem<FirstRechargeOffer>[]>(() => {
+  const status = firstRechargeStore.status
+  if (!status?.enabled || !status.eligible || status.completed) return []
+  return (status.offers || []).map((offer) => {
+    const price = Number(offer.price) || 0
+    const amount = Number(offer.amount) || 0
+    return {
+      raw: offer,
+      product: {
+        id: offer.id,
+        name: offer.name || t('firstRecharge.label'),
+        description: offer.description || t('payment.firstRecharge.cardDescription'),
+        price,
+        tags: [t('firstRecharge.label')],
+        features: [t('payment.firstRecharge.featureNoRebate'), t('payment.firstRecharge.featureOnce')],
+      },
+      heroMetrics: [
+        {
+          label: t('payment.product.balanceAmount'),
+          value: formatQuotaAmount(amount),
+          tone: 'strong',
+        },
+      ],
+      metrics: [
+        { label: t('payment.product.exchangeRate'), value: formatExchangeRate(amount, price) },
+        { label: t('payment.product.validity'), value: t('payment.product.permanent') },
+      ],
+      priceRows: buildProductPriceRows(price, undefined),
+      methods: amountMethodOptions(price),
+    }
+  })
+})
+
+function loadFirstRechargeStatus(force = false) {
+  if (!authStore.isAuthenticated) return Promise.resolve(null)
+  return firstRechargeStore.fetchStatus(force)
+}
+
 const subscriptionProductCards = computed<PurchaseCardItem<SubscriptionPlan>[]>(() =>
   checkout.value.plans.map((plan) => {
     const totalQuota = getPlanTotalQuota(plan)
@@ -1012,6 +1104,15 @@ async function handleSubmitBalanceProduct(product: BalanceProduct, paymentType: 
   await createOrder(Number(product.price) || 0, 'balance', undefined, { paymentType, balanceProductId: product.id })
 }
 
+async function handleSubmitFirstRechargeOffer(offer: FirstRechargeOffer, paymentType: string) {
+  if (submitting.value) return
+  submittingProductKey.value = `first-recharge:${offer.id}`
+  await createOrder(Number(offer.price) || 0, 'balance', undefined, {
+    paymentType,
+    firstRechargeOfferId: offer.id,
+  })
+}
+
 async function confirmSubscribe() {
   if (!selectedPlan.value || submitting.value) return
   await createOrder(selectedPlan.value.price, 'subscription', selectedPlan.value.id)
@@ -1045,6 +1146,9 @@ async function createOrder(orderAmount: number, orderType: OrderType, planId?: n
     }
     if (options.wechatResumeToken) {
       payload.wechat_resume_token = options.wechatResumeToken
+    }
+    if (options.firstRechargeOfferId) {
+      payload.first_recharge_offer_id = options.firstRechargeOfferId
     }
 
     const result = await paymentStore.createOrder(payload) as CreateOrderResult & { resume_token?: string }
@@ -1098,6 +1202,7 @@ async function createOrder(orderAmount: number, orderType: OrderType, planId?: n
         orderType,
         planId,
         balanceProductId: options.balanceProductId,
+        firstRechargeOfferId: options.firstRechargeOfferId,
         orderAmount,
       })
       return
@@ -1140,6 +1245,7 @@ async function createOrder(orderAmount: number, orderType: OrderType, planId?: n
               orderType,
               planId,
               balanceProductId: options.balanceProductId,
+              firstRechargeOfferId: options.firstRechargeOfferId,
               paymentType: visibleMethod,
               attempted: options.mobileQrFallbackAttempted === true,
             },
@@ -1159,6 +1265,7 @@ async function createOrder(orderAmount: number, orderType: OrderType, planId?: n
           orderType,
           planId,
           balanceProductId: options.balanceProductId,
+          firstRechargeOfferId: options.firstRechargeOfferId,
           paymentType: visibleMethod,
           attempted: options.mobileQrFallbackAttempted === true,
         })
@@ -1189,6 +1296,7 @@ async function createOrder(orderAmount: number, orderType: OrderType, planId?: n
       orderType,
       planId,
       balanceProductId: options.balanceProductId,
+      firstRechargeOfferId: options.firstRechargeOfferId,
       paymentType: requestType,
       attempted: options.mobileQrFallbackAttempted === true,
     })) {
@@ -1218,6 +1326,7 @@ interface MobileQrFallbackContext {
   orderType: OrderType
   planId?: number
   balanceProductId?: number
+  firstRechargeOfferId?: number
   paymentType: string
   attempted: boolean
 }
@@ -1272,6 +1381,9 @@ async function attemptMobileQrFallback(err: unknown, context: MobileQrFallbackCo
       isMobile: false,
       isWechatBrowser: false,
     })
+    if (context.firstRechargeOfferId) {
+      payload.first_recharge_offer_id = context.firstRechargeOfferId
+    }
     const result = await paymentStore.createOrder(payload) as CreateOrderResult & { resume_token?: string }
     const stripeMethod = visibleMethod === 'wxpay' ? 'wechat_pay' : 'alipay'
     const stripeRouteUrl = result.client_secret
@@ -1349,6 +1461,7 @@ async function resumeWechatPaymentFromQuery() {
       paymentType: resume.paymentType,
       isResume: true,
       balanceProductId: resume.balanceProductId,
+      firstRechargeOfferId: resume.firstRechargeOfferId,
     })
     return
   }
@@ -1359,12 +1472,14 @@ async function resumeWechatPaymentFromQuery() {
       paymentType: resume.paymentType,
       isResume: true,
       balanceProductId: resume.balanceProductId,
+      firstRechargeOfferId: resume.firstRechargeOfferId,
     })
   }
 }
 
 onMounted(async () => {
   try {
+    await loadFirstRechargeStatus()
     const res = await paymentAPI.getCheckoutInfo()
     checkout.value = res.data
     if (enabledMethods.value.length) {
@@ -1403,6 +1518,9 @@ onMounted(async () => {
     await resumeWechatPaymentFromQuery()
     if (checkout.value.balance_disabled) {
       activeTab.value = 'subscription'
+    }
+    if (route.query.tab === 'recharge' || route.query.first_recharge === '1') {
+      activeTab.value = 'recharge'
     }
     // Handle renewal navigation: ?tab=subscription&group=123
     if (route.query.tab === 'subscription') {

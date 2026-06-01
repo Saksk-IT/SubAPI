@@ -34,6 +34,24 @@ func (s *PaymentService) CreateOrder(ctx context.Context, req CreateOrderRequest
 	if !cfg.Enabled {
 		return nil, infraerrors.Forbidden("PAYMENT_DISABLED", "payment system is disabled")
 	}
+	var firstRechargeOffer *FirstRechargeOffer
+	if req.FirstRechargeOfferID > 0 {
+		if req.OrderType != payment.OrderTypeBalance {
+			return nil, infraerrors.BadRequest("FIRST_RECHARGE_ORDER_TYPE_INVALID", "first recharge only supports balance orders")
+		}
+		if req.PlanID > 0 || req.BalanceProductID > 0 {
+			return nil, infraerrors.BadRequest("FIRST_RECHARGE_ORDER_INVALID", "first recharge cannot be combined with other products")
+		}
+		if s.firstRechargeService == nil {
+			return nil, ErrFirstRechargeUnavailable
+		}
+		offer, err := s.firstRechargeService.PrepareOrder(ctx, req.UserID, req.FirstRechargeOfferID)
+		if err != nil {
+			return nil, err
+		}
+		req.Amount = offer.Price
+		firstRechargeOffer = offer
+	}
 	plan, balanceProduct, err := s.validateOrderInput(ctx, req, cfg)
 	if err != nil {
 		return nil, err
@@ -59,6 +77,9 @@ func (s *PaymentService) CreateOrder(ctx context.Context, req CreateOrderRequest
 	} else if balanceProduct != nil {
 		orderAmount = balanceProduct.Amount
 		limitAmount = balanceProduct.Price
+	} else if firstRechargeOffer != nil {
+		orderAmount = firstRechargeOffer.Amount
+		limitAmount = firstRechargeOffer.Price
 	} else if req.OrderType == payment.OrderTypeBalance {
 		orderAmount = calculateCreditedBalance(req.Amount, cfg.BalanceRechargeMultiplier)
 	}
@@ -101,7 +122,7 @@ func (s *PaymentService) CreateOrder(ctx context.Context, req CreateOrderRequest
 	if oauthResp != nil {
 		return oauthResp, nil
 	}
-	order, err := s.createOrderInTx(ctx, req, user, plan, balanceProduct, cfg, orderAmount, limitAmount, feeRate, payAmount, sel)
+	order, err := s.createOrderInTx(ctx, req, user, plan, balanceProduct, firstRechargeOffer, cfg, orderAmount, limitAmount, feeRate, payAmount, sel)
 	if err != nil {
 		return nil, err
 	}
@@ -169,7 +190,7 @@ func (s *PaymentService) validateBalanceProductOrder(ctx context.Context, req Cr
 	return product, nil
 }
 
-func (s *PaymentService) createOrderInTx(ctx context.Context, req CreateOrderRequest, user *User, plan *dbent.SubscriptionPlan, balanceProduct *BalanceProduct, cfg *PaymentConfig, orderAmount, limitAmount, feeRate, payAmount float64, sel *payment.InstanceSelection) (*dbent.PaymentOrder, error) {
+func (s *PaymentService) createOrderInTx(ctx context.Context, req CreateOrderRequest, user *User, plan *dbent.SubscriptionPlan, balanceProduct *BalanceProduct, firstRechargeOffer *FirstRechargeOffer, cfg *PaymentConfig, orderAmount, limitAmount, feeRate, payAmount float64, sel *payment.InstanceSelection) (*dbent.PaymentOrder, error) {
 	tx, err := s.entClient.Tx(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("begin transaction: %w", err)
@@ -182,6 +203,9 @@ func (s *PaymentService) createOrderInTx(ctx context.Context, req CreateOrderReq
 		return nil, err
 	}
 	if err := s.checkBalanceProductPurchaseLimit(ctx, tx, req.UserID, balanceProduct); err != nil {
+		return nil, err
+	}
+	if err := s.checkFirstRechargeActiveOrderLimit(ctx, tx, req.UserID, firstRechargeOffer); err != nil {
 		return nil, err
 	}
 	tm := cfg.OrderTimeoutMin
@@ -241,6 +265,11 @@ func (s *PaymentService) createOrderInTx(ctx context.Context, req CreateOrderReq
 			return nil, fmt.Errorf("set balance product id: %w", err)
 		}
 	}
+	if firstRechargeOffer != nil {
+		if _, err := tx.ExecContext(ctx, `UPDATE payment_orders SET activity_type = $1, first_recharge_offer_id = $2 WHERE id = $3`, FirstRechargeActivityType, firstRechargeOffer.ID, order.ID); err != nil {
+			return nil, fmt.Errorf("set first recharge activity fields: %w", err)
+		}
+	}
 	code := fmt.Sprintf("PAY-%d-%d", order.ID, time.Now().UnixNano()%100000)
 	order, err = tx.PaymentOrder.UpdateOneID(order.ID).SetRechargeCode(code).Save(ctx)
 	if err != nil {
@@ -250,6 +279,42 @@ func (s *PaymentService) createOrderInTx(ctx context.Context, req CreateOrderReq
 		return nil, fmt.Errorf("commit order transaction: %w", err)
 	}
 	return order, nil
+}
+
+func (s *PaymentService) checkFirstRechargeActiveOrderLimit(ctx context.Context, tx *dbent.Tx, userID int64, offer *FirstRechargeOffer) error {
+	if offer == nil {
+		return nil
+	}
+	var count int
+	rows, err := tx.QueryContext(ctx, `
+SELECT COUNT(*)
+FROM payment_orders
+WHERE user_id = $1
+  AND activity_type = $2
+  AND status IN ($3, $4, $5, $6)`,
+		userID,
+		FirstRechargeActivityType,
+		OrderStatusPending,
+		OrderStatusPaid,
+		OrderStatusRecharging,
+		OrderStatusCompleted,
+	)
+	if err != nil {
+		return fmt.Errorf("count first recharge active orders: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+	if rows.Next() {
+		if err := rows.Scan(&count); err != nil {
+			return fmt.Errorf("scan first recharge active orders: %w", err)
+		}
+	}
+	if err := rows.Err(); err != nil {
+		return fmt.Errorf("scan first recharge active orders: %w", err)
+	}
+	if count > 0 {
+		return ErrFirstRechargeCompleted
+	}
+	return nil
 }
 
 func (s *PaymentService) allocateOutTradeNo(ctx context.Context, tx *dbent.Tx) (string, error) {
@@ -793,6 +858,9 @@ func buildWeChatPaymentOAuthStartURL(req CreateOrderRequest, scope string) (stri
 	}
 	if req.BalanceProductID > 0 {
 		q.Set("balance_product_id", strconv.FormatInt(req.BalanceProductID, 10))
+	}
+	if req.FirstRechargeOfferID > 0 {
+		q.Set("first_recharge_offer_id", strconv.FormatInt(req.FirstRechargeOfferID, 10))
 	}
 	if scope = strings.TrimSpace(scope); scope != "" {
 		q.Set("scope", scope)

@@ -98,6 +98,15 @@ func RegisterUserRoutes(
 			announcements.POST("/:id/read", h.Announcement.MarkRead)
 		}
 
+		activities := authenticated.Group("/activities")
+		{
+			firstRecharge := activities.Group("/first-recharge")
+			{
+				firstRecharge.GET("/status", h.Activity.GetFirstRechargeStatus)
+				firstRecharge.POST("/dismiss-popup", h.Activity.DismissFirstRechargePopup)
+			}
+		}
+
 		// 卡密兑换
 		redeem := authenticated.Group("/redeem")
 		{

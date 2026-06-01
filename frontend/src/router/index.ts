@@ -550,6 +550,23 @@ const routes: RouteRecordRaw[] = [
     }
   },
   {
+    path: '/admin/activities',
+    redirect: '/admin/activities/first-recharge'
+  },
+  {
+    path: '/admin/activities/first-recharge',
+    name: 'AdminFirstRecharge',
+    component: () => import('@/views/admin/activities/AdminFirstRechargeView.vue'),
+    meta: {
+      requiresAuth: true,
+      requiresAdmin: true,
+      title: 'First Recharge Management',
+      titleKey: 'admin.firstRecharge.title',
+      descriptionKey: 'admin.firstRecharge.description',
+      requiresPayment: true
+    }
+  },
+  {
     path: '/admin/proxies',
     name: 'AdminProxies',
     component: () => import('@/views/admin/ProxiesView.vue'),
@@ -892,6 +909,7 @@ router.beforeEach(async (to, _from, next) => {
       '/admin/groups',
       '/admin/subscriptions',
       '/admin/redeem',
+      '/admin/activities',
       '/subscriptions',
       '/redeem'
     ]

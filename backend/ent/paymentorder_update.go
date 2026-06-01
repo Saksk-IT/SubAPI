@@ -338,6 +338,47 @@ func (_u *PaymentOrderUpdate) ClearBalanceProductID() *PaymentOrderUpdate {
 	return _u
 }
 
+// SetActivityType sets the "activity_type" field.
+func (_u *PaymentOrderUpdate) SetActivityType(v string) *PaymentOrderUpdate {
+	_u.mutation.SetActivityType(v)
+	return _u
+}
+
+// SetNillableActivityType sets the "activity_type" field if the given value is not nil.
+func (_u *PaymentOrderUpdate) SetNillableActivityType(v *string) *PaymentOrderUpdate {
+	if v != nil {
+		_u.SetActivityType(*v)
+	}
+	return _u
+}
+
+// SetFirstRechargeOfferID sets the "first_recharge_offer_id" field.
+func (_u *PaymentOrderUpdate) SetFirstRechargeOfferID(v int64) *PaymentOrderUpdate {
+	_u.mutation.ResetFirstRechargeOfferID()
+	_u.mutation.SetFirstRechargeOfferID(v)
+	return _u
+}
+
+// SetNillableFirstRechargeOfferID sets the "first_recharge_offer_id" field if the given value is not nil.
+func (_u *PaymentOrderUpdate) SetNillableFirstRechargeOfferID(v *int64) *PaymentOrderUpdate {
+	if v != nil {
+		_u.SetFirstRechargeOfferID(*v)
+	}
+	return _u
+}
+
+// AddFirstRechargeOfferID adds value to the "first_recharge_offer_id" field.
+func (_u *PaymentOrderUpdate) AddFirstRechargeOfferID(v int64) *PaymentOrderUpdate {
+	_u.mutation.AddFirstRechargeOfferID(v)
+	return _u
+}
+
+// ClearFirstRechargeOfferID clears the value of the "first_recharge_offer_id" field.
+func (_u *PaymentOrderUpdate) ClearFirstRechargeOfferID() *PaymentOrderUpdate {
+	_u.mutation.ClearFirstRechargeOfferID()
+	return _u
+}
+
 // SetSubscriptionGroupID sets the "subscription_group_id" field.
 func (_u *PaymentOrderUpdate) SetSubscriptionGroupID(v int64) *PaymentOrderUpdate {
 	_u.mutation.ResetSubscriptionGroupID()
@@ -830,6 +871,11 @@ func (_u *PaymentOrderUpdate) check() error {
 			return &ValidationError{Name: "order_type", err: fmt.Errorf(`ent: validator failed for field "PaymentOrder.order_type": %w`, err)}
 		}
 	}
+	if v, ok := _u.mutation.ActivityType(); ok {
+		if err := paymentorder.ActivityTypeValidator(v); err != nil {
+			return &ValidationError{Name: "activity_type", err: fmt.Errorf(`ent: validator failed for field "PaymentOrder.activity_type": %w`, err)}
+		}
+	}
 	if v, ok := _u.mutation.ProviderInstanceID(); ok {
 		if err := paymentorder.ProviderInstanceIDValidator(v); err != nil {
 			return &ValidationError{Name: "provider_instance_id", err: fmt.Errorf(`ent: validator failed for field "PaymentOrder.provider_instance_id": %w`, err)}
@@ -958,6 +1004,18 @@ func (_u *PaymentOrderUpdate) sqlSave(ctx context.Context) (_node int, err error
 	}
 	if _u.mutation.BalanceProductIDCleared() {
 		_spec.ClearField(paymentorder.FieldBalanceProductID, field.TypeInt64)
+	}
+	if value, ok := _u.mutation.ActivityType(); ok {
+		_spec.SetField(paymentorder.FieldActivityType, field.TypeString, value)
+	}
+	if value, ok := _u.mutation.FirstRechargeOfferID(); ok {
+		_spec.SetField(paymentorder.FieldFirstRechargeOfferID, field.TypeInt64, value)
+	}
+	if value, ok := _u.mutation.AddedFirstRechargeOfferID(); ok {
+		_spec.AddField(paymentorder.FieldFirstRechargeOfferID, field.TypeInt64, value)
+	}
+	if _u.mutation.FirstRechargeOfferIDCleared() {
+		_spec.ClearField(paymentorder.FieldFirstRechargeOfferID, field.TypeInt64)
 	}
 	if value, ok := _u.mutation.SubscriptionGroupID(); ok {
 		_spec.SetField(paymentorder.FieldSubscriptionGroupID, field.TypeInt64, value)
@@ -1434,6 +1492,47 @@ func (_u *PaymentOrderUpdateOne) AddBalanceProductID(v int64) *PaymentOrderUpdat
 // ClearBalanceProductID clears the value of the "balance_product_id" field.
 func (_u *PaymentOrderUpdateOne) ClearBalanceProductID() *PaymentOrderUpdateOne {
 	_u.mutation.ClearBalanceProductID()
+	return _u
+}
+
+// SetActivityType sets the "activity_type" field.
+func (_u *PaymentOrderUpdateOne) SetActivityType(v string) *PaymentOrderUpdateOne {
+	_u.mutation.SetActivityType(v)
+	return _u
+}
+
+// SetNillableActivityType sets the "activity_type" field if the given value is not nil.
+func (_u *PaymentOrderUpdateOne) SetNillableActivityType(v *string) *PaymentOrderUpdateOne {
+	if v != nil {
+		_u.SetActivityType(*v)
+	}
+	return _u
+}
+
+// SetFirstRechargeOfferID sets the "first_recharge_offer_id" field.
+func (_u *PaymentOrderUpdateOne) SetFirstRechargeOfferID(v int64) *PaymentOrderUpdateOne {
+	_u.mutation.ResetFirstRechargeOfferID()
+	_u.mutation.SetFirstRechargeOfferID(v)
+	return _u
+}
+
+// SetNillableFirstRechargeOfferID sets the "first_recharge_offer_id" field if the given value is not nil.
+func (_u *PaymentOrderUpdateOne) SetNillableFirstRechargeOfferID(v *int64) *PaymentOrderUpdateOne {
+	if v != nil {
+		_u.SetFirstRechargeOfferID(*v)
+	}
+	return _u
+}
+
+// AddFirstRechargeOfferID adds value to the "first_recharge_offer_id" field.
+func (_u *PaymentOrderUpdateOne) AddFirstRechargeOfferID(v int64) *PaymentOrderUpdateOne {
+	_u.mutation.AddFirstRechargeOfferID(v)
+	return _u
+}
+
+// ClearFirstRechargeOfferID clears the value of the "first_recharge_offer_id" field.
+func (_u *PaymentOrderUpdateOne) ClearFirstRechargeOfferID() *PaymentOrderUpdateOne {
+	_u.mutation.ClearFirstRechargeOfferID()
 	return _u
 }
 
@@ -1942,6 +2041,11 @@ func (_u *PaymentOrderUpdateOne) check() error {
 			return &ValidationError{Name: "order_type", err: fmt.Errorf(`ent: validator failed for field "PaymentOrder.order_type": %w`, err)}
 		}
 	}
+	if v, ok := _u.mutation.ActivityType(); ok {
+		if err := paymentorder.ActivityTypeValidator(v); err != nil {
+			return &ValidationError{Name: "activity_type", err: fmt.Errorf(`ent: validator failed for field "PaymentOrder.activity_type": %w`, err)}
+		}
+	}
 	if v, ok := _u.mutation.ProviderInstanceID(); ok {
 		if err := paymentorder.ProviderInstanceIDValidator(v); err != nil {
 			return &ValidationError{Name: "provider_instance_id", err: fmt.Errorf(`ent: validator failed for field "PaymentOrder.provider_instance_id": %w`, err)}
@@ -2087,6 +2191,18 @@ func (_u *PaymentOrderUpdateOne) sqlSave(ctx context.Context) (_node *PaymentOrd
 	}
 	if _u.mutation.BalanceProductIDCleared() {
 		_spec.ClearField(paymentorder.FieldBalanceProductID, field.TypeInt64)
+	}
+	if value, ok := _u.mutation.ActivityType(); ok {
+		_spec.SetField(paymentorder.FieldActivityType, field.TypeString, value)
+	}
+	if value, ok := _u.mutation.FirstRechargeOfferID(); ok {
+		_spec.SetField(paymentorder.FieldFirstRechargeOfferID, field.TypeInt64, value)
+	}
+	if value, ok := _u.mutation.AddedFirstRechargeOfferID(); ok {
+		_spec.AddField(paymentorder.FieldFirstRechargeOfferID, field.TypeInt64, value)
+	}
+	if _u.mutation.FirstRechargeOfferIDCleared() {
+		_spec.ClearField(paymentorder.FieldFirstRechargeOfferID, field.TypeInt64)
 	}
 	if value, ok := _u.mutation.SubscriptionGroupID(); ok {
 		_spec.SetField(paymentorder.FieldSubscriptionGroupID, field.TypeInt64, value)

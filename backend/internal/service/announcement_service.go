@@ -16,6 +16,7 @@ type AnnouncementService struct {
 	readRepo         AnnouncementReadRepository
 	userRepo         UserRepository
 	userSubRepo      UserSubscriptionRepository
+	firstRechargeSvc *FirstRechargeActivityService
 }
 
 func NewAnnouncementService(
@@ -30,6 +31,10 @@ func NewAnnouncementService(
 		userRepo:         userRepo,
 		userSubRepo:      userSubRepo,
 	}
+}
+
+func (s *AnnouncementService) SetFirstRechargeActivityService(firstRechargeSvc *FirstRechargeActivityService) {
+	s.firstRechargeSvc = firstRechargeSvc
 }
 
 type CreateAnnouncementInput struct {
@@ -250,16 +255,15 @@ func (s *AnnouncementService) ListForUser(ctx context.Context, userID int64, unr
 		ids = append(ids, a.ID)
 	}
 
-	if len(visible) == 0 {
-		return []UserAnnouncement{}, nil
+	readMap := map[int64]time.Time{}
+	if len(ids) > 0 {
+		readMap, err = s.readRepo.GetReadMapByUser(ctx, userID, ids)
+		if err != nil {
+			return nil, fmt.Errorf("get read map: %w", err)
+		}
 	}
 
-	readMap, err := s.readRepo.GetReadMapByUser(ctx, userID, ids)
-	if err != nil {
-		return nil, fmt.Errorf("get read map: %w", err)
-	}
-
-	out := make([]UserAnnouncement, 0, len(visible))
+	out := make([]UserAnnouncement, 0, len(visible)+1)
 	for i := range visible {
 		a := visible[i]
 		readAt, ok := readMap[a.ID]
@@ -276,6 +280,9 @@ func (s *AnnouncementService) ListForUser(ctx context.Context, userID int64, unr
 			ReadAt:       ptr,
 		})
 	}
+	if synthetic := s.firstRechargeAnnouncement(ctx, userID); synthetic != nil {
+		out = append(out, *synthetic)
+	}
 
 	// 未读优先、同状态按创建时间倒序
 	sort.Slice(out, func(i, j int) bool {
@@ -290,6 +297,13 @@ func (s *AnnouncementService) ListForUser(ctx context.Context, userID int64, unr
 }
 
 func (s *AnnouncementService) MarkRead(ctx context.Context, userID, announcementID int64) error {
+	if announcementID == FirstRechargeAnnouncementID {
+		if s.firstRechargeSvc == nil {
+			return nil
+		}
+		return s.firstRechargeSvc.DismissPopup(ctx, userID)
+	}
+
 	// 安全：仅允许标记当前用户“可见”的公告
 	user, err := s.userRepo.GetByID(ctx, userID)
 	if err != nil {
@@ -323,6 +337,41 @@ func (s *AnnouncementService) MarkRead(ctx context.Context, userID, announcement
 		return fmt.Errorf("mark read: %w", err)
 	}
 	return nil
+}
+
+func (s *AnnouncementService) firstRechargeAnnouncement(ctx context.Context, userID int64) *UserAnnouncement {
+	if s.firstRechargeSvc == nil {
+		return nil
+	}
+	status, err := s.firstRechargeSvc.GetStatus(ctx, userID)
+	if err != nil || status == nil {
+		return nil
+	}
+	if !status.Enabled || !status.Eligible || status.Completed || status.PopupDismissed || len(status.Offers) == 0 {
+		return nil
+	}
+	now := time.Now()
+	return &UserAnnouncement{
+		Announcement: Announcement{
+			ID:         FirstRechargeAnnouncementID,
+			Title:      "首充专属活动",
+			Content:    formatFirstRechargeAnnouncementContent(status.Offers),
+			Status:     AnnouncementStatusActive,
+			NotifyMode: AnnouncementNotifyModePopup,
+			CreatedAt:  now,
+			UpdatedAt:  now,
+		},
+		ReadAt: nil,
+	}
+}
+
+func formatFirstRechargeAnnouncementContent(offers []FirstRechargeOffer) string {
+	lines := make([]string, 0, len(offers)+1)
+	lines = append(lines, "你有一次首充专属权益，可选择以下档位：")
+	for _, offer := range offers {
+		lines = append(lines, fmt.Sprintf("%s：支付 %.2f，到账 %.2f", offer.Name, offer.Price, offer.Amount))
+	}
+	return strings.Join(lines, "\n")
 }
 
 func (s *AnnouncementService) ListUserReadStatus(

@@ -1901,7 +1901,17 @@ export interface UpdateScheduledTestPlanRequest {
 }
 
 // Payment types
-export type { SubscriptionPlan, PaymentOrder, CheckoutInfoResponse } from './payment'
+export type {
+  SubscriptionPlan,
+  PaymentOrder,
+  CheckoutInfoResponse,
+  FirstRechargeAdminConfig,
+  FirstRechargeEligibilityScope,
+  FirstRechargeOffer,
+  FirstRechargeOfferInput,
+  FirstRechargeSpecifiedUser,
+  FirstRechargeStatus,
+} from './payment'
 
 export type {
   PlatformQuotaItem,

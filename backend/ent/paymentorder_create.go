@@ -197,6 +197,34 @@ func (_c *PaymentOrderCreate) SetNillableBalanceProductID(v *int64) *PaymentOrde
 	return _c
 }
 
+// SetActivityType sets the "activity_type" field.
+func (_c *PaymentOrderCreate) SetActivityType(v string) *PaymentOrderCreate {
+	_c.mutation.SetActivityType(v)
+	return _c
+}
+
+// SetNillableActivityType sets the "activity_type" field if the given value is not nil.
+func (_c *PaymentOrderCreate) SetNillableActivityType(v *string) *PaymentOrderCreate {
+	if v != nil {
+		_c.SetActivityType(*v)
+	}
+	return _c
+}
+
+// SetFirstRechargeOfferID sets the "first_recharge_offer_id" field.
+func (_c *PaymentOrderCreate) SetFirstRechargeOfferID(v int64) *PaymentOrderCreate {
+	_c.mutation.SetFirstRechargeOfferID(v)
+	return _c
+}
+
+// SetNillableFirstRechargeOfferID sets the "first_recharge_offer_id" field if the given value is not nil.
+func (_c *PaymentOrderCreate) SetNillableFirstRechargeOfferID(v *int64) *PaymentOrderCreate {
+	if v != nil {
+		_c.SetFirstRechargeOfferID(*v)
+	}
+	return _c
+}
+
 // SetSubscriptionGroupID sets the "subscription_group_id" field.
 func (_c *PaymentOrderCreate) SetSubscriptionGroupID(v int64) *PaymentOrderCreate {
 	_c.mutation.SetSubscriptionGroupID(v)
@@ -539,6 +567,10 @@ func (_c *PaymentOrderCreate) defaults() {
 		v := paymentorder.DefaultOrderType
 		_c.mutation.SetOrderType(v)
 	}
+	if _, ok := _c.mutation.ActivityType(); !ok {
+		v := paymentorder.DefaultActivityType
+		_c.mutation.SetActivityType(v)
+	}
 	if _, ok := _c.mutation.Status(); !ok {
 		v := paymentorder.DefaultStatus
 		_c.mutation.SetStatus(v)
@@ -629,6 +661,14 @@ func (_c *PaymentOrderCreate) check() error {
 	if v, ok := _c.mutation.OrderType(); ok {
 		if err := paymentorder.OrderTypeValidator(v); err != nil {
 			return &ValidationError{Name: "order_type", err: fmt.Errorf(`ent: validator failed for field "PaymentOrder.order_type": %w`, err)}
+		}
+	}
+	if _, ok := _c.mutation.ActivityType(); !ok {
+		return &ValidationError{Name: "activity_type", err: errors.New(`ent: missing required field "PaymentOrder.activity_type"`)}
+	}
+	if v, ok := _c.mutation.ActivityType(); ok {
+		if err := paymentorder.ActivityTypeValidator(v); err != nil {
+			return &ValidationError{Name: "activity_type", err: fmt.Errorf(`ent: validator failed for field "PaymentOrder.activity_type": %w`, err)}
 		}
 	}
 	if v, ok := _c.mutation.ProviderInstanceID(); ok {
@@ -778,6 +818,14 @@ func (_c *PaymentOrderCreate) createSpec() (*PaymentOrder, *sqlgraph.CreateSpec)
 	if value, ok := _c.mutation.BalanceProductID(); ok {
 		_spec.SetField(paymentorder.FieldBalanceProductID, field.TypeInt64, value)
 		_node.BalanceProductID = &value
+	}
+	if value, ok := _c.mutation.ActivityType(); ok {
+		_spec.SetField(paymentorder.FieldActivityType, field.TypeString, value)
+		_node.ActivityType = value
+	}
+	if value, ok := _c.mutation.FirstRechargeOfferID(); ok {
+		_spec.SetField(paymentorder.FieldFirstRechargeOfferID, field.TypeInt64, value)
+		_node.FirstRechargeOfferID = &value
 	}
 	if value, ok := _c.mutation.SubscriptionGroupID(); ok {
 		_spec.SetField(paymentorder.FieldSubscriptionGroupID, field.TypeInt64, value)
@@ -1207,6 +1255,42 @@ func (u *PaymentOrderUpsert) AddBalanceProductID(v int64) *PaymentOrderUpsert {
 // ClearBalanceProductID clears the value of the "balance_product_id" field.
 func (u *PaymentOrderUpsert) ClearBalanceProductID() *PaymentOrderUpsert {
 	u.SetNull(paymentorder.FieldBalanceProductID)
+	return u
+}
+
+// SetActivityType sets the "activity_type" field.
+func (u *PaymentOrderUpsert) SetActivityType(v string) *PaymentOrderUpsert {
+	u.Set(paymentorder.FieldActivityType, v)
+	return u
+}
+
+// UpdateActivityType sets the "activity_type" field to the value that was provided on create.
+func (u *PaymentOrderUpsert) UpdateActivityType() *PaymentOrderUpsert {
+	u.SetExcluded(paymentorder.FieldActivityType)
+	return u
+}
+
+// SetFirstRechargeOfferID sets the "first_recharge_offer_id" field.
+func (u *PaymentOrderUpsert) SetFirstRechargeOfferID(v int64) *PaymentOrderUpsert {
+	u.Set(paymentorder.FieldFirstRechargeOfferID, v)
+	return u
+}
+
+// UpdateFirstRechargeOfferID sets the "first_recharge_offer_id" field to the value that was provided on create.
+func (u *PaymentOrderUpsert) UpdateFirstRechargeOfferID() *PaymentOrderUpsert {
+	u.SetExcluded(paymentorder.FieldFirstRechargeOfferID)
+	return u
+}
+
+// AddFirstRechargeOfferID adds v to the "first_recharge_offer_id" field.
+func (u *PaymentOrderUpsert) AddFirstRechargeOfferID(v int64) *PaymentOrderUpsert {
+	u.Add(paymentorder.FieldFirstRechargeOfferID, v)
+	return u
+}
+
+// ClearFirstRechargeOfferID clears the value of the "first_recharge_offer_id" field.
+func (u *PaymentOrderUpsert) ClearFirstRechargeOfferID() *PaymentOrderUpsert {
+	u.SetNull(paymentorder.FieldFirstRechargeOfferID)
 	return u
 }
 
@@ -1939,6 +2023,48 @@ func (u *PaymentOrderUpsertOne) UpdateBalanceProductID() *PaymentOrderUpsertOne 
 func (u *PaymentOrderUpsertOne) ClearBalanceProductID() *PaymentOrderUpsertOne {
 	return u.Update(func(s *PaymentOrderUpsert) {
 		s.ClearBalanceProductID()
+	})
+}
+
+// SetActivityType sets the "activity_type" field.
+func (u *PaymentOrderUpsertOne) SetActivityType(v string) *PaymentOrderUpsertOne {
+	return u.Update(func(s *PaymentOrderUpsert) {
+		s.SetActivityType(v)
+	})
+}
+
+// UpdateActivityType sets the "activity_type" field to the value that was provided on create.
+func (u *PaymentOrderUpsertOne) UpdateActivityType() *PaymentOrderUpsertOne {
+	return u.Update(func(s *PaymentOrderUpsert) {
+		s.UpdateActivityType()
+	})
+}
+
+// SetFirstRechargeOfferID sets the "first_recharge_offer_id" field.
+func (u *PaymentOrderUpsertOne) SetFirstRechargeOfferID(v int64) *PaymentOrderUpsertOne {
+	return u.Update(func(s *PaymentOrderUpsert) {
+		s.SetFirstRechargeOfferID(v)
+	})
+}
+
+// AddFirstRechargeOfferID adds v to the "first_recharge_offer_id" field.
+func (u *PaymentOrderUpsertOne) AddFirstRechargeOfferID(v int64) *PaymentOrderUpsertOne {
+	return u.Update(func(s *PaymentOrderUpsert) {
+		s.AddFirstRechargeOfferID(v)
+	})
+}
+
+// UpdateFirstRechargeOfferID sets the "first_recharge_offer_id" field to the value that was provided on create.
+func (u *PaymentOrderUpsertOne) UpdateFirstRechargeOfferID() *PaymentOrderUpsertOne {
+	return u.Update(func(s *PaymentOrderUpsert) {
+		s.UpdateFirstRechargeOfferID()
+	})
+}
+
+// ClearFirstRechargeOfferID clears the value of the "first_recharge_offer_id" field.
+func (u *PaymentOrderUpsertOne) ClearFirstRechargeOfferID() *PaymentOrderUpsertOne {
+	return u.Update(func(s *PaymentOrderUpsert) {
+		s.ClearFirstRechargeOfferID()
 	})
 }
 
@@ -2899,6 +3025,48 @@ func (u *PaymentOrderUpsertBulk) UpdateBalanceProductID() *PaymentOrderUpsertBul
 func (u *PaymentOrderUpsertBulk) ClearBalanceProductID() *PaymentOrderUpsertBulk {
 	return u.Update(func(s *PaymentOrderUpsert) {
 		s.ClearBalanceProductID()
+	})
+}
+
+// SetActivityType sets the "activity_type" field.
+func (u *PaymentOrderUpsertBulk) SetActivityType(v string) *PaymentOrderUpsertBulk {
+	return u.Update(func(s *PaymentOrderUpsert) {
+		s.SetActivityType(v)
+	})
+}
+
+// UpdateActivityType sets the "activity_type" field to the value that was provided on create.
+func (u *PaymentOrderUpsertBulk) UpdateActivityType() *PaymentOrderUpsertBulk {
+	return u.Update(func(s *PaymentOrderUpsert) {
+		s.UpdateActivityType()
+	})
+}
+
+// SetFirstRechargeOfferID sets the "first_recharge_offer_id" field.
+func (u *PaymentOrderUpsertBulk) SetFirstRechargeOfferID(v int64) *PaymentOrderUpsertBulk {
+	return u.Update(func(s *PaymentOrderUpsert) {
+		s.SetFirstRechargeOfferID(v)
+	})
+}
+
+// AddFirstRechargeOfferID adds v to the "first_recharge_offer_id" field.
+func (u *PaymentOrderUpsertBulk) AddFirstRechargeOfferID(v int64) *PaymentOrderUpsertBulk {
+	return u.Update(func(s *PaymentOrderUpsert) {
+		s.AddFirstRechargeOfferID(v)
+	})
+}
+
+// UpdateFirstRechargeOfferID sets the "first_recharge_offer_id" field to the value that was provided on create.
+func (u *PaymentOrderUpsertBulk) UpdateFirstRechargeOfferID() *PaymentOrderUpsertBulk {
+	return u.Update(func(s *PaymentOrderUpsert) {
+		s.UpdateFirstRechargeOfferID()
+	})
+}
+
+// ClearFirstRechargeOfferID clears the value of the "first_recharge_offer_id" field.
+func (u *PaymentOrderUpsertBulk) ClearFirstRechargeOfferID() *PaymentOrderUpsertBulk {
+	return u.Update(func(s *PaymentOrderUpsert) {
+		s.ClearFirstRechargeOfferID()
 	})
 }
 

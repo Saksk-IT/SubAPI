@@ -58,7 +58,7 @@ func (h *AnnouncementHandler) MarkRead(c *gin.Context) {
 	}
 
 	announcementID, err := strconv.ParseInt(c.Param("id"), 10, 64)
-	if err != nil || announcementID <= 0 {
+	if err != nil || (announcementID <= 0 && announcementID != service.FirstRechargeAnnouncementID) {
 		response.BadRequest(c, "Invalid announcement ID")
 		return
 	}

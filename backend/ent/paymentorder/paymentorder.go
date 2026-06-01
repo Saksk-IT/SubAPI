@@ -48,6 +48,10 @@ const (
 	FieldPlanID = "plan_id"
 	// FieldBalanceProductID holds the string denoting the balance_product_id field in the database.
 	FieldBalanceProductID = "balance_product_id"
+	// FieldActivityType holds the string denoting the activity_type field in the database.
+	FieldActivityType = "activity_type"
+	// FieldFirstRechargeOfferID holds the string denoting the first_recharge_offer_id field in the database.
+	FieldFirstRechargeOfferID = "first_recharge_offer_id"
 	// FieldSubscriptionGroupID holds the string denoting the subscription_group_id field in the database.
 	FieldSubscriptionGroupID = "subscription_group_id"
 	// FieldSubscriptionDays holds the string denoting the subscription_days field in the database.
@@ -127,6 +131,8 @@ var Columns = []string{
 	FieldOrderType,
 	FieldPlanID,
 	FieldBalanceProductID,
+	FieldActivityType,
+	FieldFirstRechargeOfferID,
 	FieldSubscriptionGroupID,
 	FieldSubscriptionDays,
 	FieldProviderInstanceID,
@@ -183,6 +189,10 @@ var (
 	DefaultOrderType string
 	// OrderTypeValidator is a validator for the "order_type" field. It is called by the builders before save.
 	OrderTypeValidator func(string) error
+	// DefaultActivityType holds the default value on creation for the "activity_type" field.
+	DefaultActivityType string
+	// ActivityTypeValidator is a validator for the "activity_type" field. It is called by the builders before save.
+	ActivityTypeValidator func(string) error
 	// ProviderInstanceIDValidator is a validator for the "provider_instance_id" field. It is called by the builders before save.
 	ProviderInstanceIDValidator func(string) error
 	// ProviderKeyValidator is a validator for the "provider_key" field. It is called by the builders before save.
@@ -300,6 +310,16 @@ func ByPlanID(opts ...sql.OrderTermOption) OrderOption {
 // ByBalanceProductID orders the results by the balance_product_id field.
 func ByBalanceProductID(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldBalanceProductID, opts...).ToFunc()
+}
+
+// ByActivityType orders the results by the activity_type field.
+func ByActivityType(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldActivityType, opts...).ToFunc()
+}
+
+// ByFirstRechargeOfferID orders the results by the first_recharge_offer_id field.
+func ByFirstRechargeOfferID(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldFirstRechargeOfferID, opts...).ToFunc()
 }
 
 // BySubscriptionGroupID orders the results by the subscription_group_id field.

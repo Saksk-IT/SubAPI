@@ -495,7 +495,7 @@ var ProviderSet = wire.NewSet(
 	ProvidePricingService,
 	NewBillingService,
 	ProvideBillingCacheService,
-	NewAnnouncementService,
+	ProvideAnnouncementService,
 	NewAdminService,
 	NewGatewayService,
 	NewOpenAIGatewayService,
@@ -565,6 +565,7 @@ var ProviderSet = wire.NewSet(
 	NewModelPricingResolver,
 	NewContentModerationService,
 	NewAffiliateService,
+	NewFirstRechargeActivityService,
 	ProvidePaymentConfigService,
 	ProvidePaymentService,
 	ProvidePaymentOrderExpiryService,
@@ -587,9 +588,17 @@ func ProvideBalanceNotifyService(emailService *EmailService, settingRepo Setting
 	return svc
 }
 
+// ProvideAnnouncementService creates AnnouncementService and attaches synthetic activity announcements.
+func ProvideAnnouncementService(announcementRepo AnnouncementRepository, readRepo AnnouncementReadRepository, userRepo UserRepository, userSubRepo UserSubscriptionRepository, firstRechargeService *FirstRechargeActivityService) *AnnouncementService {
+	svc := NewAnnouncementService(announcementRepo, readRepo, userRepo, userSubRepo)
+	svc.SetFirstRechargeActivityService(firstRechargeService)
+	return svc
+}
+
 // ProvidePaymentService creates PaymentService and attaches notification email delivery.
-func ProvidePaymentService(entClient *dbent.Client, registry *payment.Registry, loadBalancer payment.LoadBalancer, redeemService *RedeemService, subscriptionSvc *SubscriptionService, configService *PaymentConfigService, userRepo UserRepository, groupRepo GroupRepository, affiliateService *AffiliateService, notificationEmailService *NotificationEmailService) *PaymentService {
+func ProvidePaymentService(entClient *dbent.Client, registry *payment.Registry, loadBalancer payment.LoadBalancer, redeemService *RedeemService, subscriptionSvc *SubscriptionService, configService *PaymentConfigService, userRepo UserRepository, groupRepo GroupRepository, affiliateService *AffiliateService, firstRechargeService *FirstRechargeActivityService, notificationEmailService *NotificationEmailService) *PaymentService {
 	svc := NewPaymentService(entClient, registry, loadBalancer, redeemService, subscriptionSvc, configService, userRepo, groupRepo, affiliateService)
+	svc.SetFirstRechargeActivityService(firstRechargeService)
 	svc.SetNotificationEmailService(notificationEmailService)
 	return svc
 }

@@ -16,6 +16,7 @@ const routerResolve = vi.hoisted(() => vi.fn(() => ({ href: '/payment/stripe?moc
 const createOrder = vi.hoisted(() => vi.fn())
 const refreshUser = vi.hoisted(() => vi.fn())
 const fetchActiveSubscriptions = vi.hoisted(() => vi.fn().mockResolvedValue(undefined))
+const fetchFirstRechargeStatus = vi.hoisted(() => vi.fn().mockResolvedValue(null))
 const showError = vi.hoisted(() => vi.fn())
 const showInfo = vi.hoisted(() => vi.fn())
 const showWarning = vi.hoisted(() => vi.fn())
@@ -68,6 +69,15 @@ vi.mock('@/stores/subscriptions', () => ({
   useSubscriptionStore: () => ({
     activeSubscriptions: [],
     fetchActiveSubscriptions,
+  }),
+}))
+
+vi.mock('@/stores/firstRecharge', () => ({
+  useFirstRechargeStore: () => ({
+    status: null,
+    available: false,
+    fetchStatus: fetchFirstRechargeStatus,
+    clear: vi.fn(),
   }),
 }))
 
@@ -247,6 +257,7 @@ describe('PaymentView WeChat JSAPI flow', () => {
     createOrder.mockReset()
     refreshUser.mockReset()
     fetchActiveSubscriptions.mockReset().mockResolvedValue(undefined)
+    fetchFirstRechargeStatus.mockReset().mockResolvedValue(null)
     showError.mockReset()
     showInfo.mockReset()
     showWarning.mockReset()

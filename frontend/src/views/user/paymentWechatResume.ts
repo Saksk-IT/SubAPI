@@ -8,6 +8,7 @@ export interface ParsedWechatResumeRoute {
   paymentType: string
   planId?: number
   balanceProductId?: number
+  firstRechargeOfferId?: number
   openid?: string
   wechatResumeToken?: string
 }
@@ -43,6 +44,8 @@ export function parseWechatResumeRoute(
   const hasPlanId = Number.isFinite(planId) && planId > 0
   const balanceProductId = Number.parseInt(readQueryString(query, 'balance_product_id'), 10)
   const hasBalanceProductId = Number.isFinite(balanceProductId) && balanceProductId > 0
+  const firstRechargeOfferId = Number.parseInt(readQueryString(query, 'first_recharge_offer_id'), 10)
+  const hasFirstRechargeOfferId = Number.isFinite(firstRechargeOfferId) && firstRechargeOfferId > 0
   const orderType = readQueryString(query, 'order_type') === 'subscription' || hasPlanId
     ? 'subscription'
     : 'balance'
@@ -55,6 +58,7 @@ export function parseWechatResumeRoute(
       orderAmount: 0,
       planId: hasPlanId ? planId : undefined,
       balanceProductId: hasBalanceProductId ? balanceProductId : undefined,
+      firstRechargeOfferId: hasFirstRechargeOfferId ? firstRechargeOfferId : undefined,
     }
   }
 
@@ -77,6 +81,7 @@ export function parseWechatResumeRoute(
     orderAmount,
     planId: hasPlanId ? planId : undefined,
     balanceProductId: hasBalanceProductId ? balanceProductId : undefined,
+    firstRechargeOfferId: hasFirstRechargeOfferId ? firstRechargeOfferId : undefined,
   }
 }
 
@@ -92,5 +97,6 @@ export function stripWechatResumeQuery(query: LocationQuery): LocationQueryRaw {
   delete nextQuery.order_type
   delete nextQuery.plan_id
   delete nextQuery.balance_product_id
+  delete nextQuery.first_recharge_offer_id
   return nextQuery
 }

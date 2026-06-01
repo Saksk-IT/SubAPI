@@ -140,6 +140,16 @@ func BalanceProductID(v int64) predicate.PaymentOrder {
 	return predicate.PaymentOrder(sql.FieldEQ(FieldBalanceProductID, v))
 }
 
+// ActivityType applies equality check predicate on the "activity_type" field. It's identical to ActivityTypeEQ.
+func ActivityType(v string) predicate.PaymentOrder {
+	return predicate.PaymentOrder(sql.FieldEQ(FieldActivityType, v))
+}
+
+// FirstRechargeOfferID applies equality check predicate on the "first_recharge_offer_id" field. It's identical to FirstRechargeOfferIDEQ.
+func FirstRechargeOfferID(v int64) predicate.PaymentOrder {
+	return predicate.PaymentOrder(sql.FieldEQ(FieldFirstRechargeOfferID, v))
+}
+
 // SubscriptionGroupID applies equality check predicate on the "subscription_group_id" field. It's identical to SubscriptionGroupIDEQ.
 func SubscriptionGroupID(v int64) predicate.PaymentOrder {
 	return predicate.PaymentOrder(sql.FieldEQ(FieldSubscriptionGroupID, v))
@@ -1243,6 +1253,121 @@ func BalanceProductIDIsNil() predicate.PaymentOrder {
 // BalanceProductIDNotNil applies the NotNil predicate on the "balance_product_id" field.
 func BalanceProductIDNotNil() predicate.PaymentOrder {
 	return predicate.PaymentOrder(sql.FieldNotNull(FieldBalanceProductID))
+}
+
+// ActivityTypeEQ applies the EQ predicate on the "activity_type" field.
+func ActivityTypeEQ(v string) predicate.PaymentOrder {
+	return predicate.PaymentOrder(sql.FieldEQ(FieldActivityType, v))
+}
+
+// ActivityTypeNEQ applies the NEQ predicate on the "activity_type" field.
+func ActivityTypeNEQ(v string) predicate.PaymentOrder {
+	return predicate.PaymentOrder(sql.FieldNEQ(FieldActivityType, v))
+}
+
+// ActivityTypeIn applies the In predicate on the "activity_type" field.
+func ActivityTypeIn(vs ...string) predicate.PaymentOrder {
+	return predicate.PaymentOrder(sql.FieldIn(FieldActivityType, vs...))
+}
+
+// ActivityTypeNotIn applies the NotIn predicate on the "activity_type" field.
+func ActivityTypeNotIn(vs ...string) predicate.PaymentOrder {
+	return predicate.PaymentOrder(sql.FieldNotIn(FieldActivityType, vs...))
+}
+
+// ActivityTypeGT applies the GT predicate on the "activity_type" field.
+func ActivityTypeGT(v string) predicate.PaymentOrder {
+	return predicate.PaymentOrder(sql.FieldGT(FieldActivityType, v))
+}
+
+// ActivityTypeGTE applies the GTE predicate on the "activity_type" field.
+func ActivityTypeGTE(v string) predicate.PaymentOrder {
+	return predicate.PaymentOrder(sql.FieldGTE(FieldActivityType, v))
+}
+
+// ActivityTypeLT applies the LT predicate on the "activity_type" field.
+func ActivityTypeLT(v string) predicate.PaymentOrder {
+	return predicate.PaymentOrder(sql.FieldLT(FieldActivityType, v))
+}
+
+// ActivityTypeLTE applies the LTE predicate on the "activity_type" field.
+func ActivityTypeLTE(v string) predicate.PaymentOrder {
+	return predicate.PaymentOrder(sql.FieldLTE(FieldActivityType, v))
+}
+
+// ActivityTypeContains applies the Contains predicate on the "activity_type" field.
+func ActivityTypeContains(v string) predicate.PaymentOrder {
+	return predicate.PaymentOrder(sql.FieldContains(FieldActivityType, v))
+}
+
+// ActivityTypeHasPrefix applies the HasPrefix predicate on the "activity_type" field.
+func ActivityTypeHasPrefix(v string) predicate.PaymentOrder {
+	return predicate.PaymentOrder(sql.FieldHasPrefix(FieldActivityType, v))
+}
+
+// ActivityTypeHasSuffix applies the HasSuffix predicate on the "activity_type" field.
+func ActivityTypeHasSuffix(v string) predicate.PaymentOrder {
+	return predicate.PaymentOrder(sql.FieldHasSuffix(FieldActivityType, v))
+}
+
+// ActivityTypeEqualFold applies the EqualFold predicate on the "activity_type" field.
+func ActivityTypeEqualFold(v string) predicate.PaymentOrder {
+	return predicate.PaymentOrder(sql.FieldEqualFold(FieldActivityType, v))
+}
+
+// ActivityTypeContainsFold applies the ContainsFold predicate on the "activity_type" field.
+func ActivityTypeContainsFold(v string) predicate.PaymentOrder {
+	return predicate.PaymentOrder(sql.FieldContainsFold(FieldActivityType, v))
+}
+
+// FirstRechargeOfferIDEQ applies the EQ predicate on the "first_recharge_offer_id" field.
+func FirstRechargeOfferIDEQ(v int64) predicate.PaymentOrder {
+	return predicate.PaymentOrder(sql.FieldEQ(FieldFirstRechargeOfferID, v))
+}
+
+// FirstRechargeOfferIDNEQ applies the NEQ predicate on the "first_recharge_offer_id" field.
+func FirstRechargeOfferIDNEQ(v int64) predicate.PaymentOrder {
+	return predicate.PaymentOrder(sql.FieldNEQ(FieldFirstRechargeOfferID, v))
+}
+
+// FirstRechargeOfferIDIn applies the In predicate on the "first_recharge_offer_id" field.
+func FirstRechargeOfferIDIn(vs ...int64) predicate.PaymentOrder {
+	return predicate.PaymentOrder(sql.FieldIn(FieldFirstRechargeOfferID, vs...))
+}
+
+// FirstRechargeOfferIDNotIn applies the NotIn predicate on the "first_recharge_offer_id" field.
+func FirstRechargeOfferIDNotIn(vs ...int64) predicate.PaymentOrder {
+	return predicate.PaymentOrder(sql.FieldNotIn(FieldFirstRechargeOfferID, vs...))
+}
+
+// FirstRechargeOfferIDGT applies the GT predicate on the "first_recharge_offer_id" field.
+func FirstRechargeOfferIDGT(v int64) predicate.PaymentOrder {
+	return predicate.PaymentOrder(sql.FieldGT(FieldFirstRechargeOfferID, v))
+}
+
+// FirstRechargeOfferIDGTE applies the GTE predicate on the "first_recharge_offer_id" field.
+func FirstRechargeOfferIDGTE(v int64) predicate.PaymentOrder {
+	return predicate.PaymentOrder(sql.FieldGTE(FieldFirstRechargeOfferID, v))
+}
+
+// FirstRechargeOfferIDLT applies the LT predicate on the "first_recharge_offer_id" field.
+func FirstRechargeOfferIDLT(v int64) predicate.PaymentOrder {
+	return predicate.PaymentOrder(sql.FieldLT(FieldFirstRechargeOfferID, v))
+}
+
+// FirstRechargeOfferIDLTE applies the LTE predicate on the "first_recharge_offer_id" field.
+func FirstRechargeOfferIDLTE(v int64) predicate.PaymentOrder {
+	return predicate.PaymentOrder(sql.FieldLTE(FieldFirstRechargeOfferID, v))
+}
+
+// FirstRechargeOfferIDIsNil applies the IsNil predicate on the "first_recharge_offer_id" field.
+func FirstRechargeOfferIDIsNil() predicate.PaymentOrder {
+	return predicate.PaymentOrder(sql.FieldIsNull(FieldFirstRechargeOfferID))
+}
+
+// FirstRechargeOfferIDNotNil applies the NotNil predicate on the "first_recharge_offer_id" field.
+func FirstRechargeOfferIDNotNil() predicate.PaymentOrder {
+	return predicate.PaymentOrder(sql.FieldNotNull(FieldFirstRechargeOfferID))
 }
 
 // SubscriptionGroupIDEQ applies the EQ predicate on the "subscription_group_id" field.
