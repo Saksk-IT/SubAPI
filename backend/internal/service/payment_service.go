@@ -113,12 +113,13 @@ type CreateOrderResponse struct {
 }
 
 type OrderListParams struct {
-	Page        int
-	PageSize    int
-	Status      string
-	OrderType   string
-	PaymentType string
-	Keyword     string
+	Page         int
+	PageSize     int
+	Status       string
+	OrderType    string
+	PaymentType  string
+	ActivityType string
+	Keyword      string
 }
 
 type RefundPlan struct {
@@ -154,6 +155,7 @@ type DashboardStats struct {
 	DailySeries    []DailyStats        `json:"daily_series"`
 	PaymentMethods []PaymentMethodStat `json:"payment_methods"`
 	TopUsers       []TopUserStat       `json:"top_users"`
+	OfferStats     []OfferStat         `json:"offer_stats,omitempty"`
 }
 
 type DailyStats struct {
@@ -166,6 +168,15 @@ type PaymentMethodStat struct {
 	Type   string  `json:"type"`
 	Amount float64 `json:"amount"`
 	Count  int     `json:"count"`
+}
+
+type OfferStat struct {
+	OfferID int64   `json:"offer_id"`
+	Name    string  `json:"name"`
+	Price   float64 `json:"price"`
+	Amount  float64 `json:"amount"`
+	Count   int     `json:"count"`
+	Revenue float64 `json:"revenue"`
 }
 
 type TopUserStat struct {

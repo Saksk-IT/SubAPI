@@ -157,6 +157,15 @@ export interface FirstRechargeSpecifiedUser {
   created_at: string
 }
 
+export interface PaymentOfferStat {
+  offer_id: number
+  name: string
+  price: number
+  amount: number
+  count: number
+  revenue: number
+}
+
 // ==================== Plans & Channels ====================
 
 export interface BalanceProduct {
@@ -296,7 +305,9 @@ export interface DashboardStats {
   today_count: number
   total_count: number
   avg_amount: number
+  pending_orders?: number
   daily_series: { date: string; amount: number; count: number }[]
   payment_methods: { type: string; amount: number; count: number }[]
   top_users: { user_id: number; email: string; amount: number }[]
+  offer_stats?: PaymentOfferStat[]
 }

@@ -17,6 +17,16 @@ import (
 // --- Dashboard & Analytics ---
 
 func (s *PaymentService) GetDashboardStats(ctx context.Context, days int) (*DashboardStats, error) {
+	return s.GetDashboardStatsWithParams(ctx, DashboardStatsParams{Days: days})
+}
+
+type DashboardStatsParams struct {
+	Days         int
+	ActivityType string
+}
+
+func (s *PaymentService) GetDashboardStatsWithParams(ctx context.Context, p DashboardStatsParams) (*DashboardStats, error) {
+	days := p.Days
 	if days <= 0 {
 		days = 30
 	}
@@ -26,12 +36,15 @@ func (s *PaymentService) GetDashboardStats(ctx context.Context, days int) (*Dash
 
 	paidStatuses := []string{OrderStatusCompleted, OrderStatusPaid, OrderStatusRecharging}
 
-	orders, err := s.entClient.PaymentOrder.Query().
+	q := s.entClient.PaymentOrder.Query().
 		Where(
 			paymentorder.StatusIn(paidStatuses...),
 			paymentorder.PaidAtGTE(since),
-		).
-		All(ctx)
+		)
+	if p.ActivityType != "" {
+		q = q.Where(paymentorder.ActivityTypeEQ(p.ActivityType))
+	}
+	orders, err := q.All(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -39,9 +52,12 @@ func (s *PaymentService) GetDashboardStats(ctx context.Context, days int) (*Dash
 	st := &DashboardStats{}
 	computeBasicStats(st, orders, todayStart)
 
-	st.PendingOrders, err = s.entClient.PaymentOrder.Query().
-		Where(paymentorder.StatusEQ(OrderStatusPending)).
-		Count(ctx)
+	pendingQuery := s.entClient.PaymentOrder.Query().
+		Where(paymentorder.StatusEQ(OrderStatusPending))
+	if p.ActivityType != "" {
+		pendingQuery = pendingQuery.Where(paymentorder.ActivityTypeEQ(p.ActivityType))
+	}
+	st.PendingOrders, err = pendingQuery.Count(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -49,6 +65,12 @@ func (s *PaymentService) GetDashboardStats(ctx context.Context, days int) (*Dash
 	st.DailySeries = buildDailySeries(orders, since, days)
 	st.PaymentMethods = buildMethodDistribution(orders)
 	st.TopUsers = buildTopUsers(orders)
+	if p.ActivityType == FirstRechargeActivityType {
+		st.OfferStats, err = s.buildFirstRechargeOfferStats(ctx, orders)
+		if err != nil {
+			return nil, err
+		}
+	}
 
 	return st, nil
 }
@@ -146,6 +168,53 @@ func buildTopUsers(orders []*dbent.PaymentOrder) []TopUserStat {
 		result = append(result, *userList[i])
 	}
 	return result
+}
+
+func (s *PaymentService) buildFirstRechargeOfferStats(ctx context.Context, orders []*dbent.PaymentOrder) ([]OfferStat, error) {
+	statsByOfferID := make(map[int64]*OfferStat)
+	for _, order := range orders {
+		if order.FirstRechargeOfferID == nil {
+			continue
+		}
+		offerID := *order.FirstRechargeOfferID
+		stat, ok := statsByOfferID[offerID]
+		if !ok {
+			stat = &OfferStat{OfferID: offerID}
+			statsByOfferID[offerID] = stat
+		}
+		stat.Count++
+		stat.Revenue += order.PayAmount
+	}
+	if s.firstRechargeService != nil {
+		adminConfig, err := s.firstRechargeService.GetAdminConfig(ctx)
+		if err != nil {
+			return nil, err
+		}
+		if adminConfig != nil {
+			for _, offer := range adminConfig.Offers {
+				stat, ok := statsByOfferID[offer.ID]
+				if !ok {
+					stat = &OfferStat{OfferID: offer.ID}
+					statsByOfferID[offer.ID] = stat
+				}
+				stat.Name = offer.Name
+				stat.Price = math.Round(offer.Price*100) / 100
+				stat.Amount = math.Round(offer.Amount*100) / 100
+			}
+		}
+	}
+	stats := make([]OfferStat, 0, len(statsByOfferID))
+	for _, stat := range statsByOfferID {
+		stat.Revenue = math.Round(stat.Revenue*100) / 100
+		stats = append(stats, *stat)
+	}
+	sort.Slice(stats, func(i, j int) bool {
+		if stats[i].Price == stats[j].Price {
+			return stats[i].OfferID < stats[j].OfferID
+		}
+		return stats[i].Price < stats[j].Price
+	})
+	return stats, nil
 }
 
 // --- Audit Logs ---

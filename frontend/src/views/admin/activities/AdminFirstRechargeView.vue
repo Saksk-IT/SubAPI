@@ -41,6 +41,11 @@
       </div>
 
       <template v-else>
+        <FirstRechargeDashboard
+          :stats="stats"
+          :loading="statsLoading || ordersLoading"
+          @refresh="refreshStatsAndOrders"
+        />
         <section class="grid gap-6 xl:grid-cols-[minmax(0,1fr)_420px]">
           <div class="space-y-6">
             <section class="card p-5 sm:p-6">
@@ -277,8 +282,36 @@
             </div>
           </section>
         </section>
+
+        <FirstRechargeOrderList
+          :orders="orders"
+          :loading="ordersLoading"
+          :keyword="orderSearch"
+          :status="orderFilters.status"
+          :payment-type="orderFilters.payment_type"
+          :page="orderPagination.page"
+          :page-size="orderPagination.page_size"
+          :total="orderPagination.total"
+          @update:keyword="handleOrderKeywordChange"
+          @update:status="handleOrderStatusChange"
+          @update:paymentType="handleOrderPaymentTypeChange"
+          @update:page="loadOrders"
+          @update:pageSize="handleOrderPageSizeChange"
+          @filter="loadOrders(1)"
+          @refresh="loadOrders(orderPagination.page)"
+          @detail="showOrderDetail"
+        />
       </template>
     </div>
+
+    <AdminOrderDetail
+      :show="showDetailDialog"
+      :order="selectedOrder"
+      @close="showDetailDialog = false"
+      @cancel="handleOrderMutated"
+      @retry="handleOrderMutated"
+      @refund="handleOrderMutated"
+    />
   </AppLayout>
 </template>
 
@@ -286,16 +319,22 @@
 import { computed, onMounted, reactive, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { adminActivitiesAPI, type FirstRechargeUserLookupItem } from '@/api/admin/activities'
+import { adminPaymentAPI } from '@/api/admin/payment'
 import { useAppStore } from '@/stores/app'
 import { extractApiErrorMessage } from '@/utils/apiError'
 import { formatDateTime } from '@/utils/format'
 import type {
+  DashboardStats,
   FirstRechargeEligibilityScope,
   FirstRechargeOffer,
   FirstRechargeOfferInput,
   FirstRechargeSpecifiedUser,
+  PaymentOrder,
 } from '@/types/payment'
 import AppLayout from '@/components/layout/AppLayout.vue'
+import FirstRechargeDashboard from '@/components/admin/activities/FirstRechargeDashboard.vue'
+import FirstRechargeOrderList from '@/components/admin/activities/FirstRechargeOrderList.vue'
+import AdminOrderDetail from '@/components/admin/payment/AdminOrderDetail.vue'
 import Icon from '@/components/icons/Icon.vue'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 import Pagination from '@/components/common/Pagination.vue'
@@ -320,6 +359,16 @@ const specifiedUsers = ref<FirstRechargeSpecifiedUser[]>([])
 const specifiedUsersTotal = ref(0)
 const specifiedPage = ref(1)
 const specifiedPageSize = ref(10)
+const statsLoading = ref(false)
+const stats = ref<DashboardStats | null>(null)
+const ordersLoading = ref(false)
+const orders = ref<PaymentOrder[]>([])
+const orderSearch = ref('')
+const orderFilters = reactive({ status: '', payment_type: '' })
+const orderPagination = reactive({ page: 1, page_size: 20, total: 0 })
+const selectedOrder = ref<PaymentOrder | null>(null)
+const showDetailDialog = ref(false)
+let orderSearchTimer: ReturnType<typeof setTimeout> | null = null
 
 const form = reactive<{
   enabled: boolean
@@ -379,6 +428,8 @@ async function loadConfig(force = false) {
     const [configResponse] = await Promise.all([
       adminActivitiesAPI.getFirstRecharge(),
       loadSpecifiedUsers(specifiedPage.value),
+      loadDashboardStats(),
+      loadOrders(orderPagination.page),
     ])
     const payload = configResponse.data
     form.enabled = payload.config.enabled
@@ -395,6 +446,83 @@ async function loadConfig(force = false) {
   } finally {
     loading.value = false
   }
+}
+
+async function loadDashboardStats() {
+  statsLoading.value = true
+  try {
+    const response = await adminPaymentAPI.getDashboard(30, { activity_type: 'first_recharge' })
+    stats.value = response.data
+  } catch (error: unknown) {
+    appStore.showError(extractApiErrorMessage(error, t('admin.firstRecharge.loadStatsFailed')))
+  } finally {
+    statsLoading.value = false
+  }
+}
+
+async function loadOrders(page = orderPagination.page) {
+  orderPagination.page = page
+  ordersLoading.value = true
+  try {
+    const response = await adminPaymentAPI.getOrders({
+      page: orderPagination.page,
+      page_size: orderPagination.page_size,
+      status: orderFilters.status || undefined,
+      payment_type: orderFilters.payment_type || undefined,
+      keyword: orderSearch.value.trim() || undefined,
+      activity_type: 'first_recharge',
+    })
+    orders.value = response.data.items || []
+    orderPagination.total = response.data.total || 0
+    orderPagination.page = response.data.page || page
+    orderPagination.page_size = response.data.page_size || orderPagination.page_size
+  } catch (error: unknown) {
+    appStore.showError(extractApiErrorMessage(error, t('admin.firstRecharge.loadOrdersFailed')))
+  } finally {
+    ordersLoading.value = false
+  }
+}
+
+function handleOrderKeywordChange(value: string) {
+  orderSearch.value = value
+  if (orderSearchTimer) clearTimeout(orderSearchTimer)
+  orderSearchTimer = setTimeout(() => {
+    loadOrders(1).catch(() => {})
+  }, 300)
+}
+
+function handleOrderStatusChange(value: string) {
+  orderFilters.status = value
+}
+
+function handleOrderPaymentTypeChange(value: string) {
+  orderFilters.payment_type = value
+}
+
+function refreshStatsAndOrders() {
+  Promise.all([loadDashboardStats(), loadOrders(orderPagination.page)]).catch(() => {})
+}
+
+function handleOrderPageSizeChange(pageSize: number) {
+  orderPagination.page_size = pageSize
+  loadOrders(1).catch(() => {})
+}
+
+async function showOrderDetail(order: PaymentOrder) {
+  selectedOrder.value = order
+  showDetailDialog.value = true
+  try {
+    const response = await adminPaymentAPI.getOrder(order.id)
+    const payload = response.data as unknown as { order?: PaymentOrder }
+    selectedOrder.value = payload.order || response.data
+  } catch {
+    // 详情加载失败时保留表格行数据，避免打断管理员查看。
+  }
+}
+
+function handleOrderMutated() {
+  showDetailDialog.value = false
+  refreshStatsAndOrders()
 }
 
 function buildOfferPayload(): FirstRechargeOfferInput[] {

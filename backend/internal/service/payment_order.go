@@ -970,6 +970,9 @@ func (s *PaymentService) AdminListOrders(ctx context.Context, userID int64, p Or
 	if p.PaymentType != "" {
 		q = q.Where(paymentorder.PaymentTypeEQ(p.PaymentType))
 	}
+	if p.ActivityType != "" {
+		q = q.Where(paymentorder.ActivityTypeEQ(p.ActivityType))
+	}
 	if p.Keyword != "" {
 		q = q.Where(paymentorder.Or(
 			paymentorder.OutTradeNoContainsFold(p.Keyword),

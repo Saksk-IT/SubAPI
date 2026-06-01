@@ -35,7 +35,14 @@ func (h *PaymentHandler) GetDashboard(c *gin.Context) {
 			days = v
 		}
 	}
-	stats, err := h.paymentService.GetDashboardStats(c.Request.Context(), days)
+	activityType, ok := parsePaymentActivityType(c)
+	if !ok {
+		return
+	}
+	stats, err := h.paymentService.GetDashboardStatsWithParams(c.Request.Context(), service.DashboardStatsParams{
+		Days:         days,
+		ActivityType: activityType,
+	})
 	if err != nil {
 		response.ErrorFrom(c, err)
 		return
@@ -55,13 +62,18 @@ func (h *PaymentHandler) ListOrders(c *gin.Context) {
 			userID = v
 		}
 	}
+	activityType, ok := parsePaymentActivityType(c)
+	if !ok {
+		return
+	}
 	orders, total, err := h.paymentService.AdminListOrders(c.Request.Context(), userID, service.OrderListParams{
-		Page:        page,
-		PageSize:    pageSize,
-		Status:      c.Query("status"),
-		OrderType:   c.Query("order_type"),
-		PaymentType: c.Query("payment_type"),
-		Keyword:     c.Query("keyword"),
+		Page:         page,
+		PageSize:     pageSize,
+		Status:       c.Query("status"),
+		OrderType:    c.Query("order_type"),
+		PaymentType:  c.Query("payment_type"),
+		ActivityType: activityType,
+		Keyword:      c.Query("keyword"),
 	})
 	if err != nil {
 		response.ErrorFrom(c, err)
@@ -124,6 +136,15 @@ func sanitizeAdminPaymentOrdersForResponse(orders []*dbent.PaymentOrder) []*dben
 		out = append(out, sanitizeAdminPaymentOrderForResponse(order))
 	}
 	return out
+}
+
+func parsePaymentActivityType(c *gin.Context) (string, bool) {
+	activityType := c.Query("activity_type")
+	if activityType == "" || activityType == service.FirstRechargeActivityType {
+		return activityType, true
+	}
+	response.BadRequest(c, "Invalid activity_type")
+	return "", false
 }
 
 func sanitizeAdminPaymentOrderForResponse(order *dbent.PaymentOrder) *dbent.PaymentOrder {
