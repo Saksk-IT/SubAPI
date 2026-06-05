@@ -133,11 +133,24 @@
             class="min-w-0 space-y-6"
           >
             <!-- Tab Switcher (hide during subscription confirm) -->
-            <div v-if="tabs.length > 1 && !selectedPlan" class="flex space-x-1 rounded-xl bg-gray-100 p-1 dark:bg-dark-800">
-              <button v-for="tab in tabs" :key="tab.key"
-                class="flex-1 rounded-lg px-4 py-2.5 text-sm font-medium transition-all"
-                :class="activeTab === tab.key ? 'bg-white text-gray-900 shadow dark:bg-dark-700 dark:text-white' : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300'"
-                @click="activeTab = tab.key">{{ tab.label }}</button>
+            <div
+              v-if="tabs.length > 1 && !selectedPlan"
+              class="grid grid-cols-2 gap-1.5 rounded-2xl border border-primary-200 bg-white p-1.5 shadow-lg shadow-primary-500/10 ring-1 ring-primary-100/80 dark:border-primary-500/30 dark:bg-dark-900/80 dark:shadow-primary-900/20 dark:ring-primary-500/20 sm:gap-2"
+              role="tablist"
+              :aria-label="t('nav.buySubscription')"
+            >
+              <button
+                v-for="tab in tabs"
+                :key="tab.key"
+                type="button"
+                role="tab"
+                :aria-selected="activeTab === tab.key"
+                class="relative min-h-12 rounded-xl px-4 py-3 text-sm font-black transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-dark-900 sm:text-base"
+                :class="activeTab === tab.key ? 'bg-gradient-to-r from-primary-500 to-sky-500 text-white shadow-md shadow-primary-500/30 ring-1 ring-white/30 dark:from-primary-500 dark:to-sky-400' : 'bg-white/70 text-gray-700 ring-1 ring-gray-200 hover:bg-primary-50 hover:text-primary-700 hover:ring-primary-200 dark:bg-dark-800/80 dark:text-gray-300 dark:ring-dark-600 dark:hover:bg-primary-500/10 dark:hover:text-primary-200 dark:hover:ring-primary-500/30'"
+                @click="activeTab = tab.key"
+              >
+                {{ tab.label }}
+              </button>
             </div>
 
             <!-- Top-up Tab -->
