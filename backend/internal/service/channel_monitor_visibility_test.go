@@ -56,6 +56,16 @@ func (r *visibilityMonitorRepo) ListEnabled(context.Context) ([]*ChannelMonitor,
 	return out, nil
 }
 
+func (r *visibilityMonitorRepo) ListUserVisible(context.Context) ([]*ChannelMonitor, error) {
+	out := make([]*ChannelMonitor, 0, len(r.monitors))
+	for _, m := range r.monitors {
+		if m.UserVisible {
+			out = append(out, m)
+		}
+	}
+	return out, nil
+}
+
 func (r *visibilityMonitorRepo) ListHistory(context.Context, int64, string, int) ([]*ChannelMonitorHistoryEntry, error) {
 	return nil, nil
 }
@@ -81,6 +91,10 @@ func (r *visibilityMonitorRepo) ListRecentHistoryForMonitors(context.Context, []
 }
 
 func newVisibilityMonitor(id int64, name string, userVisible bool) *ChannelMonitor {
+	return newVisibilityMonitorWithEnabled(id, name, true, userVisible)
+}
+
+func newVisibilityMonitorWithEnabled(id int64, name string, enabled bool, userVisible bool) *ChannelMonitor {
 	return &ChannelMonitor{
 		ID:              id,
 		Name:            name,
@@ -89,7 +103,7 @@ func newVisibilityMonitor(id int64, name string, userVisible bool) *ChannelMonit
 		Endpoint:        "https://api.example.com",
 		APIKey:          "encrypted",
 		PrimaryModel:    "gpt-4o-mini",
-		Enabled:         true,
+		Enabled:         enabled,
 		UserVisible:     userVisible,
 		IntervalSeconds: 60,
 	}
@@ -114,6 +128,25 @@ func TestListUserViewSkipsInvisibleMonitors(t *testing.T) {
 	}
 }
 
+func TestListUserViewIncludesDisabledVisibleMonitors(t *testing.T) {
+	repo := &visibilityMonitorRepo{monitors: []*ChannelMonitor{
+		newVisibilityMonitorWithEnabled(1, "disabled visible", false, true),
+		newVisibilityMonitorWithEnabled(2, "enabled hidden", true, false),
+	}}
+	svc := NewChannelMonitorService(repo, nil)
+
+	views, err := svc.ListUserView(context.Background())
+	if err != nil {
+		t.Fatalf("ListUserView returned error: %v", err)
+	}
+	if len(views) != 1 {
+		t.Fatalf("expected 1 user-visible monitor, got %d", len(views))
+	}
+	if views[0].ID != 1 {
+		t.Fatalf("expected disabled but user-visible monitor id=1, got %d", views[0].ID)
+	}
+}
+
 func TestGetUserDetailRejectsInvisibleMonitor(t *testing.T) {
 	repo := &visibilityMonitorRepo{monitors: []*ChannelMonitor{
 		newVisibilityMonitor(2, "hidden", false),
@@ -122,5 +155,20 @@ func TestGetUserDetailRejectsInvisibleMonitor(t *testing.T) {
 
 	if _, err := svc.GetUserDetail(context.Background(), 2); err != ErrChannelMonitorNotFound {
 		t.Fatalf("expected ErrChannelMonitorNotFound, got %v", err)
+	}
+}
+
+func TestGetUserDetailAllowsDisabledVisibleMonitor(t *testing.T) {
+	repo := &visibilityMonitorRepo{monitors: []*ChannelMonitor{
+		newVisibilityMonitorWithEnabled(3, "disabled visible", false, true),
+	}}
+	svc := NewChannelMonitorService(repo, nil)
+
+	detail, err := svc.GetUserDetail(context.Background(), 3)
+	if err != nil {
+		t.Fatalf("GetUserDetail returned error: %v", err)
+	}
+	if detail.ID != 3 {
+		t.Fatalf("expected monitor id=3, got %d", detail.ID)
 	}
 }
