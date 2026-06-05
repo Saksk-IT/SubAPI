@@ -45,6 +45,7 @@ type channelMonitorCreateRequest struct {
 	ExtraModels      []string          `json:"extra_models"`
 	GroupName        string            `json:"group_name" binding:"max=100"`
 	Enabled          *bool             `json:"enabled"`
+	UserVisible      *bool             `json:"user_visible"`
 	IntervalSeconds  int               `json:"interval_seconds" binding:"required,min=15,max=3600"`
 	TemplateID       *int64            `json:"template_id"`
 	ExtraHeaders     map[string]string `json:"extra_headers"`
@@ -62,6 +63,7 @@ type channelMonitorUpdateRequest struct {
 	ExtraModels      *[]string          `json:"extra_models"`
 	GroupName        *string            `json:"group_name" binding:"omitempty,max=100"`
 	Enabled          *bool              `json:"enabled"`
+	UserVisible      *bool              `json:"user_visible"`
 	IntervalSeconds  *int               `json:"interval_seconds" binding:"omitempty,min=15,max=3600"`
 	TemplateID       *int64             `json:"template_id"`
 	ClearTemplate    bool               `json:"clear_template"` // true 时把 template_id 置空，忽略 TemplateID
@@ -82,6 +84,7 @@ type channelMonitorResponse struct {
 	ExtraModels         []string                             `json:"extra_models"`
 	GroupName           string                               `json:"group_name"`
 	Enabled             bool                                 `json:"enabled"`
+	UserVisible         bool                                 `json:"user_visible"`
 	IntervalSeconds     int                                  `json:"interval_seconds"`
 	LastCheckedAt       *string                              `json:"last_checked_at"`
 	CreatedBy           int64                                `json:"created_by"`
@@ -149,6 +152,7 @@ func channelMonitorToResponse(m *service.ChannelMonitor) *channelMonitorResponse
 		ExtraModels:         extras,
 		GroupName:           m.GroupName,
 		Enabled:             m.Enabled,
+		UserVisible:         m.UserVisible,
 		IntervalSeconds:     m.IntervalSeconds,
 		CreatedBy:           m.CreatedBy,
 		CreatedAt:           m.CreatedAt.UTC().Format(time.RFC3339),
@@ -303,7 +307,6 @@ func (h *ChannelMonitorHandler) Create(c *gin.Context) {
 	if req.Enabled != nil {
 		enabled = *req.Enabled
 	}
-
 	m, err := h.monitorService.Create(c.Request.Context(), service.ChannelMonitorCreateParams{
 		Name:             req.Name,
 		Provider:         req.Provider,
@@ -314,6 +317,7 @@ func (h *ChannelMonitorHandler) Create(c *gin.Context) {
 		ExtraModels:      req.ExtraModels,
 		GroupName:        req.GroupName,
 		Enabled:          enabled,
+		UserVisible:      req.UserVisible,
 		IntervalSeconds:  req.IntervalSeconds,
 		CreatedBy:        subject.UserID,
 		TemplateID:       req.TemplateID,
@@ -350,6 +354,7 @@ func (h *ChannelMonitorHandler) Update(c *gin.Context) {
 		ExtraModels:      req.ExtraModels,
 		GroupName:        req.GroupName,
 		Enabled:          req.Enabled,
+		UserVisible:      req.UserVisible,
 		IntervalSeconds:  req.IntervalSeconds,
 		TemplateID:       req.TemplateID,
 		ClearTemplate:    req.ClearTemplate,

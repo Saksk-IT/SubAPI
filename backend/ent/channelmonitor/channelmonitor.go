@@ -37,6 +37,8 @@ const (
 	FieldGroupName = "group_name"
 	// FieldEnabled holds the string denoting the enabled field in the database.
 	FieldEnabled = "enabled"
+	// FieldUserVisible holds the string denoting the user_visible field in the database.
+	FieldUserVisible = "user_visible"
 	// FieldIntervalSeconds holds the string denoting the interval_seconds field in the database.
 	FieldIntervalSeconds = "interval_seconds"
 	// FieldLastCheckedAt holds the string denoting the last_checked_at field in the database.
@@ -96,6 +98,7 @@ var Columns = []string{
 	FieldExtraModels,
 	FieldGroupName,
 	FieldEnabled,
+	FieldUserVisible,
 	FieldIntervalSeconds,
 	FieldLastCheckedAt,
 	FieldCreatedBy,
@@ -142,6 +145,8 @@ var (
 	GroupNameValidator func(string) error
 	// DefaultEnabled holds the default value on creation for the "enabled" field.
 	DefaultEnabled bool
+	// DefaultUserVisible holds the default value on creation for the "user_visible" field.
+	DefaultUserVisible bool
 	// IntervalSecondsValidator is a validator for the "interval_seconds" field. It is called by the builders before save.
 	IntervalSecondsValidator func(int) error
 	// DefaultExtraHeaders holds the default value on creation for the "extra_headers" field.
@@ -232,6 +237,11 @@ func ByGroupName(opts ...sql.OrderTermOption) OrderOption {
 // ByEnabled orders the results by the enabled field.
 func ByEnabled(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldEnabled, opts...).ToFunc()
+}
+
+// ByUserVisible orders the results by the user_visible field.
+func ByUserVisible(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldUserVisible, opts...).ToFunc()
 }
 
 // ByIntervalSeconds orders the results by the interval_seconds field.

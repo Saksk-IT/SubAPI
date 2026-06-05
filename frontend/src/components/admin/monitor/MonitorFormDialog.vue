@@ -114,6 +114,11 @@
         <Toggle v-model="form.enabled" />
       </div>
 
+      <div class="flex items-center justify-between">
+        <label class="input-label mb-0">{{ t('admin.channelMonitor.form.userVisible') }}</label>
+        <Toggle v-model="form.user_visible" />
+      </div>
+
       <!-- 高级设置区：请求模板 + 自定义 headers/body -->
       <details class="rounded-lg border border-gray-200 bg-gray-50/50 p-3 dark:border-dark-700 dark:bg-dark-900/30">
         <summary class="cursor-pointer text-sm font-medium text-gray-700 dark:text-gray-300">
@@ -255,6 +260,7 @@ interface MonitorForm {
   group_name: string
   interval_seconds: number
   enabled: boolean
+  user_visible: boolean
   // 高级设置快照
   template_id: number | null
   extra_headers: Record<string, string>
@@ -273,6 +279,7 @@ const form = reactive<MonitorForm>({
   group_name: '',
   interval_seconds: systemDefaultInterval.value,
   enabled: true,
+  user_visible: true,
   template_id: null,
   extra_headers: {},
   body_override_mode: 'off',
@@ -420,6 +427,7 @@ function resetForm() {
   form.group_name = ''
   form.interval_seconds = systemDefaultInterval.value
   form.enabled = true
+  form.user_visible = true
   form.template_id = null
   form.extra_headers = {}
   form.body_override_mode = 'off'
@@ -439,6 +447,7 @@ function loadFromMonitor(m: ChannelMonitor) {
   form.group_name = m.group_name || ''
   form.interval_seconds = m.interval_seconds || systemDefaultInterval.value
   form.enabled = m.enabled
+  form.user_visible = m.user_visible ?? true
   form.template_id = m.template_id ?? null
   form.extra_headers = { ...(m.extra_headers || {}) }
   form.body_override_mode = m.body_override_mode || 'off'
@@ -503,6 +512,7 @@ function buildPayload(): CreateParams {
     extra_models: form.extra_models,
     group_name: form.group_name.trim(),
     enabled: form.enabled,
+    user_visible: form.user_visible,
     interval_seconds: form.interval_seconds,
     template_id: form.template_id,
     extra_headers: form.extra_headers,

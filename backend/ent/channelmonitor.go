@@ -41,6 +41,8 @@ type ChannelMonitor struct {
 	GroupName string `json:"group_name,omitempty"`
 	// Enabled holds the value of the "enabled" field.
 	Enabled bool `json:"enabled,omitempty"`
+	// Whether this monitor is visible in user-facing channel status pages
+	UserVisible bool `json:"user_visible,omitempty"`
 	// IntervalSeconds holds the value of the "interval_seconds" field.
 	IntervalSeconds int `json:"interval_seconds,omitempty"`
 	// LastCheckedAt holds the value of the "last_checked_at" field.
@@ -110,7 +112,7 @@ func (*ChannelMonitor) scanValues(columns []string) ([]any, error) {
 		switch columns[i] {
 		case channelmonitor.FieldExtraModels, channelmonitor.FieldExtraHeaders, channelmonitor.FieldBodyOverride:
 			values[i] = new([]byte)
-		case channelmonitor.FieldEnabled:
+		case channelmonitor.FieldEnabled, channelmonitor.FieldUserVisible:
 			values[i] = new(sql.NullBool)
 		case channelmonitor.FieldID, channelmonitor.FieldIntervalSeconds, channelmonitor.FieldCreatedBy, channelmonitor.FieldTemplateID:
 			values[i] = new(sql.NullInt64)
@@ -206,6 +208,12 @@ func (_m *ChannelMonitor) assignValues(columns []string, values []any) error {
 				return fmt.Errorf("unexpected type %T for field enabled", values[i])
 			} else if value.Valid {
 				_m.Enabled = value.Bool
+			}
+		case channelmonitor.FieldUserVisible:
+			if value, ok := values[i].(*sql.NullBool); !ok {
+				return fmt.Errorf("unexpected type %T for field user_visible", values[i])
+			} else if value.Valid {
+				_m.UserVisible = value.Bool
 			}
 		case channelmonitor.FieldIntervalSeconds:
 			if value, ok := values[i].(*sql.NullInt64); !ok {
@@ -337,6 +345,9 @@ func (_m *ChannelMonitor) String() string {
 	builder.WriteString(", ")
 	builder.WriteString("enabled=")
 	builder.WriteString(fmt.Sprintf("%v", _m.Enabled))
+	builder.WriteString(", ")
+	builder.WriteString("user_visible=")
+	builder.WriteString(fmt.Sprintf("%v", _m.UserVisible))
 	builder.WriteString(", ")
 	builder.WriteString("interval_seconds=")
 	builder.WriteString(fmt.Sprintf("%v", _m.IntervalSeconds))

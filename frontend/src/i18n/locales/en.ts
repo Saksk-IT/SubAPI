@@ -2835,6 +2835,7 @@ export default {
         availability7d: '7d Availability',
         latency: 'Latency (ms)',
         enabled: 'Enabled',
+        userVisible: 'User visible',
         actions: 'Actions'
       },
       form: {
@@ -2865,6 +2866,7 @@ export default {
         intervalSeconds: 'Interval (seconds)',
         intervalSecondsHint: 'Range: 15 - 3600 seconds',
         enabled: 'Enable monitor',
+        userVisible: 'Visible to users',
         kindRequired: 'Please select a provider'
       },
       runResultTitle: 'Check Result',

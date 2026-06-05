@@ -47,6 +47,10 @@
             <Toggle :modelValue="row.enabled" @update:modelValue="toggleEnabled(row)" />
           </template>
 
+          <template #cell-user_visible="{ row }">
+            <Toggle :modelValue="isUserVisible(row)" @update:modelValue="toggleUserVisible(row)" />
+          </template>
+
           <template #cell-actions="{ row }">
             <MonitorActionsCell
               :row="row"
@@ -178,6 +182,7 @@ const columns = computed<Column[]>(() => [
   { key: 'availability_7d', label: t('admin.channelMonitor.columns.availability7d'), sortable: false },
   { key: 'latency', label: t('admin.channelMonitor.columns.latency'), sortable: false },
   { key: 'enabled', label: t('admin.channelMonitor.columns.enabled'), sortable: false },
+  { key: 'user_visible', label: t('admin.channelMonitor.columns.userVisible'), sortable: false },
   { key: 'actions', label: t('admin.channelMonitor.columns.actions'), sortable: false },
 ])
 
@@ -255,10 +260,30 @@ async function toggleEnabled(row: ChannelMonitor) {
   const next = !row.enabled
   try {
     await adminAPI.channelMonitor.update(row.id, { enabled: next })
-    row.enabled = next
+    patchMonitorInList(row.id, { enabled: next })
   } catch (err: unknown) {
     appStore.showError(extractApiErrorMessage(err, t('common.error')))
   }
+}
+
+async function toggleUserVisible(row: ChannelMonitor) {
+  const next = !isUserVisible(row)
+  try {
+    await adminAPI.channelMonitor.update(row.id, { user_visible: next })
+    patchMonitorInList(row.id, { user_visible: next })
+  } catch (err: unknown) {
+    appStore.showError(extractApiErrorMessage(err, t('common.error')))
+  }
+}
+
+function isUserVisible(row: ChannelMonitor): boolean {
+  return row.user_visible ?? true
+}
+
+function patchMonitorInList(id: number, patch: Partial<ChannelMonitor>) {
+  monitors.value = monitors.value.map((item) =>
+    item.id === id ? { ...item, ...patch } : item
+  )
 }
 
 async function handleRunNow(row: ChannelMonitor) {

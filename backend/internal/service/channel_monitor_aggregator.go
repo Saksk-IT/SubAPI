@@ -48,7 +48,7 @@ func (s *ChannelMonitorService) BatchMonitorStatusSummary(
 	return out
 }
 
-// ListUserView 用户只读视图：列出所有 enabled 监控的概览。
+// ListUserView 用户只读视图：列出所有 enabled 且 user_visible 的监控概览。
 // 使用批量聚合接口避免 N+1：
 //
 //	1 次查 monitors；
@@ -60,6 +60,10 @@ func (s *ChannelMonitorService) ListUserView(ctx context.Context) ([]*UserMonito
 	if err != nil {
 		return nil, fmt.Errorf("list enabled monitors: %w", err)
 	}
+	if len(monitors) == 0 {
+		return []*UserMonitorView{}, nil
+	}
+	monitors = filterUserVisibleMonitors(monitors)
 	if len(monitors) == 0 {
 		return []*UserMonitorView{}, nil
 	}
@@ -137,6 +141,9 @@ func (s *ChannelMonitorService) GetUserDetail(ctx context.Context, id int64) (*U
 	if !m.Enabled {
 		return nil, ErrChannelMonitorNotFound
 	}
+	if !m.UserVisible {
+		return nil, ErrChannelMonitorNotFound
+	}
 
 	latest, err := s.repo.ListLatestPerModel(ctx, id)
 	if err != nil {
@@ -155,6 +162,18 @@ func (s *ChannelMonitorService) GetUserDetail(ctx context.Context, id int64) (*U
 		GroupName: m.GroupName,
 		Models:    models,
 	}, nil
+}
+
+// filterUserVisibleMonitors 保留普通用户可见的监控；runner 仍使用 ListEnabledMonitors，
+// 不受 user_visible 影响。
+func filterUserVisibleMonitors(monitors []*ChannelMonitor) []*ChannelMonitor {
+	out := make([]*ChannelMonitor, 0, len(monitors))
+	for _, m := range monitors {
+		if m != nil && m.UserVisible {
+			out = append(out, m)
+		}
+	}
+	return out
 }
 
 // collectAvailabilityWindows 一次性查询 7/15/30 天三个窗口，按模型组织。

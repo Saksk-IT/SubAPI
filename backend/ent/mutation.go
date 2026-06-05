@@ -9929,6 +9929,7 @@ type ChannelMonitorMutation struct {
 	appendextra_models      []string
 	group_name              *string
 	enabled                 *bool
+	user_visible            *bool
 	interval_seconds        *int
 	addinterval_seconds     *int
 	last_checked_at         *time.Time
@@ -10473,6 +10474,42 @@ func (m *ChannelMonitorMutation) ResetEnabled() {
 	m.enabled = nil
 }
 
+// SetUserVisible sets the "user_visible" field.
+func (m *ChannelMonitorMutation) SetUserVisible(b bool) {
+	m.user_visible = &b
+}
+
+// UserVisible returns the value of the "user_visible" field in the mutation.
+func (m *ChannelMonitorMutation) UserVisible() (r bool, exists bool) {
+	v := m.user_visible
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldUserVisible returns the old "user_visible" field's value of the ChannelMonitor entity.
+// If the ChannelMonitor object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *ChannelMonitorMutation) OldUserVisible(ctx context.Context) (v bool, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldUserVisible is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldUserVisible requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldUserVisible: %w", err)
+	}
+	return oldValue.UserVisible, nil
+}
+
+// ResetUserVisible resets all changes to the "user_visible" field.
+func (m *ChannelMonitorMutation) ResetUserVisible() {
+	m.user_visible = nil
+}
+
 // SetIntervalSeconds sets the "interval_seconds" field.
 func (m *ChannelMonitorMutation) SetIntervalSeconds(i int) {
 	m.interval_seconds = &i
@@ -10986,7 +11023,7 @@ func (m *ChannelMonitorMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *ChannelMonitorMutation) Fields() []string {
-	fields := make([]string, 0, 18)
+	fields := make([]string, 0, 19)
 	if m.created_at != nil {
 		fields = append(fields, channelmonitor.FieldCreatedAt)
 	}
@@ -11019,6 +11056,9 @@ func (m *ChannelMonitorMutation) Fields() []string {
 	}
 	if m.enabled != nil {
 		fields = append(fields, channelmonitor.FieldEnabled)
+	}
+	if m.user_visible != nil {
+		fields = append(fields, channelmonitor.FieldUserVisible)
 	}
 	if m.interval_seconds != nil {
 		fields = append(fields, channelmonitor.FieldIntervalSeconds)
@@ -11071,6 +11111,8 @@ func (m *ChannelMonitorMutation) Field(name string) (ent.Value, bool) {
 		return m.GroupName()
 	case channelmonitor.FieldEnabled:
 		return m.Enabled()
+	case channelmonitor.FieldUserVisible:
+		return m.UserVisible()
 	case channelmonitor.FieldIntervalSeconds:
 		return m.IntervalSeconds()
 	case channelmonitor.FieldLastCheckedAt:
@@ -11116,6 +11158,8 @@ func (m *ChannelMonitorMutation) OldField(ctx context.Context, name string) (ent
 		return m.OldGroupName(ctx)
 	case channelmonitor.FieldEnabled:
 		return m.OldEnabled(ctx)
+	case channelmonitor.FieldUserVisible:
+		return m.OldUserVisible(ctx)
 	case channelmonitor.FieldIntervalSeconds:
 		return m.OldIntervalSeconds(ctx)
 	case channelmonitor.FieldLastCheckedAt:
@@ -11215,6 +11259,13 @@ func (m *ChannelMonitorMutation) SetField(name string, value ent.Value) error {
 			return fmt.Errorf("unexpected type %T for field %s", value, name)
 		}
 		m.SetEnabled(v)
+		return nil
+	case channelmonitor.FieldUserVisible:
+		v, ok := value.(bool)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetUserVisible(v)
 		return nil
 	case channelmonitor.FieldIntervalSeconds:
 		v, ok := value.(int)
@@ -11400,6 +11451,9 @@ func (m *ChannelMonitorMutation) ResetField(name string) error {
 		return nil
 	case channelmonitor.FieldEnabled:
 		m.ResetEnabled()
+		return nil
+	case channelmonitor.FieldUserVisible:
+		m.ResetUserVisible()
 		return nil
 	case channelmonitor.FieldIntervalSeconds:
 		m.ResetIntervalSeconds()

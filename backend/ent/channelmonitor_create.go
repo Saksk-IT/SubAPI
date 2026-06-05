@@ -131,6 +131,20 @@ func (_c *ChannelMonitorCreate) SetNillableEnabled(v *bool) *ChannelMonitorCreat
 	return _c
 }
 
+// SetUserVisible sets the "user_visible" field.
+func (_c *ChannelMonitorCreate) SetUserVisible(v bool) *ChannelMonitorCreate {
+	_c.mutation.SetUserVisible(v)
+	return _c
+}
+
+// SetNillableUserVisible sets the "user_visible" field if the given value is not nil.
+func (_c *ChannelMonitorCreate) SetNillableUserVisible(v *bool) *ChannelMonitorCreate {
+	if v != nil {
+		_c.SetUserVisible(*v)
+	}
+	return _c
+}
+
 // SetIntervalSeconds sets the "interval_seconds" field.
 func (_c *ChannelMonitorCreate) SetIntervalSeconds(v int) *ChannelMonitorCreate {
 	_c.mutation.SetIntervalSeconds(v)
@@ -305,6 +319,10 @@ func (_c *ChannelMonitorCreate) defaults() {
 		v := channelmonitor.DefaultEnabled
 		_c.mutation.SetEnabled(v)
 	}
+	if _, ok := _c.mutation.UserVisible(); !ok {
+		v := channelmonitor.DefaultUserVisible
+		_c.mutation.SetUserVisible(v)
+	}
 	if _, ok := _c.mutation.ExtraHeaders(); !ok {
 		v := channelmonitor.DefaultExtraHeaders
 		_c.mutation.SetExtraHeaders(v)
@@ -381,6 +399,9 @@ func (_c *ChannelMonitorCreate) check() error {
 	}
 	if _, ok := _c.mutation.Enabled(); !ok {
 		return &ValidationError{Name: "enabled", err: errors.New(`ent: missing required field "ChannelMonitor.enabled"`)}
+	}
+	if _, ok := _c.mutation.UserVisible(); !ok {
+		return &ValidationError{Name: "user_visible", err: errors.New(`ent: missing required field "ChannelMonitor.user_visible"`)}
 	}
 	if _, ok := _c.mutation.IntervalSeconds(); !ok {
 		return &ValidationError{Name: "interval_seconds", err: errors.New(`ent: missing required field "ChannelMonitor.interval_seconds"`)}
@@ -474,6 +495,10 @@ func (_c *ChannelMonitorCreate) createSpec() (*ChannelMonitor, *sqlgraph.CreateS
 	if value, ok := _c.mutation.Enabled(); ok {
 		_spec.SetField(channelmonitor.FieldEnabled, field.TypeBool, value)
 		_node.Enabled = value
+	}
+	if value, ok := _c.mutation.UserVisible(); ok {
+		_spec.SetField(channelmonitor.FieldUserVisible, field.TypeBool, value)
+		_node.UserVisible = value
 	}
 	if value, ok := _c.mutation.IntervalSeconds(); ok {
 		_spec.SetField(channelmonitor.FieldIntervalSeconds, field.TypeInt, value)
@@ -723,6 +748,18 @@ func (u *ChannelMonitorUpsert) SetEnabled(v bool) *ChannelMonitorUpsert {
 // UpdateEnabled sets the "enabled" field to the value that was provided on create.
 func (u *ChannelMonitorUpsert) UpdateEnabled() *ChannelMonitorUpsert {
 	u.SetExcluded(channelmonitor.FieldEnabled)
+	return u
+}
+
+// SetUserVisible sets the "user_visible" field.
+func (u *ChannelMonitorUpsert) SetUserVisible(v bool) *ChannelMonitorUpsert {
+	u.Set(channelmonitor.FieldUserVisible, v)
+	return u
+}
+
+// UpdateUserVisible sets the "user_visible" field to the value that was provided on create.
+func (u *ChannelMonitorUpsert) UpdateUserVisible() *ChannelMonitorUpsert {
+	u.SetExcluded(channelmonitor.FieldUserVisible)
 	return u
 }
 
@@ -1029,6 +1066,20 @@ func (u *ChannelMonitorUpsertOne) SetEnabled(v bool) *ChannelMonitorUpsertOne {
 func (u *ChannelMonitorUpsertOne) UpdateEnabled() *ChannelMonitorUpsertOne {
 	return u.Update(func(s *ChannelMonitorUpsert) {
 		s.UpdateEnabled()
+	})
+}
+
+// SetUserVisible sets the "user_visible" field.
+func (u *ChannelMonitorUpsertOne) SetUserVisible(v bool) *ChannelMonitorUpsertOne {
+	return u.Update(func(s *ChannelMonitorUpsert) {
+		s.SetUserVisible(v)
+	})
+}
+
+// UpdateUserVisible sets the "user_visible" field to the value that was provided on create.
+func (u *ChannelMonitorUpsertOne) UpdateUserVisible() *ChannelMonitorUpsertOne {
+	return u.Update(func(s *ChannelMonitorUpsert) {
+		s.UpdateUserVisible()
 	})
 }
 
@@ -1520,6 +1571,20 @@ func (u *ChannelMonitorUpsertBulk) SetEnabled(v bool) *ChannelMonitorUpsertBulk 
 func (u *ChannelMonitorUpsertBulk) UpdateEnabled() *ChannelMonitorUpsertBulk {
 	return u.Update(func(s *ChannelMonitorUpsert) {
 		s.UpdateEnabled()
+	})
+}
+
+// SetUserVisible sets the "user_visible" field.
+func (u *ChannelMonitorUpsertBulk) SetUserVisible(v bool) *ChannelMonitorUpsertBulk {
+	return u.Update(func(s *ChannelMonitorUpsert) {
+		s.SetUserVisible(v)
+	})
+}
+
+// UpdateUserVisible sets the "user_visible" field to the value that was provided on create.
+func (u *ChannelMonitorUpsertBulk) UpdateUserVisible() *ChannelMonitorUpsertBulk {
+	return u.Update(func(s *ChannelMonitorUpsert) {
+		s.UpdateUserVisible()
 	})
 }
 

@@ -127,6 +127,7 @@ func (s *ChannelMonitorService) Create(ctx context.Context, p ChannelMonitorCrea
 		ExtraModels:      normalizeModels(p.ExtraModels),
 		GroupName:        strings.TrimSpace(p.GroupName),
 		Enabled:          p.Enabled,
+		UserVisible:      defaultUserVisible(p.UserVisible),
 		IntervalSeconds:  p.IntervalSeconds,
 		CreatedBy:        p.CreatedBy,
 		TemplateID:       p.TemplateID,
@@ -167,6 +168,13 @@ func validateCreateParams(p ChannelMonitorCreateParams) error {
 		return ErrChannelMonitorMissingPrimaryModel
 	}
 	return nil
+}
+
+func defaultUserVisible(v *bool) bool {
+	if v == nil {
+		return true
+	}
+	return *v
 }
 
 // Update 更新监控。APIKey 字段：nil 或空字符串 = 不修改；非空 = 加密后覆盖。
@@ -502,6 +510,9 @@ func applyMonitorUpdate(existing *ChannelMonitor, p ChannelMonitorUpdateParams) 
 	}
 	if p.Enabled != nil {
 		existing.Enabled = *p.Enabled
+	}
+	if p.UserVisible != nil {
+		existing.UserVisible = *p.UserVisible
 	}
 	if p.IntervalSeconds != nil {
 		if err := validateInterval(*p.IntervalSeconds); err != nil {

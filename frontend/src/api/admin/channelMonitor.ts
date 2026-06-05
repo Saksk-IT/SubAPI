@@ -27,6 +27,7 @@ export interface ChannelMonitor {
   extra_models: string[]
   group_name: string
   enabled: boolean
+  user_visible?: boolean
   interval_seconds: number
   last_checked_at: string | null
   created_by: number
@@ -79,6 +80,7 @@ export interface CreateParams {
   extra_models?: string[]
   group_name?: string
   enabled?: boolean
+  user_visible?: boolean
   interval_seconds: number
   template_id?: number | null
   extra_headers?: Record<string, string>

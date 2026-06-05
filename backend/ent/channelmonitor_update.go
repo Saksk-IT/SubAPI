@@ -168,6 +168,20 @@ func (_u *ChannelMonitorUpdate) SetNillableEnabled(v *bool) *ChannelMonitorUpdat
 	return _u
 }
 
+// SetUserVisible sets the "user_visible" field.
+func (_u *ChannelMonitorUpdate) SetUserVisible(v bool) *ChannelMonitorUpdate {
+	_u.mutation.SetUserVisible(v)
+	return _u
+}
+
+// SetNillableUserVisible sets the "user_visible" field if the given value is not nil.
+func (_u *ChannelMonitorUpdate) SetNillableUserVisible(v *bool) *ChannelMonitorUpdate {
+	if v != nil {
+		_u.SetUserVisible(*v)
+	}
+	return _u
+}
+
 // SetIntervalSeconds sets the "interval_seconds" field.
 func (_u *ChannelMonitorUpdate) SetIntervalSeconds(v int) *ChannelMonitorUpdate {
 	_u.mutation.ResetIntervalSeconds()
@@ -520,6 +534,9 @@ func (_u *ChannelMonitorUpdate) sqlSave(ctx context.Context) (_node int, err err
 	if value, ok := _u.mutation.Enabled(); ok {
 		_spec.SetField(channelmonitor.FieldEnabled, field.TypeBool, value)
 	}
+	if value, ok := _u.mutation.UserVisible(); ok {
+		_spec.SetField(channelmonitor.FieldUserVisible, field.TypeBool, value)
+	}
 	if value, ok := _u.mutation.IntervalSeconds(); ok {
 		_spec.SetField(channelmonitor.FieldIntervalSeconds, field.TypeInt, value)
 	}
@@ -821,6 +838,20 @@ func (_u *ChannelMonitorUpdateOne) SetEnabled(v bool) *ChannelMonitorUpdateOne {
 func (_u *ChannelMonitorUpdateOne) SetNillableEnabled(v *bool) *ChannelMonitorUpdateOne {
 	if v != nil {
 		_u.SetEnabled(*v)
+	}
+	return _u
+}
+
+// SetUserVisible sets the "user_visible" field.
+func (_u *ChannelMonitorUpdateOne) SetUserVisible(v bool) *ChannelMonitorUpdateOne {
+	_u.mutation.SetUserVisible(v)
+	return _u
+}
+
+// SetNillableUserVisible sets the "user_visible" field if the given value is not nil.
+func (_u *ChannelMonitorUpdateOne) SetNillableUserVisible(v *bool) *ChannelMonitorUpdateOne {
+	if v != nil {
+		_u.SetUserVisible(*v)
 	}
 	return _u
 }
@@ -1206,6 +1237,9 @@ func (_u *ChannelMonitorUpdateOne) sqlSave(ctx context.Context) (_node *ChannelM
 	}
 	if value, ok := _u.mutation.Enabled(); ok {
 		_spec.SetField(channelmonitor.FieldEnabled, field.TypeBool, value)
+	}
+	if value, ok := _u.mutation.UserVisible(); ok {
+		_spec.SetField(channelmonitor.FieldUserVisible, field.TypeBool, value)
 	}
 	if value, ok := _u.mutation.IntervalSeconds(); ok {
 		_spec.SetField(channelmonitor.FieldIntervalSeconds, field.TypeInt, value)

@@ -60,6 +60,9 @@ func (ChannelMonitor) Fields() []ent.Field {
 			MaxLen(100),
 		field.Bool("enabled").
 			Default(true),
+		field.Bool("user_visible").
+			Default(true).
+			Comment("Whether this monitor is visible in user-facing channel status pages"),
 		field.Int("interval_seconds").
 			Range(15, 3600),
 		field.Time("last_checked_at").

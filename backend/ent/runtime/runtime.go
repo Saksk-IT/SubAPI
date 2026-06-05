@@ -588,16 +588,20 @@ func init() {
 	channelmonitorDescEnabled := channelmonitorFields[8].Descriptor()
 	// channelmonitor.DefaultEnabled holds the default value on creation for the enabled field.
 	channelmonitor.DefaultEnabled = channelmonitorDescEnabled.Default.(bool)
+	// channelmonitorDescUserVisible is the schema descriptor for user_visible field.
+	channelmonitorDescUserVisible := channelmonitorFields[9].Descriptor()
+	// channelmonitor.DefaultUserVisible holds the default value on creation for the user_visible field.
+	channelmonitor.DefaultUserVisible = channelmonitorDescUserVisible.Default.(bool)
 	// channelmonitorDescIntervalSeconds is the schema descriptor for interval_seconds field.
-	channelmonitorDescIntervalSeconds := channelmonitorFields[9].Descriptor()
+	channelmonitorDescIntervalSeconds := channelmonitorFields[10].Descriptor()
 	// channelmonitor.IntervalSecondsValidator is a validator for the "interval_seconds" field. It is called by the builders before save.
 	channelmonitor.IntervalSecondsValidator = channelmonitorDescIntervalSeconds.Validators[0].(func(int) error)
 	// channelmonitorDescExtraHeaders is the schema descriptor for extra_headers field.
-	channelmonitorDescExtraHeaders := channelmonitorFields[13].Descriptor()
+	channelmonitorDescExtraHeaders := channelmonitorFields[14].Descriptor()
 	// channelmonitor.DefaultExtraHeaders holds the default value on creation for the extra_headers field.
 	channelmonitor.DefaultExtraHeaders = channelmonitorDescExtraHeaders.Default.(map[string]string)
 	// channelmonitorDescBodyOverrideMode is the schema descriptor for body_override_mode field.
-	channelmonitorDescBodyOverrideMode := channelmonitorFields[14].Descriptor()
+	channelmonitorDescBodyOverrideMode := channelmonitorFields[15].Descriptor()
 	// channelmonitor.DefaultBodyOverrideMode holds the default value on creation for the body_override_mode field.
 	channelmonitor.DefaultBodyOverrideMode = channelmonitorDescBodyOverrideMode.Default.(string)
 	// channelmonitor.BodyOverrideModeValidator is a validator for the "body_override_mode" field. It is called by the builders before save.

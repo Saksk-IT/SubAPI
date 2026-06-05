@@ -44,6 +44,7 @@ func (r *channelMonitorRepository) Create(ctx context.Context, m *service.Channe
 		SetExtraModels(emptySliceIfNil(m.ExtraModels)).
 		SetGroupName(m.GroupName).
 		SetEnabled(m.Enabled).
+		SetUserVisible(m.UserVisible).
 		SetIntervalSeconds(m.IntervalSeconds).
 		SetCreatedBy(m.CreatedBy).
 		SetExtraHeaders(emptyHeadersIfNilRepo(m.ExtraHeaders)).
@@ -87,6 +88,7 @@ func (r *channelMonitorRepository) Update(ctx context.Context, m *service.Channe
 		SetExtraModels(emptySliceIfNil(m.ExtraModels)).
 		SetGroupName(m.GroupName).
 		SetEnabled(m.Enabled).
+		SetUserVisible(m.UserVisible).
 		SetIntervalSeconds(m.IntervalSeconds).
 		SetExtraHeaders(emptyHeadersIfNilRepo(m.ExtraHeaders)).
 		SetBodyOverrideMode(defaultBodyModeRepo(m.BodyOverrideMode))
@@ -717,6 +719,7 @@ func entToServiceMonitor(row *dbent.ChannelMonitor) *service.ChannelMonitor {
 		ExtraModels:      extras,
 		GroupName:        row.GroupName,
 		Enabled:          row.Enabled,
+		UserVisible:      row.UserVisible,
 		IntervalSeconds:  row.IntervalSeconds,
 		LastCheckedAt:    row.LastCheckedAt,
 		CreatedBy:        row.CreatedBy,

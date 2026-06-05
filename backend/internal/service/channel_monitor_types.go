@@ -38,6 +38,7 @@ type ChannelMonitor struct {
 	ExtraModels     []string
 	GroupName       string
 	Enabled         bool
+	UserVisible     bool
 	IntervalSeconds int
 	LastCheckedAt   *time.Time
 	CreatedBy       int64
@@ -75,6 +76,7 @@ type ChannelMonitorCreateParams struct {
 	ExtraModels      []string
 	GroupName        string
 	Enabled          bool
+	UserVisible      *bool
 	IntervalSeconds  int
 	CreatedBy        int64
 	TemplateID       *int64
@@ -94,6 +96,7 @@ type ChannelMonitorUpdateParams struct {
 	ExtraModels     *[]string
 	GroupName       *string
 	Enabled         *bool
+	UserVisible     *bool
 	IntervalSeconds *int
 	// 自定义快照字段：指针为 nil 表示不更新，非 nil 覆盖
 	// TemplateID *(*int64)：用 ** 表达三态：nil=不更新；&nil=清空；&&id=设为 id。

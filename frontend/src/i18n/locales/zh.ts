@@ -2910,6 +2910,7 @@ export default {
         availability7d: '7 天可用率',
         latency: '延迟 (ms)',
         enabled: '启用',
+        userVisible: '用户可见',
         actions: '操作'
       },
       form: {
@@ -2940,6 +2941,7 @@ export default {
         intervalSeconds: '检测间隔 (秒)',
         intervalSecondsHint: '范围：15 - 3600 秒',
         enabled: '启用监控',
+        userVisible: '普通用户可见',
         kindRequired: '请选择供应商'
       },
       runResultTitle: '检测结果',
