@@ -181,8 +181,8 @@ function checkoutInfoWithPlansFixture() {
           daily_limit_usd: null,
           weekly_limit_usd: null,
           monthly_limit_usd: null,
-          total_quota: 999,
-          daily_quota: 42,
+          total_quota: 840,
+          daily_quota: 120,
           features: [],
           group_platform: 'openai',
           sort_order: 1,
@@ -593,8 +593,7 @@ describe('PaymentView WeChat JSAPI flow', () => {
     expect(exchangeRate).toBe('1¥:10$')
     expect(validity).toBe('payment.product.permanent')
     expect(metrics.some(item => item.label === 'payment.product.balanceAmount')).toBe(false)
-    expect(balanceAmount).toContain('$')
-    expect(balanceAmount).not.toContain('¥')
+    expect(balanceAmount).toBe('$69')
     expect(priceRows.map(item => item.label)).toEqual([
       'payment.product.originalPrice',
       'payment.product.payPrice',
@@ -713,9 +712,9 @@ describe('PaymentView WeChat JSAPI flow', () => {
     const dailyQuota = heroMetrics.find(item => item.label === 'payment.product.dailyQuota')?.value || ''
 
     expect(wrapper.html()).toContain('lg:grid-cols-5')
-    expect(totalQuota).toContain('$999.00')
+    expect(totalQuota).toBe('$840')
     expect(metrics.some(item => item.label === 'payment.product.dailyQuota')).toBe(false)
-    expect(dailyQuota).toContain('$42.00')
+    expect(dailyQuota).toBe('$120')
     expect(priceRows.map(item => item.label)).toEqual(['payment.product.payPrice'])
   })
 
@@ -757,7 +756,7 @@ describe('PaymentView WeChat JSAPI flow', () => {
     expect(labels).toContain('payment.product.weeklyQuota')
     expect(labels).not.toContain('payment.product.monthlyQuota')
     expect(metrics.map(item => item.label)).not.toContain('payment.product.dailyQuota')
-    expect(metrics.find(item => item.label === 'payment.product.totalQuota')?.value).toContain('$200.00')
+    expect(metrics.find(item => item.label === 'payment.product.totalQuota')?.value).toBe('$200')
   })
 
   it('calculates subscription total quota from the selected validity unit when no stored quota exists', async () => {
@@ -790,6 +789,6 @@ describe('PaymentView WeChat JSAPI flow', () => {
     const metrics = card.props('metrics') as { label: string; value: string }[]
     const totalQuota = metrics.find(item => item.label === 'payment.product.totalQuota')?.value || ''
 
-    expect(totalQuota).toContain('$560.00')
+    expect(totalQuota).toBe('$560')
   })
 })

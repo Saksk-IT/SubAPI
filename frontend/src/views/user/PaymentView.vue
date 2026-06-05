@@ -770,7 +770,18 @@ function formatSelectedPaymentAmount(value: number): string {
 }
 
 function formatQuotaAmount(value: number): string {
-  return formatPaymentAmount(value, quotaDisplayCurrency, localeCode.value)
+  const amount = Number.isFinite(value) ? value : 0
+  try {
+    return new Intl.NumberFormat(localeCode.value || undefined, {
+      style: 'currency',
+      currency: quotaDisplayCurrency,
+      currencyDisplay: 'narrowSymbol',
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0,
+    }).format(amount)
+  } catch {
+    return `${quotaDisplayCurrency} ${amount.toFixed(0)}`
+  }
 }
 
 const amountInputPrefix = computed(() => {
