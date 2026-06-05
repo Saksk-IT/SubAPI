@@ -39,7 +39,7 @@
         <div><label class="input-label">{{ validityCountLabel }} <span class="text-red-500">*</span></label><input v-model.number="planForm.validity_days" type="number" min="1" class="input" required /></div>
         <div>
           <label class="input-label">{{ t('payment.admin.planPriceMultiplier') }} <span class="text-red-500">*</span></label>
-          <input v-model.number="planForm.price_multiplier" type="number" step="0.01" min="0.000001" class="input" required />
+          <input v-model.number="planForm.price_multiplier" type="number" step="any" min="0" class="input" required />
         </div>
       </div>
       <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">

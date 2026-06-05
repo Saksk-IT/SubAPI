@@ -157,4 +157,37 @@ describe('PlanEditDialog', () => {
       daily_quota: 120,
     }))
   })
+
+  it('允许管理员填写任意精度的套餐倍率', async () => {
+    const wrapper = mountDialog()
+    await wrapper.setProps({ show: true })
+    await flushPromises()
+
+    await wrapper.find('select').setValue('12')
+    await flushPromises()
+
+    const inputs = wrapper.findAll('input')
+    const multiplierInput = inputs[2]
+    expect(multiplierInput.attributes('step')).toBe('any')
+    expect(multiplierInput.attributes('min')).toBe('0')
+
+    await inputs[0].setValue('精确倍率周卡')
+    await inputs[1].setValue('7')
+    await multiplierInput.setValue('0.123')
+    await wrapper.find('textarea').setValue('0.123 倍率')
+    await flushPromises()
+
+    const priceInput = wrapper.findAll('input[type="text"]')[1]
+    expect(priceInput.element.value).toBe('41.33')
+
+    await wrapper.get('#plan-form').trigger('submit.prevent')
+    await flushPromises()
+
+    expect(apiMocks.createPlan).toHaveBeenCalledTimes(1)
+    expect(apiMocks.createPlan).toHaveBeenCalledWith(expect.objectContaining({
+      group_id: 12,
+      price: 41.33,
+      validity_days: 7,
+    }))
+  })
 })
