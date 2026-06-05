@@ -726,7 +726,7 @@ const supportHelpText = computed(() => checkout.value.help_text.trim())
 const supportImageUrl = computed(() => checkout.value.help_image_url.trim())
 const supportContactSubtitle = computed(() => t('payment.purchaseGuide.contactSubtitle').trim())
 
-const productGridClass = 'grid gap-4 sm:grid-cols-2 lg:grid-cols-4'
+const productGridClass = 'grid gap-4 sm:grid-cols-2 lg:grid-cols-5'
 
 // Check if an amount fits a method's [min, max]. 0 = no limit.
 function amountFitsMethod(amt: number, methodType: string): boolean {

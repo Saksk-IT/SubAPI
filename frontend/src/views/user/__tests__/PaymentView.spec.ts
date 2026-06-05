@@ -687,7 +687,7 @@ describe('PaymentView WeChat JSAPI flow', () => {
     }))
   })
 
-  it('uses four-column product grids and displays stored subscription quota clearly', async () => {
+  it('uses five-column product grids and displays stored subscription quota clearly', async () => {
     routeState.query = {
       tab: 'subscription',
     }
@@ -712,7 +712,7 @@ describe('PaymentView WeChat JSAPI flow', () => {
     const totalQuota = metrics.find(item => item.label === 'payment.product.totalQuota')?.value || ''
     const dailyQuota = heroMetrics.find(item => item.label === 'payment.product.dailyQuota')?.value || ''
 
-    expect(wrapper.html()).toContain('lg:grid-cols-4')
+    expect(wrapper.html()).toContain('lg:grid-cols-5')
     expect(totalQuota).toContain('$999.00')
     expect(metrics.some(item => item.label === 'payment.product.dailyQuota')).toBe(false)
     expect(dailyQuota).toContain('$42.00')
