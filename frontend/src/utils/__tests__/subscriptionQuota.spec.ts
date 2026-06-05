@@ -1,9 +1,12 @@
 import { describe, expect, it } from 'vitest'
 import {
+  calculateSubscriptionPlanPriceUSD,
   calculateSubscriptionTotalQuotaUSD,
+  deriveSubscriptionValidityUnitFromMinimumQuota,
   deriveSubscriptionValidityUnitFromQuota,
   formatSubscriptionValidityUnit,
   getLargestActiveSubscriptionQuotaUnit,
+  getSmallestActiveSubscriptionQuotaUnit,
   getSubscriptionCycleLimitUSD,
 } from '../subscriptionQuota'
 
@@ -57,6 +60,50 @@ describe('subscriptionQuota', () => {
       weekly_limit_usd: null,
       monthly_limit_usd: 0,
     })).toBe('days')
+  })
+
+  it('derives the validity unit from the smallest active quota period', () => {
+    expect(getSmallestActiveSubscriptionQuotaUnit({
+      daily_limit_usd: 10,
+      weekly_limit_usd: 50,
+      monthly_limit_usd: 200,
+    })).toBe('days')
+    expect(getSmallestActiveSubscriptionQuotaUnit({
+      daily_limit_usd: 0,
+      weekly_limit_usd: 50,
+      monthly_limit_usd: 200,
+    })).toBe('weeks')
+    expect(getSmallestActiveSubscriptionQuotaUnit({
+      daily_limit_usd: null,
+      weekly_limit_usd: 0,
+      monthly_limit_usd: 200,
+    })).toBe('months')
+    expect(getSmallestActiveSubscriptionQuotaUnit({
+      daily_limit_usd: 0,
+      weekly_limit_usd: null,
+      monthly_limit_usd: 0,
+    })).toBeNull()
+    expect(deriveSubscriptionValidityUnitFromMinimumQuota({
+      daily_limit_usd: 0,
+      weekly_limit_usd: null,
+      monthly_limit_usd: 0,
+    })).toBe('days')
+  })
+
+  it('calculates subscription plan price from minimum cycle cost, actual group rate, cycle count, and plan multiplier', () => {
+    expect(calculateSubscriptionPlanPriceUSD(
+      { validity_days: 7, validity_unit: 'days' },
+      { daily_limit_usd: 120, weekly_limit_usd: null, monthly_limit_usd: null },
+      2.5,
+      0.14,
+    )).toBe(47.04)
+  })
+
+  it('does not calculate subscription plan price when formula inputs are invalid', () => {
+    expect(calculateSubscriptionPlanPriceUSD({ validity_days: 0, validity_unit: 'days' }, quotaSource, 2.5, 0.14)).toBeNull()
+    expect(calculateSubscriptionPlanPriceUSD({ validity_days: 7, validity_unit: 'days' }, quotaSource, 0, 0.14)).toBeNull()
+    expect(calculateSubscriptionPlanPriceUSD({ validity_days: 7, validity_unit: 'days' }, quotaSource, 2.5, 0)).toBeNull()
+    expect(calculateSubscriptionPlanPriceUSD({ validity_days: 7, validity_unit: 'days' }, { ...quotaSource, daily_limit_usd: null }, 2.5, 0.14)).toBeNull()
   })
 
   it('formats validity unit labels from the selected unit', () => {

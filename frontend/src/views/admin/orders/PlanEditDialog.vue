@@ -30,16 +30,24 @@
           <div><span class="text-gray-500">{{ t('payment.admin.dailyLimit') }}:</span> <span class="ml-1 font-medium text-gray-700 dark:text-gray-300">{{ dailyQuotaDisplay }}</span></div>
           <div><span class="text-gray-500">{{ t('payment.admin.weeklyLimit') }}:</span> <span class="ml-1 font-medium text-gray-700 dark:text-gray-300">{{ weeklyQuotaDisplay }}</span></div>
           <div><span class="text-gray-500">{{ t('payment.admin.monthlyLimit') }}:</span> <span class="ml-1 font-medium text-gray-700 dark:text-gray-300">{{ monthlyQuotaDisplay }}</span></div>
+          <div><span class="text-gray-500">{{ t('payment.admin.actualRateMultiplier') }}:</span> <span class="ml-1 font-medium text-gray-700 dark:text-gray-300">{{ actualRateMultiplierDisplay }}</span></div>
         </div>
       </div>
 
       <div><label class="input-label">{{ t('payment.admin.planDescription') }} <span class="text-red-500">*</span></label><textarea v-model="planForm.description" rows="2" class="input" required></textarea></div>
       <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
-        <div><label class="input-label">{{ t('payment.admin.price') }} <span class="text-red-500">*</span></label><input v-model.number="planForm.price" type="number" step="0.01" min="0.01" class="input" required /></div>
-        <div><label class="input-label">{{ t('payment.admin.originalPrice') }}</label><input v-model.number="planForm.original_price" type="number" step="0.01" min="0" class="input" /></div>
+        <div><label class="input-label">{{ validityCountLabel }} <span class="text-red-500">*</span></label><input v-model.number="planForm.validity_days" type="number" min="1" class="input" required /></div>
+        <div>
+          <label class="input-label">{{ t('payment.admin.planPriceMultiplier') }} <span class="text-red-500">*</span></label>
+          <input v-model.number="planForm.price_multiplier" type="number" step="0.01" min="0.000001" class="input" required />
+        </div>
       </div>
       <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
-        <div><label class="input-label">{{ validityCountLabel }} <span class="text-red-500">*</span></label><input v-model.number="planForm.validity_days" type="number" min="1" class="input" required /></div>
+        <div>
+          <label class="input-label">{{ t('payment.admin.priceAuto') }} <span class="text-red-500">*</span></label>
+          <input :value="calculatedPlanPriceInput" type="text" class="input bg-gray-50 font-semibold text-gray-900 dark:bg-dark-900 dark:text-gray-100" readonly />
+          <p class="input-hint">{{ t('payment.admin.priceAutoHint') }}</p>
+        </div>
         <div>
           <label class="input-label">{{ t('payment.admin.validityUnit') }} <span class="text-red-500">*</span></label>
           <Select v-model="planForm.validity_unit" :options="validityUnitOptions" disabled />
@@ -119,6 +127,7 @@ import { ref, reactive, computed, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useAppStore } from '@/stores/app'
 import { adminPaymentAPI } from '@/api/admin/payment'
+import { getRateSchedule, type GroupRateScheduleSettings } from '@/api/admin/groups'
 import { extractApiErrorMessage } from '@/utils/apiError'
 import type { SubscriptionPlan } from '@/types/payment'
 import type { AdminGroup } from '@/types'
@@ -128,11 +137,15 @@ import Icon from '@/components/icons/Icon.vue'
 import GroupBadge from '@/components/common/GroupBadge.vue'
 import { platformTextClass } from '@/utils/platformColors'
 import {
+  calculateSubscriptionPlanPriceUSD,
   calculateSubscriptionTotalQuotaUSD,
-  deriveSubscriptionValidityUnitFromQuota,
+  deriveSubscriptionValidityUnitFromMinimumQuota,
+  getSubscriptionCycleLimitUSD,
   normalizePositiveQuota,
   normalizeSubscriptionValidityUnit,
 } from '@/utils/subscriptionQuota'
+
+const DEFAULT_PLAN_PRICE_MULTIPLIER = 1
 
 const props = defineProps<{
   show: boolean
@@ -149,9 +162,22 @@ const { t } = useI18n()
 const appStore = useAppStore()
 
 const saving = ref(false)
-const planForm = reactive({ name: '', group_id: null as number | null, description: '', price: 0, original_price: 0, validity_days: 30, validity_unit: 'days', display_notes: '', for_sale: true })
+const resettingPlanForm = ref(false)
+const planForm = reactive({
+  name: '',
+  group_id: null as number | null,
+  description: '',
+  price: 0,
+  original_price: 0,
+  validity_days: 30,
+  validity_unit: 'days',
+  price_multiplier: DEFAULT_PLAN_PRICE_MULTIPLIER,
+  display_notes: '',
+  for_sale: true,
+})
 const planFeaturesText = ref('')
 const planTagsText = ref('')
+const rateScheduleSettings = ref<GroupRateScheduleSettings | null>(null)
 
 const validityUnitOptions = computed(() => [
   { value: 'days', label: t('payment.admin.days') },
@@ -174,7 +200,7 @@ const selectedGroupInfo = computed(() => {
   return props.groups.find(g => g.id === planForm.group_id) || null
 })
 
-const derivedValidityUnit = computed(() => deriveSubscriptionValidityUnitFromQuota(selectedGroupInfo.value))
+const derivedValidityUnit = computed(() => deriveSubscriptionValidityUnitFromMinimumQuota(selectedGroupInfo.value))
 const normalizedValidityUnit = computed(() => normalizeSubscriptionValidityUnit(planForm.validity_unit))
 
 const validityCountLabel = computed(() => {
@@ -196,6 +222,41 @@ const dailyQuotaDisplay = computed(() => formatQuotaAmount(selectedDailyQuota.va
 const weeklyQuotaDisplay = computed(() => formatQuotaAmount(selectedWeeklyQuota.value))
 const monthlyQuotaDisplay = computed(() => formatQuotaAmount(selectedMonthlyQuota.value))
 
+function normalizePositiveNumber(value: number | string | null | undefined): number | null {
+  const numeric = Number(value)
+  if (!Number.isFinite(numeric) || numeric <= 0) return null
+  return numeric
+}
+
+const selectedGroupActualRateMultiplier = computed(() => {
+  const group = selectedGroupInfo.value
+  if (!group) return null
+  if (rateScheduleSettings.value?.active) {
+    const originalRate = normalizePositiveNumber(rateScheduleSettings.value.original_rates?.[String(group.id)])
+    if (originalRate != null) return originalRate
+  }
+  return normalizePositiveNumber(group.rate_multiplier)
+})
+
+const calculatedPlanPrice = computed(() => {
+  return calculateSubscriptionPlanPriceUSD(
+    { validity_days: planForm.validity_days, validity_unit: planForm.validity_unit },
+    selectedGroupInfo.value,
+    selectedGroupActualRateMultiplier.value,
+    planForm.price_multiplier,
+  )
+})
+
+const calculatedPlanPriceInput = computed(() => {
+  if (calculatedPlanPrice.value == null) return t('payment.admin.priceAutoUnavailable')
+  return calculatedPlanPrice.value.toFixed(2)
+})
+
+const actualRateMultiplierDisplay = computed(() => {
+  if (selectedGroupActualRateMultiplier.value == null) return '-'
+  return `${Number(selectedGroupActualRateMultiplier.value.toPrecision(10))}x`
+})
+
 const calculatedTotalQuota = computed(() => {
   return calculateSubscriptionTotalQuotaUSD(
     { validity_days: planForm.validity_days, validity_unit: planForm.validity_unit },
@@ -207,24 +268,65 @@ const calculatedTotalQuotaDisplay = computed(() => {
   return formatQuotaAmount(calculatedTotalQuota.value)
 })
 
+function roundTo(value: number, digits: number): number {
+  const factor = 10 ** digits
+  return Math.round(value * factor) / factor
+}
+
+function inferPlanPriceMultiplier(price: number): number {
+  const count = Number(planForm.validity_days) || 0
+  const cycleLimit = getSubscriptionCycleLimitUSD(selectedGroupInfo.value, planForm.validity_unit)
+  const actualRate = selectedGroupActualRateMultiplier.value
+  if (price <= 0 || count <= 0 || cycleLimit == null || actualRate == null || actualRate <= 0) {
+    return DEFAULT_PLAN_PRICE_MULTIPLIER
+  }
+  const multiplier = price / ((cycleLimit / actualRate) * count)
+  return Number.isFinite(multiplier) && multiplier > 0 ? roundTo(multiplier, 6) : DEFAULT_PLAN_PRICE_MULTIPLIER
+}
+
+async function loadRateScheduleSettings() {
+  try {
+    rateScheduleSettings.value = await getRateSchedule()
+  } catch {
+    rateScheduleSettings.value = null
+    appStore.showWarning(t('payment.admin.rateScheduleLoadFailed'))
+  }
+}
+
+function syncCalculatedPrice() {
+  planForm.price = calculatedPlanPrice.value ?? 0
+}
+
 // Reset form when dialog opens
-watch(() => props.show, (visible) => {
+watch(() => props.show, async (visible) => {
   if (!visible) return
+  resettingPlanForm.value = true
   if (props.plan) {
-    Object.assign(planForm, { name: props.plan.name, group_id: props.plan.group_id, description: props.plan.description, price: props.plan.price, original_price: props.plan.original_price || 0, validity_days: props.plan.validity_days, validity_unit: props.plan.validity_unit || 'days', display_notes: props.plan.display_notes || '', for_sale: props.plan.for_sale })
+    Object.assign(planForm, { name: props.plan.name, group_id: props.plan.group_id, description: props.plan.description, price: props.plan.price, original_price: props.plan.original_price || 0, validity_days: props.plan.validity_days, validity_unit: props.plan.validity_unit || 'days', price_multiplier: DEFAULT_PLAN_PRICE_MULTIPLIER, display_notes: props.plan.display_notes || '', for_sale: props.plan.for_sale })
     planForm.validity_unit = derivedValidityUnit.value
+    await loadRateScheduleSettings()
+    planForm.price_multiplier = inferPlanPriceMultiplier(props.plan.price)
+    syncCalculatedPrice()
     planFeaturesText.value = (props.plan.features || []).join('\n')
     planTagsText.value = Array.isArray(props.plan.tags) ? props.plan.tags.join('\n') : (props.plan.tags || '')
   } else {
-    Object.assign(planForm, { name: '', group_id: null, description: '', price: 0, original_price: 0, validity_days: 30, validity_unit: 'days', display_notes: '', for_sale: true })
+    Object.assign(planForm, { name: '', group_id: null, description: '', price: 0, original_price: 0, validity_days: 30, validity_unit: 'days', price_multiplier: DEFAULT_PLAN_PRICE_MULTIPLIER, display_notes: '', for_sale: true })
     planForm.validity_unit = derivedValidityUnit.value
+    await loadRateScheduleSettings()
+    syncCalculatedPrice()
     planFeaturesText.value = ''
     planTagsText.value = ''
   }
+  resettingPlanForm.value = false
 })
 
 watch(derivedValidityUnit, (unit) => {
   planForm.validity_unit = unit
+})
+
+watch(calculatedPlanPrice, () => {
+  if (resettingPlanForm.value) return
+  syncCalculatedPrice()
 })
 
 /** Build request payload with snake_case keys matching backend JSON tags */
@@ -251,6 +353,10 @@ function buildPlanPayload() {
 async function handleSavePlan() {
   if (!planForm.group_id) {
     appStore.showError(t('payment.admin.groupRequired'))
+    return
+  }
+  if (!planForm.price_multiplier || planForm.price_multiplier <= 0) {
+    appStore.showError(t('payment.admin.planPriceMultiplierRequired'))
     return
   }
   if (!planForm.price || planForm.price <= 0) {

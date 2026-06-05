@@ -91,6 +91,22 @@ export function deriveSubscriptionValidityUnitFromQuota(
   return getLargestActiveSubscriptionQuotaUnit(source) ?? 'days'
 }
 
+export function getSmallestActiveSubscriptionQuotaUnit(
+  source: SubscriptionQuotaSource | null | undefined,
+): SubscriptionValidityUnit | null {
+  if (!source) return null
+  if (normalizePositiveQuota(source.daily_limit_usd) != null) return 'days'
+  if (normalizePositiveQuota(source.weekly_limit_usd) != null) return 'weeks'
+  if (normalizePositiveQuota(source.monthly_limit_usd) != null) return 'months'
+  return null
+}
+
+export function deriveSubscriptionValidityUnitFromMinimumQuota(
+  source: SubscriptionQuotaSource | null | undefined,
+): SubscriptionValidityUnit {
+  return getSmallestActiveSubscriptionQuotaUnit(source) ?? 'days'
+}
+
 export function calculateSubscriptionTotalQuotaUSD(
   plan: SubscriptionValiditySource,
   source: SubscriptionQuotaSource | null | undefined,
@@ -99,6 +115,29 @@ export function calculateSubscriptionTotalQuotaUSD(
   const cycleLimit = getSubscriptionCycleLimitUSD(source, plan.validity_unit)
   if (count <= 0 || cycleLimit == null) return null
   return Math.round(cycleLimit * count * 100) / 100
+}
+
+export function calculateSubscriptionPlanPriceUSD(
+  plan: SubscriptionValiditySource,
+  source: SubscriptionQuotaSource | null | undefined,
+  groupActualRateMultiplier: number | null | undefined,
+  planPriceMultiplier: number | null | undefined,
+): number | null {
+  const count = Number(plan.validity_days) || 0
+  const cycleLimit = getSubscriptionCycleLimitUSD(source, plan.validity_unit)
+  const actualRate = Number(groupActualRateMultiplier)
+  const priceMultiplier = Number(planPriceMultiplier)
+  if (
+    count <= 0 ||
+    cycleLimit == null ||
+    !Number.isFinite(actualRate) ||
+    actualRate <= 0 ||
+    !Number.isFinite(priceMultiplier) ||
+    priceMultiplier <= 0
+  ) {
+    return null
+  }
+  return Math.round((cycleLimit / actualRate) * count * priceMultiplier * 100) / 100
 }
 
 export function formatSubscriptionValidityUnit(
