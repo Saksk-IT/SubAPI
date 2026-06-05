@@ -181,20 +181,6 @@ func (r *channelMonitorRepository) ListEnabled(ctx context.Context) ([]*service.
 	return out, nil
 }
 
-func (r *channelMonitorRepository) ListUserVisible(ctx context.Context) ([]*service.ChannelMonitor, error) {
-	rows, err := r.client.ChannelMonitor.Query().
-		Where(channelmonitor.UserVisibleEQ(true)).
-		All(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("list user-visible monitors: %w", err)
-	}
-	out := make([]*service.ChannelMonitor, 0, len(rows))
-	for _, row := range rows {
-		out = append(out, entToServiceMonitor(row))
-	}
-	return out, nil
-}
-
 func (r *channelMonitorRepository) MarkChecked(ctx context.Context, id int64, checkedAt time.Time) error {
 	client := clientFromContext(ctx, r.client)
 	if err := client.ChannelMonitor.UpdateOneID(id).

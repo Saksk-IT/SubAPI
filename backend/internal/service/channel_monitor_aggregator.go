@@ -48,7 +48,7 @@ func (s *ChannelMonitorService) BatchMonitorStatusSummary(
 	return out
 }
 
-// ListUserView 用户只读视图：列出所有 user_visible 的监控概览。
+// ListUserView 用户只读视图：列出所有 enabled 且 user_visible 的监控概览。
 // 使用批量聚合接口避免 N+1：
 //
 //	1 次查 monitors；
@@ -56,11 +56,35 @@ func (s *ChannelMonitorService) BatchMonitorStatusSummary(
 //	1 次批量 7d availability；
 //	1 次批量 timeline（主模型最近 N 条）。
 func (s *ChannelMonitorService) ListUserView(ctx context.Context) ([]*UserMonitorView, error) {
-	monitors, err := s.repo.ListUserVisible(ctx)
+	monitors, err := s.repo.ListEnabled(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("list user-visible monitors: %w", err)
+		return nil, fmt.Errorf("list enabled monitors: %w", err)
+	}
+	if len(monitors) == 0 {
+		return []*UserMonitorView{}, nil
+	}
+	monitors = filterUserVisibleMonitors(monitors)
+	if len(monitors) == 0 {
+		return []*UserMonitorView{}, nil
 	}
 
+	return s.buildMonitorViews(ctx, monitors), nil
+}
+
+// ListAdminStatusView 管理员只读状态页：列出所有 enabled 的监控概览，不受 user_visible 限制。
+func (s *ChannelMonitorService) ListAdminStatusView(ctx context.Context) ([]*UserMonitorView, error) {
+	monitors, err := s.repo.ListEnabled(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("list enabled monitors: %w", err)
+	}
+	if len(monitors) == 0 {
+		return []*UserMonitorView{}, nil
+	}
+
+	return s.buildMonitorViews(ctx, monitors), nil
+}
+
+func (s *ChannelMonitorService) buildMonitorViews(ctx context.Context, monitors []*ChannelMonitor) []*UserMonitorView {
 	ids, primaryByID, extrasByID := collectMonitorIndexes(monitors)
 	summaries := s.BatchMonitorStatusSummary(ctx, ids, primaryByID, extrasByID)
 	latestMap := s.batchLatest(ctx, ids)
@@ -71,7 +95,7 @@ func (s *ChannelMonitorService) ListUserView(ctx context.Context) ([]*UserMonito
 		primaryLatest := pickLatest(latestMap[m.ID], m.PrimaryModel)
 		views = append(views, buildUserViewFromSummary(m, summaries[m.ID], primaryLatest, timelineMap[m.ID]))
 	}
-	return views, nil
+	return views
 }
 
 // collectMonitorIndexes 把 monitors 列表按 ID 展开为聚合查询所需的三个索引结构。
@@ -131,15 +155,45 @@ func (s *ChannelMonitorService) GetUserDetail(ctx context.Context, id int64) (*U
 	if err != nil {
 		return nil, err
 	}
+	if !m.Enabled {
+		return nil, ErrChannelMonitorNotFound
+	}
 	if !m.UserVisible {
 		return nil, ErrChannelMonitorNotFound
 	}
+	return s.buildMonitorDetail(ctx, m)
+}
 
-	latest, err := s.repo.ListLatestPerModel(ctx, id)
+// GetAdminStatusDetail 管理员只读状态页详情：只受 enabled 限制，不受 user_visible 限制。
+func (s *ChannelMonitorService) GetAdminStatusDetail(ctx context.Context, id int64) (*UserMonitorDetail, error) {
+	m, err := s.repo.GetByID(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	if !m.Enabled {
+		return nil, ErrChannelMonitorNotFound
+	}
+	return s.buildMonitorDetail(ctx, m)
+}
+
+// filterUserVisibleMonitors 保留普通用户可见的监控；runner 仍使用 ListEnabledMonitors，
+// 不受 user_visible 影响。
+func filterUserVisibleMonitors(monitors []*ChannelMonitor) []*ChannelMonitor {
+	out := make([]*ChannelMonitor, 0, len(monitors))
+	for _, m := range monitors {
+		if m != nil && m.UserVisible {
+			out = append(out, m)
+		}
+	}
+	return out
+}
+
+func (s *ChannelMonitorService) buildMonitorDetail(ctx context.Context, m *ChannelMonitor) (*UserMonitorDetail, error) {
+	latest, err := s.repo.ListLatestPerModel(ctx, m.ID)
 	if err != nil {
 		return nil, fmt.Errorf("list latest per model: %w", err)
 	}
-	availMap, err := s.collectAvailabilityWindows(ctx, id)
+	availMap, err := s.collectAvailabilityWindows(ctx, m.ID)
 	if err != nil {
 		return nil, err
 	}

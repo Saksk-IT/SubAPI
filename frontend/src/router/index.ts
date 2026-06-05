@@ -503,6 +503,17 @@ const routes: RouteRecordRaw[] = [
     }
   },
   {
+    path: '/admin/channels/status',
+    name: 'AdminChannelStatus',
+    component: () => import('@/views/admin/AdminChannelStatusView.vue'),
+    meta: {
+      requiresAuth: true,
+      requiresAdmin: true,
+      title: 'Channel Status',
+      titleKey: 'nav.channelStatus'
+    }
+  },
+  {
     path: '/monitor',
     name: 'ChannelStatus',
     component: () => import('@/views/user/ChannelStatusView.vue'),

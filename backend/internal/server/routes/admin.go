@@ -628,6 +628,12 @@ func registerChannelRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
 }
 
 func registerChannelMonitorRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
+	status := admin.Group("/channel-monitor-status")
+	{
+		status.GET("", h.Admin.ChannelMonitor.StatusList)
+		status.GET("/:id", h.Admin.ChannelMonitor.StatusGet)
+	}
+
 	monitors := admin.Group("/channel-monitors")
 	{
 		monitors.GET("", h.Admin.ChannelMonitor.List)
