@@ -340,6 +340,9 @@ func (r *firstRechargeUserRepoFake) GetByID(_ context.Context, id int64) (*User,
 	cloned := *user
 	return &cloned, nil
 }
+func (r *firstRechargeUserRepoFake) GetByIDIncludeDeleted(ctx context.Context, id int64) (*User, error) {
+	return r.GetByID(ctx, id)
+}
 func (r *firstRechargeUserRepoFake) GetByEmail(context.Context, string) (*User, error) {
 	panic("unexpected GetByEmail call")
 }
