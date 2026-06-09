@@ -34,6 +34,7 @@ func (s *ScheduledTestService) CreatePlan(ctx context.Context, plan *ScheduledTe
 		return nil, fmt.Errorf("invalid cron expression: %w", err)
 	}
 	plan.NextRunAt = &nextRun
+	normalizeScheduledTestRecoveryScopes(plan)
 
 	if plan.MaxResults <= 0 {
 		plan.MaxResults = 50
@@ -59,6 +60,7 @@ func (s *ScheduledTestService) UpdatePlan(ctx context.Context, plan *ScheduledTe
 		return nil, fmt.Errorf("invalid cron expression: %w", err)
 	}
 	plan.NextRunAt = &nextRun
+	normalizeScheduledTestRecoveryScopes(plan)
 
 	return s.planRepo.Update(ctx, plan)
 }
@@ -91,4 +93,18 @@ func computeNextRun(cronExpr string, from time.Time) (time.Time, error) {
 		return time.Time{}, err
 	}
 	return sched.Next(from), nil
+}
+
+func normalizeScheduledTestRecoveryScopes(plan *ScheduledTestPlan) {
+	if plan == nil {
+		return
+	}
+	if plan.AutoRecoverManualStop || plan.AutoRecoverErrorCodeStop || plan.AutoRecoverRuntimeState {
+		plan.AutoRecover = true
+		return
+	}
+	if plan.AutoRecover {
+		plan.AutoRecoverErrorCodeStop = true
+		plan.AutoRecoverRuntimeState = true
+	}
 }

@@ -27,6 +27,9 @@ type rateLimitClearRepoStub struct {
 	clearAntigravityErr       error
 	clearModelRateLimitErr    error
 	clearTempUnschedulableErr error
+	setSchedulableCalls       int
+	setSchedulableValues      []bool
+	setSchedulableErr         error
 }
 
 func (r *rateLimitClearRepoStub) GetByID(ctx context.Context, id int64) (*Account, error) {
@@ -60,6 +63,12 @@ func (r *rateLimitClearRepoStub) ClearModelRateLimits(ctx context.Context, id in
 func (r *rateLimitClearRepoStub) ClearTempUnschedulable(ctx context.Context, id int64) error {
 	r.clearTempUnschedCalls++
 	return r.clearTempUnschedulableErr
+}
+
+func (r *rateLimitClearRepoStub) SetSchedulable(ctx context.Context, id int64, schedulable bool) error {
+	r.setSchedulableCalls++
+	r.setSchedulableValues = append(r.setSchedulableValues, schedulable)
+	return r.setSchedulableErr
 }
 
 type tempUnschedCacheRecorder struct {
@@ -235,8 +244,123 @@ func TestRateLimitService_RecoverAccountAfterSuccessfulTest_ClearsErrorAndRateLi
 	require.Equal(t, 1, repo.clearAntigravityCalls)
 	require.Equal(t, 1, repo.clearModelRateLimitCalls)
 	require.Equal(t, 1, repo.clearTempUnschedCalls)
+	require.Equal(t, 0, repo.setSchedulableCalls)
 	require.Equal(t, []int64{42}, cache.deletedIDs)
 	require.Equal(t, []int64{42}, blocker.clearedIDs)
+}
+
+func TestRateLimitService_RecoverAccountAfterSuccessfulTest_RestoresCustomErrorCodeScheduling(t *testing.T) {
+	repo := &rateLimitClearRepoStub{
+		getByIDAccount: &Account{
+			ID:           42,
+			Status:       StatusError,
+			Schedulable:  false,
+			ErrorMessage: "Custom error code 500: upstream unavailable",
+		},
+	}
+	blocker := &runtimeBlockRecorder{}
+	svc := NewRateLimitService(repo, nil, &config.Config{}, nil, nil)
+	svc.SetAccountRuntimeBlocker(blocker)
+
+	result, err := svc.RecoverAccountAfterSuccessfulTest(context.Background(), 42)
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	require.True(t, result.ClearedError)
+	require.True(t, result.RestoredScheduling)
+	require.False(t, result.ClearedRateLimit)
+
+	require.Equal(t, 1, repo.clearErrorCalls)
+	require.Equal(t, 1, repo.setSchedulableCalls)
+	require.Equal(t, []bool{true}, repo.setSchedulableValues)
+	require.Equal(t, []int64{42}, blocker.clearedIDs)
+}
+
+func TestRateLimitService_RecoverAccountAfterSuccessfulTest_DoesNotRestoreManualSchedulingStop(t *testing.T) {
+	repo := &rateLimitClearRepoStub{
+		getByIDAccount: &Account{
+			ID:          7,
+			Status:      StatusActive,
+			Schedulable: false,
+			Extra:       map[string]any{},
+		},
+	}
+	svc := NewRateLimitService(repo, nil, &config.Config{}, nil, nil)
+
+	result, err := svc.RecoverAccountAfterSuccessfulTest(context.Background(), 7)
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	require.False(t, result.ClearedError)
+	require.False(t, result.ClearedRateLimit)
+	require.False(t, result.RestoredScheduling)
+	require.Equal(t, 0, repo.setSchedulableCalls)
+}
+
+func TestRateLimitService_RecoverAccountState_ExplicitManualStopScopeRestoresScheduling(t *testing.T) {
+	repo := &rateLimitClearRepoStub{
+		getByIDAccount: &Account{
+			ID:          11,
+			Status:      StatusActive,
+			Schedulable: false,
+			Extra:       map[string]any{},
+		},
+	}
+	svc := NewRateLimitService(repo, nil, &config.Config{}, nil, nil)
+
+	result, err := svc.RecoverAccountState(context.Background(), 11, AccountRecoveryOptions{
+		UseExplicitRecoveryScope: true,
+		RecoverManualStop:        true,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	require.False(t, result.ClearedError)
+	require.False(t, result.ClearedRateLimit)
+	require.True(t, result.RestoredScheduling)
+	require.Equal(t, 1, repo.setSchedulableCalls)
+	require.Equal(t, []bool{true}, repo.setSchedulableValues)
+}
+
+func TestRateLimitService_RecoverAccountState_ExplicitScopeSkipsUnselectedErrorCodeStop(t *testing.T) {
+	repo := &rateLimitClearRepoStub{
+		getByIDAccount: &Account{
+			ID:           12,
+			Status:       StatusError,
+			Schedulable:  false,
+			ErrorMessage: "Custom error code 500: upstream unavailable",
+		},
+	}
+	svc := NewRateLimitService(repo, nil, &config.Config{}, nil, nil)
+
+	result, err := svc.RecoverAccountState(context.Background(), 12, AccountRecoveryOptions{
+		UseExplicitRecoveryScope: true,
+		RecoverRuntimeState:      true,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	require.False(t, result.ClearedError)
+	require.False(t, result.ClearedRateLimit)
+	require.False(t, result.RestoredScheduling)
+	require.Equal(t, 0, repo.clearErrorCalls)
+	require.Equal(t, 0, repo.setSchedulableCalls)
+}
+
+func TestRateLimitService_RecoverAccountAfterSuccessfulTest_DoesNotRestoreGenericErrorSchedulingStop(t *testing.T) {
+	repo := &rateLimitClearRepoStub{
+		getByIDAccount: &Account{
+			ID:           9,
+			Status:       StatusError,
+			Schedulable:  false,
+			ErrorMessage: "Authentication failed (401): invalid or expired credentials",
+		},
+	}
+	svc := NewRateLimitService(repo, nil, &config.Config{}, nil, nil)
+
+	result, err := svc.RecoverAccountAfterSuccessfulTest(context.Background(), 9)
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	require.True(t, result.ClearedError)
+	require.False(t, result.RestoredScheduling)
+	require.Equal(t, 1, repo.clearErrorCalls)
+	require.Equal(t, 0, repo.setSchedulableCalls)
 }
 
 func TestRateLimitService_RecoverAccountAfterSuccessfulTest_NoRecoverableStateIsNoop(t *testing.T) {

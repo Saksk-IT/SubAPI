@@ -107,6 +107,20 @@
               </p>
             </div>
           </div>
+          <div v-if="newPlan.auto_recover" class="grid grid-cols-1 gap-2 sm:col-span-2 sm:grid-cols-3">
+            <label class="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
+              <Toggle v-model="newPlan.auto_recover_manual_stop" />
+              {{ t('admin.scheduledTests.recoverManualStop') }}
+            </label>
+            <label class="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
+              <Toggle v-model="newPlan.auto_recover_error_code_stop" />
+              {{ t('admin.scheduledTests.recoverErrorCodeStop') }}
+            </label>
+            <label class="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
+              <Toggle v-model="newPlan.auto_recover_runtime_state" />
+              {{ t('admin.scheduledTests.recoverRuntimeState') }}
+            </label>
+          </div>
         </div>
         <div class="mt-3 flex justify-end gap-2">
           <button
@@ -181,6 +195,7 @@
               <span
                 v-if="plan.auto_recover"
                 class="inline-flex items-center rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-400"
+                :title="formatRecoveryScopes(plan)"
               >
                 {{ t('admin.scheduledTests.autoRecover') }}
               </span>
@@ -316,6 +331,20 @@
                     {{ t('admin.scheduledTests.autoRecoverHelp') }}
                   </p>
                 </div>
+              </div>
+              <div v-if="editForm.auto_recover" class="grid grid-cols-1 gap-2 sm:col-span-2 sm:grid-cols-3">
+                <label class="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
+                  <Toggle v-model="editForm.auto_recover_manual_stop" />
+                  {{ t('admin.scheduledTests.recoverManualStop') }}
+                </label>
+                <label class="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
+                  <Toggle v-model="editForm.auto_recover_error_code_stop" />
+                  {{ t('admin.scheduledTests.recoverErrorCodeStop') }}
+                </label>
+                <label class="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
+                  <Toggle v-model="editForm.auto_recover_runtime_state" />
+                  {{ t('admin.scheduledTests.recoverRuntimeState') }}
+                </label>
               </div>
             </div>
             <div class="mt-3 flex justify-end gap-2">
@@ -508,7 +537,10 @@ const editForm = reactive({
   cron_expression: '' as string,
   max_results: '100' as string,
   enabled: true,
-  auto_recover: false
+  auto_recover: false,
+  auto_recover_manual_stop: false,
+  auto_recover_error_code_stop: true,
+  auto_recover_runtime_state: true
 })
 
 const newPlan = reactive({
@@ -516,7 +548,10 @@ const newPlan = reactive({
   cron_expression: '' as string,
   max_results: '100' as string,
   enabled: true,
-  auto_recover: false
+  auto_recover: false,
+  auto_recover_manual_stop: false,
+  auto_recover_error_code_stop: true,
+  auto_recover_runtime_state: true
 })
 
 const resetNewPlan = () => {
@@ -525,6 +560,9 @@ const resetNewPlan = () => {
   newPlan.max_results = '100'
   newPlan.enabled = true
   newPlan.auto_recover = false
+  newPlan.auto_recover_manual_stop = false
+  newPlan.auto_recover_error_code_stop = true
+  newPlan.auto_recover_runtime_state = true
 }
 
 // Load plans when dialog opens
@@ -567,7 +605,7 @@ const handleCreate = async () => {
       cron_expression: newPlan.cron_expression,
       enabled: newPlan.enabled,
       max_results: maxResults,
-      auto_recover: newPlan.auto_recover
+      ...buildRecoveryPayload(newPlan)
     })
     appStore.showSuccess(t('admin.scheduledTests.createSuccess'))
     showAddForm.value = false
@@ -600,6 +638,9 @@ const startEdit = (plan: ScheduledTestPlan) => {
   editForm.max_results = String(plan.max_results)
   editForm.enabled = plan.enabled
   editForm.auto_recover = plan.auto_recover
+  editForm.auto_recover_manual_stop = plan.auto_recover_manual_stop ?? false
+  editForm.auto_recover_error_code_stop = plan.auto_recover_error_code_stop ?? plan.auto_recover
+  editForm.auto_recover_runtime_state = plan.auto_recover_runtime_state ?? plan.auto_recover
 }
 
 const cancelEdit = () => {
@@ -615,7 +656,7 @@ const handleEdit = async () => {
       cron_expression: editForm.cron_expression,
       max_results: Number(editForm.max_results) || 100,
       enabled: editForm.enabled,
-      auto_recover: editForm.auto_recover
+      ...buildRecoveryPayload(editForm)
     })
     const index = plans.value.findIndex((p) => p.id === editingPlanId.value)
     if (index !== -1) {
@@ -680,5 +721,25 @@ const toggleResultDetail = (resultId: number) => {
   } else {
     expandedResultIds.add(resultId)
   }
+}
+
+const buildRecoveryPayload = (form: {
+  auto_recover: boolean
+  auto_recover_manual_stop: boolean
+  auto_recover_error_code_stop: boolean
+  auto_recover_runtime_state: boolean
+}) => ({
+  auto_recover: form.auto_recover,
+  auto_recover_manual_stop: form.auto_recover ? form.auto_recover_manual_stop : false,
+  auto_recover_error_code_stop: form.auto_recover ? form.auto_recover_error_code_stop : false,
+  auto_recover_runtime_state: form.auto_recover ? form.auto_recover_runtime_state : false
+})
+
+const formatRecoveryScopes = (plan: ScheduledTestPlan) => {
+  const scopes: string[] = []
+  if (plan.auto_recover_manual_stop) scopes.push(t('admin.scheduledTests.recoverManualStop'))
+  if (plan.auto_recover_error_code_stop) scopes.push(t('admin.scheduledTests.recoverErrorCodeStop'))
+  if (plan.auto_recover_runtime_state) scopes.push(t('admin.scheduledTests.recoverRuntimeState'))
+  return scopes.length > 0 ? scopes.join(' / ') : t('admin.scheduledTests.autoRecover')
 }
 </script>

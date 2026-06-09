@@ -41,13 +41,19 @@ type AccountRuntimeBlocker interface {
 
 // SuccessfulTestRecoveryResult 表示测试成功后恢复了哪些运行时状态。
 type SuccessfulTestRecoveryResult struct {
-	ClearedError     bool
-	ClearedRateLimit bool
+	ClearedError       bool
+	ClearedRateLimit   bool
+	RestoredScheduling bool
 }
 
 // AccountRecoveryOptions 控制账号恢复时的附加行为。
 type AccountRecoveryOptions struct {
-	InvalidateToken bool
+	UseExplicitRecoveryScope bool
+	InvalidateToken          bool
+	RecoverAnyError          bool
+	RecoverManualStop        bool
+	RecoverErrorCodeStop     bool
+	RecoverRuntimeState      bool
 }
 
 type geminiUsageCacheEntry struct {
@@ -66,6 +72,8 @@ const (
 	defaultRateLimit429CooldownSeconds = 5
 	maxRateLimit429CooldownSeconds     = 7200
 )
+
+const customErrorCodeStopPrefix = "Custom error code "
 
 const (
 	openAIImageRateLimitDefaultCooldown = time.Minute
@@ -859,7 +867,7 @@ func (s *RateLimitService) handleAntigravity403(ctx context.Context, account *Ac
 
 // handleCustomErrorCode 处理自定义错误码，停止账号调度
 func (s *RateLimitService) handleCustomErrorCode(ctx context.Context, account *Account, statusCode int, errorMsg string) {
-	msg := "Custom error code " + strconv.Itoa(statusCode) + ": " + errorMsg
+	msg := customErrorCodeStopPrefix + strconv.Itoa(statusCode) + ": " + errorMsg
 	s.notifyAccountSchedulingBlocked(account, time.Time{}, "custom_error_code")
 	if err := s.accountRepo.SetError(ctx, account.ID, msg); err != nil {
 		slog.Warn("account_set_error_failed", "account_id", account.ID, "status_code", statusCode, "error", err)
@@ -1485,24 +1493,42 @@ func (s *RateLimitService) RecoverAccountState(ctx context.Context, accountID in
 		return nil, err
 	}
 
+	options = normalizeAccountRecoveryOptions(options)
 	result := &SuccessfulTestRecoveryResult{}
 	if account.Status == StatusError {
-		if err := s.accountRepo.ClearError(ctx, accountID); err != nil {
-			return nil, err
-		}
-		result.ClearedError = true
-		if options.InvalidateToken && s.tokenCacheInvalidator != nil && account.IsOAuth() {
-			if invalidateErr := s.tokenCacheInvalidator.InvalidateToken(ctx, account); invalidateErr != nil {
-				slog.Warn("recover_account_state_invalidate_token_failed", "account_id", accountID, "error", invalidateErr)
+		errorKind := classifyRecoverableAccountError(account)
+		shouldClearError := options.RecoverAnyError ||
+			(errorKind == accountRecoveryErrorCodeStop && options.RecoverErrorCodeStop)
+		if shouldClearError {
+			if err := s.accountRepo.ClearError(ctx, accountID); err != nil {
+				return nil, err
+			}
+			result.ClearedError = true
+			if errorKind == accountRecoveryErrorCodeStop && options.RecoverErrorCodeStop {
+				if err := s.accountRepo.SetSchedulable(ctx, accountID, true); err != nil {
+					return nil, err
+				}
+				result.RestoredScheduling = true
+			}
+			if options.InvalidateToken && s.tokenCacheInvalidator != nil && account.IsOAuth() {
+				if invalidateErr := s.tokenCacheInvalidator.InvalidateToken(ctx, account); invalidateErr != nil {
+					slog.Warn("recover_account_state_invalidate_token_failed", "account_id", accountID, "error", invalidateErr)
+				}
 			}
 		}
 	}
 
-	if hasRecoverableRuntimeState(account) {
+	if hasRecoverableRuntimeState(account) && options.RecoverRuntimeState {
 		if err := s.ClearRateLimit(ctx, accountID); err != nil {
 			return nil, err
 		}
 		result.ClearedRateLimit = true
+	}
+	if shouldRecoverManualSchedulingStop(account, options) {
+		if err := s.accountRepo.SetSchedulable(ctx, accountID, true); err != nil {
+			return nil, err
+		}
+		result.RestoredScheduling = true
 	}
 	if result.ClearedError || result.ClearedRateLimit {
 		s.ResetOpenAI403Counter(ctx, accountID)
@@ -1518,6 +1544,40 @@ func (s *RateLimitService) RecoverAccountState(ctx context.Context, accountID in
 // 按需恢复 error / rate-limit / overload / temp-unsched / model-rate-limit 等运行时状态。
 func (s *RateLimitService) RecoverAccountAfterSuccessfulTest(ctx context.Context, accountID int64) (*SuccessfulTestRecoveryResult, error) {
 	return s.RecoverAccountState(ctx, accountID, AccountRecoveryOptions{})
+}
+
+func normalizeAccountRecoveryOptions(options AccountRecoveryOptions) AccountRecoveryOptions {
+	if !options.UseExplicitRecoveryScope &&
+		!options.RecoverAnyError &&
+		!options.RecoverManualStop &&
+		!options.RecoverErrorCodeStop &&
+		!options.RecoverRuntimeState {
+		options.RecoverAnyError = true
+		options.RecoverErrorCodeStop = true
+		options.RecoverRuntimeState = true
+	}
+	return options
+}
+
+type accountRecoveryErrorKind int
+
+const (
+	accountRecoveryErrorGeneric accountRecoveryErrorKind = iota
+	accountRecoveryErrorCodeStop
+)
+
+func classifyRecoverableAccountError(account *Account) accountRecoveryErrorKind {
+	if account != nil && strings.HasPrefix(strings.TrimSpace(account.ErrorMessage), customErrorCodeStopPrefix) {
+		return accountRecoveryErrorCodeStop
+	}
+	return accountRecoveryErrorGeneric
+}
+
+func shouldRecoverManualSchedulingStop(account *Account, options AccountRecoveryOptions) bool {
+	if account == nil || account.Schedulable || !options.RecoverManualStop {
+		return false
+	}
+	return account.Status == StatusActive
 }
 
 func (s *RateLimitService) ClearTempUnschedulable(ctx context.Context, accountID int64) error {

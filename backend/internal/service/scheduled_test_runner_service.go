@@ -132,7 +132,7 @@ func (s *ScheduledTestRunnerService) runOnePlan(ctx context.Context, plan *Sched
 
 	// Auto-recover account if test succeeded and auto_recover is enabled.
 	if result.Status == "success" && plan.AutoRecover {
-		s.tryRecoverAccount(ctx, plan.AccountID, plan.ID)
+		s.tryRecoverAccount(ctx, plan)
 	}
 
 	nextRun, err := computeNextRun(plan.CronExpression, time.Now())
@@ -147,14 +147,22 @@ func (s *ScheduledTestRunnerService) runOnePlan(ctx context.Context, plan *Sched
 }
 
 // tryRecoverAccount attempts to recover an account from recoverable runtime state.
-func (s *ScheduledTestRunnerService) tryRecoverAccount(ctx context.Context, accountID int64, planID int64) {
+func (s *ScheduledTestRunnerService) tryRecoverAccount(ctx context.Context, plan *ScheduledTestPlan) {
 	if s.rateLimitSvc == nil {
 		return
 	}
+	if plan == nil {
+		return
+	}
 
-	recovery, err := s.rateLimitSvc.RecoverAccountAfterSuccessfulTest(ctx, accountID)
+	recovery, err := s.rateLimitSvc.RecoverAccountState(ctx, plan.AccountID, AccountRecoveryOptions{
+		UseExplicitRecoveryScope: true,
+		RecoverManualStop:        plan.AutoRecoverManualStop,
+		RecoverErrorCodeStop:     plan.AutoRecoverErrorCodeStop,
+		RecoverRuntimeState:      plan.AutoRecoverRuntimeState,
+	})
 	if err != nil {
-		logger.LegacyPrintf("service.scheduled_test_runner", "[ScheduledTestRunner] plan=%d auto-recover failed: %v", planID, err)
+		logger.LegacyPrintf("service.scheduled_test_runner", "[ScheduledTestRunner] plan=%d auto-recover failed: %v", plan.ID, err)
 		return
 	}
 	if recovery == nil {
@@ -162,9 +170,12 @@ func (s *ScheduledTestRunnerService) tryRecoverAccount(ctx context.Context, acco
 	}
 
 	if recovery.ClearedError {
-		logger.LegacyPrintf("service.scheduled_test_runner", "[ScheduledTestRunner] plan=%d auto-recover: account=%d recovered from error status", planID, accountID)
+		logger.LegacyPrintf("service.scheduled_test_runner", "[ScheduledTestRunner] plan=%d auto-recover: account=%d recovered from error status", plan.ID, plan.AccountID)
 	}
 	if recovery.ClearedRateLimit {
-		logger.LegacyPrintf("service.scheduled_test_runner", "[ScheduledTestRunner] plan=%d auto-recover: account=%d cleared rate-limit/runtime state", planID, accountID)
+		logger.LegacyPrintf("service.scheduled_test_runner", "[ScheduledTestRunner] plan=%d auto-recover: account=%d cleared rate-limit/runtime state", plan.ID, plan.AccountID)
+	}
+	if recovery.RestoredScheduling {
+		logger.LegacyPrintf("service.scheduled_test_runner", "[ScheduledTestRunner] plan=%d auto-recover: account=%d restored scheduling", plan.ID, plan.AccountID)
 	}
 }

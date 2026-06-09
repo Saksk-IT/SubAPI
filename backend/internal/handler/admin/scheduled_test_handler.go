@@ -20,20 +20,26 @@ func NewScheduledTestHandler(scheduledTestSvc *service.ScheduledTestService) *Sc
 }
 
 type createScheduledTestPlanRequest struct {
-	AccountID      int64  `json:"account_id" binding:"required"`
-	ModelID        string `json:"model_id"`
-	CronExpression string `json:"cron_expression" binding:"required"`
-	Enabled        *bool  `json:"enabled"`
-	MaxResults     int    `json:"max_results"`
-	AutoRecover    *bool  `json:"auto_recover"`
+	AccountID                int64  `json:"account_id" binding:"required"`
+	ModelID                  string `json:"model_id"`
+	CronExpression           string `json:"cron_expression" binding:"required"`
+	Enabled                  *bool  `json:"enabled"`
+	MaxResults               int    `json:"max_results"`
+	AutoRecover              *bool  `json:"auto_recover"`
+	AutoRecoverManualStop    *bool  `json:"auto_recover_manual_stop"`
+	AutoRecoverErrorCodeStop *bool  `json:"auto_recover_error_code_stop"`
+	AutoRecoverRuntimeState  *bool  `json:"auto_recover_runtime_state"`
 }
 
 type updateScheduledTestPlanRequest struct {
-	ModelID        string `json:"model_id"`
-	CronExpression string `json:"cron_expression"`
-	Enabled        *bool  `json:"enabled"`
-	MaxResults     int    `json:"max_results"`
-	AutoRecover    *bool  `json:"auto_recover"`
+	ModelID                  string `json:"model_id"`
+	CronExpression           string `json:"cron_expression"`
+	Enabled                  *bool  `json:"enabled"`
+	MaxResults               int    `json:"max_results"`
+	AutoRecover              *bool  `json:"auto_recover"`
+	AutoRecoverManualStop    *bool  `json:"auto_recover_manual_stop"`
+	AutoRecoverErrorCodeStop *bool  `json:"auto_recover_error_code_stop"`
+	AutoRecoverRuntimeState  *bool  `json:"auto_recover_runtime_state"`
 }
 
 // ListByAccount GET /admin/accounts/:id/scheduled-test-plans
@@ -72,6 +78,16 @@ func (h *ScheduledTestHandler) Create(c *gin.Context) {
 	}
 	if req.AutoRecover != nil {
 		plan.AutoRecover = *req.AutoRecover
+	}
+	autoRecoverExplicitlyDisabled := req.AutoRecover != nil && !*req.AutoRecover
+	if req.AutoRecoverManualStop != nil && !autoRecoverExplicitlyDisabled {
+		plan.AutoRecoverManualStop = *req.AutoRecoverManualStop
+	}
+	if req.AutoRecoverErrorCodeStop != nil && !autoRecoverExplicitlyDisabled {
+		plan.AutoRecoverErrorCodeStop = *req.AutoRecoverErrorCodeStop
+	}
+	if req.AutoRecoverRuntimeState != nil && !autoRecoverExplicitlyDisabled {
+		plan.AutoRecoverRuntimeState = *req.AutoRecoverRuntimeState
 	}
 
 	created, err := h.scheduledTestSvc.CreatePlan(c.Request.Context(), plan)
@@ -116,6 +132,21 @@ func (h *ScheduledTestHandler) Update(c *gin.Context) {
 	}
 	if req.AutoRecover != nil {
 		existing.AutoRecover = *req.AutoRecover
+		if !*req.AutoRecover {
+			existing.AutoRecoverManualStop = false
+			existing.AutoRecoverErrorCodeStop = false
+			existing.AutoRecoverRuntimeState = false
+		}
+	}
+	autoRecoverExplicitlyDisabled := req.AutoRecover != nil && !*req.AutoRecover
+	if req.AutoRecoverManualStop != nil && !autoRecoverExplicitlyDisabled {
+		existing.AutoRecoverManualStop = *req.AutoRecoverManualStop
+	}
+	if req.AutoRecoverErrorCodeStop != nil && !autoRecoverExplicitlyDisabled {
+		existing.AutoRecoverErrorCodeStop = *req.AutoRecoverErrorCodeStop
+	}
+	if req.AutoRecoverRuntimeState != nil && !autoRecoverExplicitlyDisabled {
+		existing.AutoRecoverRuntimeState = *req.AutoRecoverRuntimeState
 	}
 
 	updated, err := h.scheduledTestSvc.UpdatePlan(c.Request.Context(), existing)

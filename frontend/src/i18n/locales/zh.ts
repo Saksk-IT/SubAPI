@@ -4337,7 +4337,10 @@ export default {
       maxResultsTooltipExample: '例如填写 100，表示最多保存最近 100 次测试结果；第 101 次结果写入后，最早的一条会被清理。',
       maxResultsTooltipRange: '推荐填写范围：一般可填 20 到 200。只关注近期可用性时可填 20-50；需要回看较长时间的波动趋势时可填 100-200。',
       autoRecover: '自动恢复',
-      autoRecoverHelp: '测试成功后自动恢复异常状态的账号'
+      autoRecoverHelp: '测试成功后按选中范围恢复账号状态或调度',
+      recoverManualStop: '手动停止调度',
+      recoverErrorCodeStop: '错误码停止调度',
+      recoverRuntimeState: '限流/过载/临时不可调度'
     },
 
     // Proxies Management
