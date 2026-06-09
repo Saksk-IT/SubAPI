@@ -282,6 +282,10 @@ func (s *groupRepoStub) UpdateSortOrders(ctx context.Context, updates []GroupSor
 	return nil
 }
 
+func (s *groupRepoStub) UpdateRateMultipliers(ctx context.Context, updates []GroupRateMultiplierUpdate) error {
+	return nil
+}
+
 type deleteGroupAPIKeyRepoStub struct {
 	apiKeyRepoStubForGroupUpdate
 	keys         []string

@@ -304,6 +304,10 @@ func (m *mockGroupRepoForGateway) UpdateSortOrders(ctx context.Context, updates 
 	return nil
 }
 
+func (m *mockGroupRepoForGateway) UpdateRateMultipliers(ctx context.Context, updates []GroupRateMultiplierUpdate) error {
+	return nil
+}
+
 func ptr[T any](v T) *T {
 	return &v
 }

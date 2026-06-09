@@ -71,6 +71,10 @@ func (s *adminRedeemRepoStub) Update(ctx context.Context, code *RedeemCode) erro
 	return nil
 }
 
+func (s *adminRedeemRepoStub) BatchUpdate(context.Context, []int64, RedeemCodeBatchUpdateFields) (int64, error) {
+	panic("unexpected")
+}
+
 type adminRedeemGroupRepoStub struct {
 	groups map[int64]*Group
 }
@@ -120,6 +124,9 @@ func (s *adminRedeemGroupRepoStub) BindAccountsToGroup(context.Context, int64, [
 	panic("unexpected")
 }
 func (s *adminRedeemGroupRepoStub) UpdateSortOrders(context.Context, []GroupSortOrderUpdate) error {
+	panic("unexpected")
+}
+func (s *adminRedeemGroupRepoStub) UpdateRateMultipliers(context.Context, []GroupRateMultiplierUpdate) error {
 	panic("unexpected")
 }
 

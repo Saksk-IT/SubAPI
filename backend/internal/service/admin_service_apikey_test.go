@@ -254,6 +254,9 @@ func (s *groupRepoStubForGroupUpdate) BindAccountsToGroup(context.Context, int64
 func (s *groupRepoStubForGroupUpdate) UpdateSortOrders(context.Context, []GroupSortOrderUpdate) error {
 	panic("unexpected")
 }
+func (s *groupRepoStubForGroupUpdate) UpdateRateMultipliers(context.Context, []GroupRateMultiplierUpdate) error {
+	panic("unexpected")
+}
 
 type userSubRepoStubForGroupUpdate struct {
 	userSubRepoNoop

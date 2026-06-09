@@ -275,6 +275,35 @@ func TestRateLimitService_RecoverAccountAfterSuccessfulTest_RestoresCustomErrorC
 	require.Equal(t, []int64{42}, blocker.clearedIDs)
 }
 
+func TestRateLimitService_RecoverAccountState_ExplicitErrorCodeScopeRestoresStatusSchedulingAndRuntimeBlock(t *testing.T) {
+	repo := &rateLimitClearRepoStub{
+		getByIDAccount: &Account{
+			ID:           43,
+			Status:       StatusError,
+			Schedulable:  false,
+			ErrorMessage: "Custom error code 503: upstream unavailable",
+		},
+	}
+	blocker := &runtimeBlockRecorder{}
+	svc := NewRateLimitService(repo, nil, &config.Config{}, nil, nil)
+	svc.SetAccountRuntimeBlocker(blocker)
+
+	result, err := svc.RecoverAccountState(context.Background(), 43, AccountRecoveryOptions{
+		UseExplicitRecoveryScope: true,
+		RecoverErrorCodeStop:     true,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	require.True(t, result.ClearedError)
+	require.True(t, result.RestoredScheduling)
+	require.False(t, result.ClearedRateLimit)
+
+	require.Equal(t, 1, repo.clearErrorCalls)
+	require.Equal(t, 1, repo.setSchedulableCalls)
+	require.Equal(t, []bool{true}, repo.setSchedulableValues)
+	require.Equal(t, []int64{43}, blocker.clearedIDs)
+}
+
 func TestRateLimitService_RecoverAccountAfterSuccessfulTest_DoesNotRestoreManualSchedulingStop(t *testing.T) {
 	repo := &rateLimitClearRepoStub{
 		getByIDAccount: &Account{
@@ -317,6 +346,86 @@ func TestRateLimitService_RecoverAccountState_ExplicitManualStopScopeRestoresSch
 	require.True(t, result.RestoredScheduling)
 	require.Equal(t, 1, repo.setSchedulableCalls)
 	require.Equal(t, []bool{true}, repo.setSchedulableValues)
+}
+
+func TestRateLimitService_RecoverAccountState_ExplicitRuntimeScopeDoesNotRestoreManualSchedulingStop(t *testing.T) {
+	now := time.Now()
+	repo := &rateLimitClearRepoStub{
+		getByIDAccount: &Account{
+			ID:               13,
+			Status:           StatusActive,
+			Schedulable:      false,
+			RateLimitedAt:    &now,
+			RateLimitResetAt: &now,
+		},
+	}
+	cache := &tempUnschedCacheRecorder{}
+	blocker := &runtimeBlockRecorder{}
+	svc := NewRateLimitService(repo, nil, &config.Config{}, nil, cache)
+	svc.SetAccountRuntimeBlocker(blocker)
+
+	result, err := svc.RecoverAccountState(context.Background(), 13, AccountRecoveryOptions{
+		UseExplicitRecoveryScope: true,
+		RecoverRuntimeState:      true,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	require.False(t, result.ClearedError)
+	require.True(t, result.ClearedRateLimit)
+	require.False(t, result.RestoredScheduling)
+
+	require.Equal(t, 1, repo.clearRateLimitCalls)
+	require.Equal(t, 1, repo.clearAntigravityCalls)
+	require.Equal(t, 1, repo.clearModelRateLimitCalls)
+	require.Equal(t, 1, repo.clearTempUnschedCalls)
+	require.Equal(t, 0, repo.setSchedulableCalls)
+	require.Equal(t, []int64{13}, cache.deletedIDs)
+	require.Equal(t, []int64{13}, blocker.clearedIDs)
+}
+
+func TestRateLimitService_RecoverAccountState_ExplicitAllScopesRestoresCustomErrorAndRuntimeState(t *testing.T) {
+	now := time.Now()
+	repo := &rateLimitClearRepoStub{
+		getByIDAccount: &Account{
+			ID:                     14,
+			Status:                 StatusError,
+			Schedulable:            false,
+			ErrorMessage:           "Custom error code 500: upstream unavailable",
+			RateLimitedAt:          &now,
+			TempUnschedulableUntil: &now,
+			Extra: map[string]any{
+				"model_rate_limits":        map[string]any{"gpt-5.5": map[string]any{"rate_limit_reset_at": now.Format(time.RFC3339)}},
+				"antigravity_quota_scopes": map[string]any{"gemini": true},
+			},
+		},
+	}
+	cache := &tempUnschedCacheRecorder{}
+	blocker := &runtimeBlockRecorder{}
+	svc := NewRateLimitService(repo, nil, &config.Config{}, nil, cache)
+	svc.SetAccountRuntimeBlocker(blocker)
+
+	result, err := svc.RecoverAccountState(context.Background(), 14, AccountRecoveryOptions{
+		UseExplicitRecoveryScope: true,
+		RecoverManualStop:        true,
+		RecoverErrorCodeStop:     true,
+		RecoverRuntimeState:      true,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	require.True(t, result.ClearedError)
+	require.True(t, result.ClearedRateLimit)
+	require.True(t, result.RestoredScheduling)
+
+	require.Equal(t, 1, repo.clearErrorCalls)
+	require.Equal(t, 1, repo.clearRateLimitCalls)
+	require.Equal(t, 1, repo.clearAntigravityCalls)
+	require.Equal(t, 1, repo.clearModelRateLimitCalls)
+	require.Equal(t, 1, repo.clearTempUnschedCalls)
+	require.Equal(t, 1, repo.setSchedulableCalls)
+	require.Equal(t, []bool{true}, repo.setSchedulableValues)
+	require.Equal(t, []int64{14}, cache.deletedIDs)
+	require.NotEmpty(t, blocker.clearedIDs)
+	require.Contains(t, blocker.clearedIDs, int64(14))
 }
 
 func TestRateLimitService_RecoverAccountState_ExplicitScopeSkipsUnselectedErrorCodeStop(t *testing.T) {
