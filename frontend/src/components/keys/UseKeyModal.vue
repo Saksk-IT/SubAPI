@@ -539,7 +539,7 @@ network_access = "enabled"
 windows_wsl_setup_acknowledged = true
 
 [model_providers.OpenAI]
-name = "OpenAI"
+name = "custom"
 base_url = "${baseUrl}"
 wire_api = "responses"
 requires_openai_auth = true
@@ -579,7 +579,7 @@ network_access = "enabled"
 windows_wsl_setup_acknowledged = true
 
 [model_providers.OpenAI]
-name = "OpenAI"
+name = "custom"
 base_url = "${baseUrl}"
 wire_api = "responses"
 supports_websockets = true
