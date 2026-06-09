@@ -395,8 +395,8 @@
                 :key="result.id"
                 class="rounded-lg border border-gray-100 bg-gray-50 p-3 dark:border-dark-700 dark:bg-dark-900"
               >
-                <div class="flex items-center justify-between">
-                  <div class="flex items-center gap-2">
+                <div class="flex flex-wrap items-center justify-between gap-2">
+                  <div class="flex min-w-0 flex-wrap items-center gap-2">
                     <!-- Status Badge -->
                     <span
                       :class="[
@@ -421,10 +421,29 @@
                     <span v-if="result.latency_ms > 0" class="text-xs text-gray-500 dark:text-gray-400">
                       {{ result.latency_ms }}ms
                     </span>
+
+                    <span
+                      v-if="result.recovery_restored_scheduling"
+                      class="inline-flex items-center rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300"
+                    >
+                      {{ t('admin.scheduledTests.recoveryRestoredScheduling') }}
+                    </span>
+                    <span
+                      v-if="result.recovery_cleared_error"
+                      class="inline-flex items-center rounded-full bg-sky-100 px-2 py-0.5 text-xs font-medium text-sky-700 dark:bg-sky-500/20 dark:text-sky-300"
+                    >
+                      {{ t('admin.scheduledTests.recoveryClearedError') }}
+                    </span>
+                    <span
+                      v-if="result.recovery_cleared_runtime_state"
+                      class="inline-flex items-center rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-700 dark:bg-amber-500/20 dark:text-amber-300"
+                    >
+                      {{ t('admin.scheduledTests.recoveryClearedRuntimeState') }}
+                    </span>
                   </div>
 
                   <!-- Started At -->
-                  <span class="text-xs text-gray-400">
+                  <span class="shrink-0 text-xs text-gray-400">
                     {{ formatDateTime(result.started_at) }}
                   </span>
                 </div>

@@ -1932,6 +1932,9 @@ export interface ScheduledTestResult {
   response_text: string
   error_message: string
   latency_ms: number
+  recovery_cleared_error: boolean
+  recovery_cleared_runtime_state: boolean
+  recovery_restored_scheduling: boolean
   started_at: string
   finished_at: string
   created_at: string

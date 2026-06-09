@@ -4250,7 +4250,10 @@ export default {
       autoRecoverHelp: 'Recover account state or scheduling for selected scopes after a successful test',
       recoverManualStop: 'Manual scheduling stop',
       recoverErrorCodeStop: 'Error-code scheduling stop',
-      recoverRuntimeState: 'Rate limit / overload / temp unschedulable'
+      recoverRuntimeState: 'Rate limit / overload / temp unschedulable',
+      recoveryRestoredScheduling: 'Scheduling restored',
+      recoveryClearedError: 'Error state cleared',
+      recoveryClearedRuntimeState: 'Runtime state cleared'
     },
 
     // Proxies

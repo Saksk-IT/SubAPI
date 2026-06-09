@@ -37,6 +37,9 @@ func TestMigrationsRunner_IsIdempotent_AndSchemaIsUpToDate(t *testing.T) {
 	requireColumn(t, tx, "scheduled_test_plans", "auto_recover_manual_stop", "boolean", 0, false)
 	requireColumn(t, tx, "scheduled_test_plans", "auto_recover_error_code_stop", "boolean", 0, false)
 	requireColumn(t, tx, "scheduled_test_plans", "auto_recover_runtime_state", "boolean", 0, false)
+	requireColumn(t, tx, "scheduled_test_results", "recovery_cleared_error", "boolean", 0, false)
+	requireColumn(t, tx, "scheduled_test_results", "recovery_cleared_runtime_state", "boolean", 0, false)
+	requireColumn(t, tx, "scheduled_test_results", "recovery_restored_scheduling", "boolean", 0, false)
 
 	// api_keys: key length should be 128
 	requireColumn(t, tx, "api_keys", "key", "character varying", 128, false)

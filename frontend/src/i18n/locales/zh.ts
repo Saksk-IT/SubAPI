@@ -4340,7 +4340,10 @@ export default {
       autoRecoverHelp: '测试成功后按选中范围恢复账号状态或调度',
       recoverManualStop: '手动停止调度',
       recoverErrorCodeStop: '错误码停止调度',
-      recoverRuntimeState: '限流/过载/临时不可调度'
+      recoverRuntimeState: '限流/过载/临时不可调度',
+      recoveryRestoredScheduling: '恢复调度',
+      recoveryClearedError: '清理错误状态',
+      recoveryClearedRuntimeState: '清理运行态'
     },
 
     // Proxies Management
