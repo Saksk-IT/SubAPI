@@ -194,6 +194,111 @@ function checkoutInfoWithPlansFixture() {
   }
 }
 
+function checkoutInfoWithPlatformPlansFixture() {
+  return {
+    data: {
+      ...checkoutInfoFixture().data,
+      methods: {
+        wxpay: {
+          daily_limit: 0,
+          daily_used: 0,
+          daily_remaining: 0,
+          single_min: 0,
+          single_max: 0,
+          fee_rate: 0,
+          available: true,
+        },
+      },
+      plans: [
+        {
+          id: 21,
+          group_id: 301,
+          name: 'OpenAI Weekly',
+          description: '',
+          price: 68,
+          original_price: 0,
+          validity_days: 7,
+          validity_unit: 'days',
+          rate_multiplier: 1,
+          daily_limit_usd: null,
+          weekly_limit_usd: null,
+          monthly_limit_usd: null,
+          total_quota: 350,
+          daily_quota: 50,
+          features: [],
+          group_platform: 'openai',
+          sort_order: 30,
+          for_sale: true,
+          group_name: 'OpenAI',
+        },
+        {
+          id: 22,
+          group_id: 302,
+          name: 'Claude Team',
+          description: '',
+          price: 188,
+          original_price: 0,
+          validity_days: 30,
+          validity_unit: 'days',
+          rate_multiplier: 1,
+          daily_limit_usd: null,
+          weekly_limit_usd: null,
+          monthly_limit_usd: null,
+          total_quota: 1200,
+          daily_quota: 80,
+          features: [],
+          group_platform: 'anthropic',
+          sort_order: 40,
+          for_sale: true,
+          group_name: 'Anthropic',
+        },
+        {
+          id: 23,
+          group_id: 303,
+          name: 'Gemini Pro',
+          description: '',
+          price: 128,
+          original_price: 0,
+          validity_days: 30,
+          validity_unit: 'days',
+          rate_multiplier: 1,
+          daily_limit_usd: null,
+          weekly_limit_usd: null,
+          monthly_limit_usd: null,
+          total_quota: 900,
+          daily_quota: 70,
+          features: [],
+          group_platform: 'gemini',
+          sort_order: 10,
+          for_sale: true,
+          group_name: 'Gemini',
+        },
+        {
+          id: 24,
+          group_id: 301,
+          name: 'OpenAI Monthly',
+          description: '',
+          price: 168,
+          original_price: 0,
+          validity_days: 30,
+          validity_unit: 'days',
+          rate_multiplier: 1,
+          daily_limit_usd: null,
+          weekly_limit_usd: null,
+          monthly_limit_usd: null,
+          total_quota: 1200,
+          daily_quota: 90,
+          features: [],
+          group_platform: 'openai',
+          sort_order: 20,
+          for_sale: true,
+          group_name: 'OpenAI',
+        },
+      ],
+    },
+  }
+}
+
 function checkoutInfoWithSupportFixture() {
   return {
     data: {
@@ -683,6 +788,60 @@ describe('PaymentView WeChat JSAPI flow', () => {
       payment_type: 'wxpay',
       order_type: 'subscription',
       plan_id: 7,
+    }))
+  })
+
+  it('groups subscription products by platform based on existing plan sort order and keeps product cards payable', async () => {
+    routeState.query = {
+      tab: 'subscription',
+    }
+    getCheckoutInfo.mockResolvedValue(checkoutInfoWithPlatformPlansFixture())
+    createOrder.mockResolvedValue({
+      order_id: 904,
+      amount: 128,
+      pay_amount: 128,
+      fee_rate: 0,
+      expires_at: '2099-01-01T00:10:00.000Z',
+      payment_type: 'wxpay',
+      qr_code: 'weixin://wxpay/bizpayurl?pr=gemini-plan',
+      out_trade_no: 'sub2_platform_plan_904',
+    })
+
+    const wrapper = shallowMount(PaymentView, {
+      global: {
+        stubs: {
+          AppLayout: { template: '<div><slot /></div>' },
+          Teleport: true,
+          Transition: false,
+        },
+      },
+    })
+    await flushPromises()
+    await flushPromises()
+
+    const sections = wrapper.findAll('[data-testid="subscription-platform-section"]')
+    expect(sections.map(section => section.text())).toEqual([
+      expect.stringContaining('Gemini'),
+      expect.stringContaining('OpenAI'),
+      expect.stringContaining('Anthropic'),
+    ])
+
+    const cards = wrapper.findAllComponents(PurchaseProductCard)
+    expect(cards.map(card => (card.props('product') as { name: string }).name)).toEqual([
+      'Gemini Pro',
+      'OpenAI Monthly',
+      'OpenAI Weekly',
+      'Claude Team',
+    ])
+
+    await cards[0].vm.$emit('pay', 'wxpay')
+    await flushPromises()
+
+    expect(createOrder).toHaveBeenCalledWith(expect.objectContaining({
+      amount: 128,
+      payment_type: 'wxpay',
+      order_type: 'subscription',
+      plan_id: 23,
     }))
   })
 

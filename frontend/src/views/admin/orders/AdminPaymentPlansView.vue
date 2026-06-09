@@ -179,35 +179,64 @@
 
           <VueDraggable
             v-else
-            v-model="sortablePlans"
+            v-model="sortablePlanPlatformGroups"
             :animation="200"
-            class="space-y-2"
-            handle=".product-sort-handle"
+            class="space-y-3"
+            handle=".platform-sort-handle"
           >
             <div
-              v-for="plan in sortablePlans"
-              :key="plan.id"
-              class="flex cursor-grab items-center gap-3 rounded-lg border border-gray-200 bg-white p-3 transition-shadow hover:shadow-md active:cursor-grabbing dark:border-dark-600 dark:bg-dark-700"
+              v-for="platformGroup in sortablePlanPlatformGroups"
+              :key="platformGroup.platform"
+              class="rounded-lg border border-gray-200 bg-white p-3 dark:border-dark-600 dark:bg-dark-700"
             >
-              <div class="product-sort-handle text-gray-400">
-                <Icon name="menu" size="md" />
-              </div>
-              <div class="min-w-0 flex-1">
-                <div class="truncate font-medium" :class="getPlanNameClass(plan.group_id)">
-                  {{ plan.name }}
+              <div class="mb-3 flex cursor-grab items-center gap-3 active:cursor-grabbing">
+                <div class="platform-sort-handle text-gray-400">
+                  <Icon name="menu" size="md" />
                 </div>
-                <div class="mt-1 flex flex-wrap items-center gap-2">
-                  <GroupBadge
-                    v-if="getGroup(plan.group_id)"
-                    :name="getGroup(plan.group_id)!.name"
-                    :platform="getGroup(plan.group_id)!.platform"
-                    :rate-multiplier="getGroup(plan.group_id)!.rate_multiplier"
-                  />
-                  <span v-else class="text-xs text-gray-400">#{{ plan.group_id }}</span>
-                  <span class="text-xs text-gray-500 dark:text-gray-400">¥{{ (plan.price ?? 0).toFixed(2) }}</span>
+                <div class="min-w-0 flex-1">
+                  <div class="truncate text-sm font-black text-gray-900 dark:text-white">
+                    {{ platformGroup.label }}
+                  </div>
+                  <div class="text-xs text-gray-500 dark:text-gray-400">
+                    {{ t('payment.admin.platformPlanCount', { count: platformGroup.plans.length }) }}
+                  </div>
                 </div>
+                <span class="rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-500 dark:bg-dark-800 dark:text-gray-300">
+                  {{ t('payment.admin.platformSortOrder') }}
+                </span>
               </div>
-              <div class="text-sm text-gray-400">#{{ plan.id }}</div>
+              <VueDraggable
+                v-model="platformGroup.plans"
+                :animation="200"
+                class="space-y-2"
+                handle=".product-sort-handle"
+              >
+                <div
+                  v-for="plan in platformGroup.plans"
+                  :key="plan.id"
+                  class="flex cursor-grab items-center gap-3 rounded-lg border border-gray-200 bg-gray-50 p-3 transition-shadow hover:shadow-md active:cursor-grabbing dark:border-dark-600 dark:bg-dark-800"
+                >
+                  <div class="product-sort-handle text-gray-400">
+                    <Icon name="menu" size="md" />
+                  </div>
+                  <div class="min-w-0 flex-1">
+                    <div class="truncate font-medium" :class="getPlanNameClass(plan.group_id)">
+                      {{ plan.name }}
+                    </div>
+                    <div class="mt-1 flex flex-wrap items-center gap-2">
+                      <GroupBadge
+                        v-if="getGroup(plan.group_id)"
+                        :name="getGroup(plan.group_id)!.name"
+                        :platform="getGroup(plan.group_id)!.platform"
+                        :rate-multiplier="getGroup(plan.group_id)!.rate_multiplier"
+                      />
+                      <span v-else class="text-xs text-gray-400">#{{ plan.group_id }}</span>
+                      <span class="text-xs text-gray-500 dark:text-gray-400">¥{{ (plan.price ?? 0).toFixed(2) }}</span>
+                    </div>
+                  </div>
+                  <div class="text-sm text-gray-400">#{{ plan.id }}</div>
+                </div>
+              </VueDraggable>
             </div>
           </VueDraggable>
         </div>
@@ -258,11 +287,16 @@ import Icon from '@/components/icons/Icon.vue'
 import GroupBadge from '@/components/common/GroupBadge.vue'
 import PlanEditDialog from './PlanEditDialog.vue'
 import BalanceProductEditDialog from './BalanceProductEditDialog.vue'
-import { platformTextClass } from '@/utils/platformColors'
+import { platformLabel, platformTextClass } from '@/utils/platformColors'
 
 const { t } = useI18n()
 const appStore = useAppStore()
 type ProductTab = 'balance' | 'subscription'
+type PlanPlatformSortGroup = {
+  platform: string
+  label: string
+  plans: SubscriptionPlan[]
+}
 
 const activeProductTab = ref<ProductTab>('balance')
 const activeLoading = computed(() => activeProductTab.value === 'balance' ? balanceProductsLoading.value : plansLoading.value)
@@ -310,7 +344,7 @@ const showSortDialog = ref(false)
 const sortSubmitting = ref(false)
 const sortingProductTab = ref<ProductTab>('balance')
 const sortableBalanceProducts = ref<BalanceProduct[]>([])
-const sortablePlans = ref<SubscriptionPlan[]>([])
+const sortablePlanPlatformGroups = ref<PlanPlatformSortGroup[]>([])
 
 const sortDialogHint = computed(() =>
   sortingProductTab.value === 'balance'
@@ -318,7 +352,9 @@ const sortDialogHint = computed(() =>
     : t('payment.admin.planSortOrderHint'),
 )
 const sortableProductCount = computed(() =>
-  sortingProductTab.value === 'balance' ? sortableBalanceProducts.value.length : sortablePlans.value.length,
+  sortingProductTab.value === 'balance'
+    ? sortableBalanceProducts.value.length
+    : sortablePlanPlatformGroups.value.reduce((count, group) => count + group.plans.length, 0),
 )
 
 const balanceProductColumns = computed((): Column[] => [
@@ -384,10 +420,45 @@ function bySortOrder<T extends { id: number; sort_order: number }>(items: T[]): 
   return [...items].sort((a, b) => a.sort_order - b.sort_order || a.id - b.id)
 }
 
+function normalizePlatformKey(platform: string | null | undefined): string {
+  return String(platform || '').trim().toLowerCase() || 'unknown'
+}
+
+function formatPlatformLabel(platform: string | null | undefined): string {
+  const key = normalizePlatformKey(platform)
+  if (key === 'unknown') return t('payment.admin.unknownPlatform')
+  return platformLabel(key) || t('payment.admin.unknownPlatform')
+}
+
+function getPlanPlatform(plan: SubscriptionPlan): string {
+  const group = getGroup(plan.group_id)
+  return normalizePlatformKey(group?.platform || plan.group_platform)
+}
+
+function buildPlanPlatformGroups(planItems: SubscriptionPlan[]): PlanPlatformSortGroup[] {
+  const plansByPlatform = new Map<string, SubscriptionPlan[]>()
+  const firstSeenPlatforms: string[] = []
+  bySortOrder(planItems).forEach((plan) => {
+    const platform = getPlanPlatform(plan)
+    if (!plansByPlatform.has(platform)) {
+      plansByPlatform.set(platform, [])
+      firstSeenPlatforms.push(platform)
+    }
+    plansByPlatform.get(platform)!.push(plan)
+  })
+  return firstSeenPlatforms.map(platform => ({
+    platform,
+    label: formatPlatformLabel(platform),
+    plans: [...(plansByPlatform.get(platform) || [])],
+  }))
+}
+
 function openSortDialog() {
   sortingProductTab.value = activeProductTab.value
   sortableBalanceProducts.value = bySortOrder(balanceProducts.value)
-  sortablePlans.value = bySortOrder(plans.value)
+  if (activeProductTab.value === 'subscription') {
+    sortablePlanPlatformGroups.value = buildPlanPlatformGroups(plans.value)
+  }
   showSortDialog.value = true
 }
 
@@ -399,7 +470,7 @@ function closeSortDialog() {
 function resetSortDialog() {
   showSortDialog.value = false
   sortableBalanceProducts.value = []
-  sortablePlans.value = []
+  sortablePlanPlatformGroups.value = []
 }
 
 async function saveSortOrder() {
@@ -414,7 +485,8 @@ async function saveSortOrder() {
       return
     }
 
-    const updates = sortablePlans.value.map((plan, index) => ({ id: plan.id, sort_order: index * 10 }))
+    const orderedPlans = sortablePlanPlatformGroups.value.flatMap(group => group.plans)
+    const updates = orderedPlans.map((plan, index) => ({ id: plan.id, sort_order: index * 10 }))
     await adminPaymentAPI.updatePlanSortOrder(updates)
     appStore.showSuccess(t('payment.admin.sortOrderUpdated'))
     resetSortDialog()

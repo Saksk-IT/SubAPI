@@ -289,7 +289,7 @@
                   <!-- Header: platform badge + plan name -->
                   <div class="mb-3 flex flex-wrap items-center gap-2">
                     <span :class="['rounded-md border px-2 py-0.5 text-xs font-medium', planBadgeClass]">
-                      {{ platformLabel(selectedPlan.group_platform || '') }}
+                      {{ formatPlatformLabel(selectedPlan.group_platform) }}
                     </span>
                     <h3 class="text-lg font-bold text-gray-900 dark:text-white">{{ selectedPlan.name }}</h3>
                   </div>
@@ -369,21 +369,44 @@
                   <Icon name="gift" size="xl" class="mx-auto mb-3 text-gray-300 dark:text-dark-600" />
                   <p class="text-gray-500 dark:text-gray-400">{{ t('payment.noPlans') }}</p>
                 </div>
-                <div v-else :class="productGridClass">
-                  <PurchaseProductCard
-                    v-for="item in subscriptionProductCards"
-                    :key="item.product.id"
-                    :product="item.product"
-                    :hero-metrics="item.heroMetrics"
-                    :metrics="item.metrics"
-                    :price-rows="item.priceRows"
-                    :methods="item.methods"
-                    :currency="paymentPriceCurrency"
-                    :locale="localeCode"
-                    :price-suffix="item.priceSuffix"
-                    :submitting="submittingProductKey === `subscription:${item.product.id}`"
-                    @pay="handleSubmitSubscriptionPlan(item.raw, $event)"
-                  />
+                <div v-else class="space-y-6">
+                  <section
+                    v-for="section in subscriptionProductSections"
+                    :key="section.platform"
+                    class="space-y-3"
+                    data-testid="subscription-platform-section"
+                  >
+                    <div class="flex items-center justify-between gap-3">
+                      <div class="min-w-0">
+                        <p class="text-xs font-black uppercase text-gray-400 dark:text-gray-500">
+                          {{ t('payment.product.platformCategory') }}
+                        </p>
+                        <h2 class="mt-1 flex min-w-0 items-center gap-2 text-xl font-black text-gray-950 dark:text-white">
+                          <span :class="['h-2.5 w-2.5 shrink-0 rounded-full', platformAccentBarClass(section.platform)]"></span>
+                          <span class="truncate">{{ section.label }}</span>
+                        </h2>
+                      </div>
+                      <span class="shrink-0 rounded-full border border-gray-200 px-2.5 py-1 text-xs font-black text-gray-500 dark:border-dark-600 dark:text-gray-300">
+                        {{ t('payment.product.platformPlanCount', { count: section.items.length }) }}
+                      </span>
+                    </div>
+                    <div :class="productGridClass">
+                      <PurchaseProductCard
+                        v-for="item in section.items"
+                        :key="item.product.id"
+                        :product="item.product"
+                        :hero-metrics="item.heroMetrics"
+                        :metrics="item.metrics"
+                        :price-rows="item.priceRows"
+                        :methods="item.methods"
+                        :currency="paymentPriceCurrency"
+                        :locale="localeCode"
+                        :price-suffix="item.priceSuffix"
+                        :submitting="submittingProductKey === `subscription:${item.product.id}`"
+                        @pay="handleSubmitSubscriptionPlan(item.raw, $event)"
+                      />
+                    </div>
+                  </section>
                 </div>
                 <!-- Active subscriptions (compact, below plan list) -->
                 <div v-if="activeSubscriptions.length > 0">
@@ -395,7 +418,7 @@
                       <div class="min-w-0 flex-1">
                         <div class="flex items-center gap-1.5">
                           <span class="truncate text-xs font-semibold text-gray-900 dark:text-white">{{ sub.group?.name || t('payment.groupFallback', { id: sub.group_id }) }}</span>
-                          <span :class="['shrink-0 rounded-full px-1.5 py-0.5 text-[9px] font-medium', platformBadgeLightClass(sub.group?.platform || '')]">{{ platformLabel(sub.group?.platform || '') }}</span>
+                          <span :class="['shrink-0 rounded-full px-1.5 py-0.5 text-[9px] font-medium', platformBadgeLightClass(sub.group?.platform || '')]">{{ formatPlatformLabel(sub.group?.platform) }}</span>
                         </div>
                         <div class="flex flex-wrap gap-x-3 text-[11px] text-gray-400 dark:text-gray-500">
                           <span>{{ t('payment.planCard.rate') }}: ×{{ sub.group?.rate_multiplier ?? 1 }}</span>
@@ -809,6 +832,22 @@ type PurchaseCardItem<T> = {
   priceSuffix?: string
 }
 
+type SubscriptionProductSection = {
+  platform: string
+  label: string
+  items: PurchaseCardItem<SubscriptionPlan>[]
+}
+
+function normalizePlatformKey(platform: string | null | undefined): string {
+  return String(platform || '').trim().toLowerCase() || 'unknown'
+}
+
+function formatPlatformLabel(platform: string | null | undefined): string {
+  const key = normalizePlatformKey(platform)
+  if (key === 'unknown') return t('payment.product.unknownPlatform')
+  return platformLabel(key) || t('payment.product.unknownPlatform')
+}
+
 function normalizeTextList(value: string[] | string | undefined): string[] {
   if (Array.isArray(value)) return value.map(item => String(item).trim()).filter(Boolean)
   if (!value) return []
@@ -1026,6 +1065,29 @@ const subscriptionProductCards = computed<PurchaseCardItem<SubscriptionPlan>[]>(
     }
   }),
 )
+
+const subscriptionProductSections = computed<SubscriptionProductSection[]>(() => {
+  const cardsByPlatform = new Map<string, PurchaseCardItem<SubscriptionPlan>[]>()
+  const firstSeenPlatforms: string[] = []
+  const sortedCards = [...subscriptionProductCards.value].sort((a, b) =>
+    (a.raw.sort_order ?? 0) - (b.raw.sort_order ?? 0) || a.raw.id - b.raw.id,
+  )
+  sortedCards.forEach((item) => {
+    const platform = normalizePlatformKey(item.raw.group_platform)
+    if (!cardsByPlatform.has(platform)) {
+      cardsByPlatform.set(platform, [])
+      firstSeenPlatforms.push(platform)
+    }
+    cardsByPlatform.get(platform)!.push(item)
+  })
+  return firstSeenPlatforms
+    .map(platform => ({
+      platform,
+      label: formatPlatformLabel(platform),
+      items: cardsByPlatform.get(platform) || [],
+    }))
+    .filter(section => section.items.length > 0)
+})
 
 // Subscription-specific: method options based on plan price
 const subMethodOptions = computed<PaymentMethodOption[]>(() => {
