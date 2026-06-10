@@ -14,6 +14,33 @@ docker run -d \
   ghcr.io/saksk-it/subapi:latest
 ```
 
+## Build and Publish
+
+The Dockerfile copies `backend/`, `frontend/`, and `deploy/docker-entrypoint.sh`,
+so the build context must be the repository root. Do not run `docker buildx build
+-f Dockerfile .` from inside `deploy/`, because that makes `deploy/` the context
+and the source directories are unavailable to Docker.
+
+```bash
+cd /path/to/SubAPI
+IMAGE=ghcr.io/saksk-it/subapi:latest \
+PLATFORM=linux/amd64 \
+PUSH=1 \
+./deploy/build_image.sh
+```
+
+Equivalent manual command:
+
+```bash
+cd /path/to/SubAPI
+docker buildx build \
+  --platform linux/amd64 \
+  -t ghcr.io/saksk-it/subapi:latest \
+  -f Dockerfile \
+  --push \
+  .
+```
+
 ## Docker Compose
 
 ```yaml
