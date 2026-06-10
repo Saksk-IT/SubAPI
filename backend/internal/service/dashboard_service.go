@@ -132,6 +132,14 @@ func (s *DashboardService) GetUsageTrendWithFilters(ctx context.Context, startTi
 	return trend, nil
 }
 
+func (s *DashboardService) GetDailyMetrics(ctx context.Context, startTime, endTime time.Time) (*usagestats.DailyMetricsResponse, error) {
+	metrics, err := s.usageRepo.GetDailyMetrics(ctx, startTime, endTime)
+	if err != nil {
+		return nil, fmt.Errorf("get daily metrics: %w", err)
+	}
+	return metrics, nil
+}
+
 func (s *DashboardService) GetModelStatsWithFilters(ctx context.Context, startTime, endTime time.Time, userID, apiKeyID, accountID, groupID int64, requestType *int16, stream *bool, billingType *int8) ([]usagestats.ModelStat, error) {
 	stats, err := s.usageRepo.GetModelStatsWithFilters(ctx, startTime, endTime, userID, apiKeyID, accountID, groupID, requestType, stream, billingType)
 	if err != nil {

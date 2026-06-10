@@ -377,6 +377,7 @@ export default {
   // Navigation
   nav: {
     dashboard: 'Dashboard',
+    dataDashboard: 'Data Dashboard',
     announcements: 'Announcements',
     apiKeys: 'API Keys',
     usage: 'Usage',
@@ -1480,6 +1481,24 @@ export default {
       requestsShort: 'Req',
       tokensShort: 'Tok',
       failedToLoad: 'Failed to load dashboard statistics'
+    },
+
+    dataDashboard: {
+      title: 'Data Dashboard',
+      description: 'View daily trends for token usage, new users, and active users',
+      timeRange: 'Date Range',
+      refresh: 'Refresh',
+      totalTokens: 'Total Tokens',
+      newUsers: 'New Users',
+      activeUsers: 'Active Users',
+      tokenTrend: 'Daily Token Usage',
+      newUsersTrend: 'Daily New Users',
+      activeUsersTrend: 'Daily Active Users',
+      trendTitle: 'Daily Metrics Trend',
+      rangeSummary: '{start} to {end}',
+      noData: 'No data for the selected date range',
+      noDataHint: 'Choose another date range to view historical trends.',
+      failedToLoad: 'Failed to load data dashboard'
     },
 
     backup: {

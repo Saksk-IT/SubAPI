@@ -92,6 +92,29 @@ type TrendDataPoint struct {
 	ActualCost          float64 `json:"actual_cost"` // 实际扣除
 }
 
+// DailyMetricsPoint represents a single daily data-dashboard point.
+type DailyMetricsPoint struct {
+	Date        string `json:"date"`
+	TotalTokens int64  `json:"total_tokens"`
+	NewUsers    int64  `json:"new_users"`
+	ActiveUsers int64  `json:"active_users"`
+}
+
+// DailyMetricsTotals represents aggregate totals for a daily metrics range.
+type DailyMetricsTotals struct {
+	TotalTokens int64 `json:"total_tokens"`
+	NewUsers    int64 `json:"new_users"`
+	ActiveUsers int64 `json:"active_users"`
+}
+
+// DailyMetricsResponse represents admin data-dashboard daily metrics.
+type DailyMetricsResponse struct {
+	StartDate string              `json:"start_date"`
+	EndDate   string              `json:"end_date"`
+	Series    []DailyMetricsPoint `json:"series"`
+	Totals    DailyMetricsTotals  `json:"totals"`
+}
+
 // ModelStat represents usage statistics for a single model
 type ModelStat struct {
 	Model               string  `json:"model"`

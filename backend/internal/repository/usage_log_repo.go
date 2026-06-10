@@ -1506,6 +1506,120 @@ func (r *usageLogRepository) GetDashboardStats(ctx context.Context) (*DashboardS
 	return stats, nil
 }
 
+func (r *usageLogRepository) GetDailyMetrics(ctx context.Context, startTime, endTime time.Time) (*usagestats.DailyMetricsResponse, error) {
+	startDate := startTime.Format("2006-01-02")
+	endDate := endTime.AddDate(0, 0, -1).Format("2006-01-02")
+	tzName := resolveUsageStatsTimezone()
+	series := buildEmptyDailyMetricsSeries(startDate, endDate)
+	byDate := make(map[string]*usagestats.DailyMetricsPoint, len(series))
+	for i := range series {
+		byDate[series[i].Date] = &series[i]
+	}
+
+	usageQuery := `
+		SELECT
+			TO_CHAR(bucket_date::timestamp, 'YYYY-MM-DD') AS date,
+			(input_tokens + output_tokens + cache_creation_tokens + cache_read_tokens) AS total_tokens,
+			active_users
+		FROM usage_dashboard_daily
+		WHERE bucket_date >= $1::date AND bucket_date < $2::date
+		ORDER BY bucket_date ASC
+	`
+	rows, err := r.sql.QueryContext(ctx, usageQuery, startTime, endTime)
+	if err != nil {
+		return nil, err
+	}
+	for rows.Next() {
+		var date string
+		var totalTokens, activeUsers int64
+		if err := rows.Scan(&date, &totalTokens, &activeUsers); err != nil {
+			_ = rows.Close()
+			return nil, err
+		}
+		if point := byDate[date]; point != nil {
+			point.TotalTokens = totalTokens
+			point.ActiveUsers = activeUsers
+		}
+	}
+	if err := rows.Err(); err != nil {
+		_ = rows.Close()
+		return nil, err
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+
+	userQuery := `
+		SELECT
+			TO_CHAR(created_at AT TIME ZONE $3, 'YYYY-MM-DD') AS date,
+			COUNT(*) AS new_users
+		FROM users
+		WHERE created_at >= $1 AND created_at < $2 AND deleted_at IS NULL
+		GROUP BY date
+		ORDER BY date ASC
+	`
+	rows, err = r.sql.QueryContext(ctx, userQuery, startTime, endTime, tzName)
+	if err != nil {
+		return nil, err
+	}
+	for rows.Next() {
+		var date string
+		var newUsers int64
+		if err := rows.Scan(&date, &newUsers); err != nil {
+			_ = rows.Close()
+			return nil, err
+		}
+		if point := byDate[date]; point != nil {
+			point.NewUsers = newUsers
+		}
+	}
+	if err := rows.Err(); err != nil {
+		_ = rows.Close()
+		return nil, err
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+
+	totals := sumDailyMetrics(series)
+	return &usagestats.DailyMetricsResponse{
+		StartDate: startDate,
+		EndDate:   endDate,
+		Series:    series,
+		Totals:    totals,
+	}, nil
+}
+
+func buildEmptyDailyMetricsSeries(startDate, endDate string) []usagestats.DailyMetricsPoint {
+	start, err := time.Parse("2006-01-02", startDate)
+	if err != nil {
+		return []usagestats.DailyMetricsPoint{}
+	}
+	end, err := time.Parse("2006-01-02", endDate)
+	if err != nil || end.Before(start) {
+		return []usagestats.DailyMetricsPoint{}
+	}
+
+	days := int(end.Sub(start).Hours()/24) + 1
+	series := make([]usagestats.DailyMetricsPoint, 0, days)
+	for day := start; !day.After(end); day = day.AddDate(0, 0, 1) {
+		series = append(series, usagestats.DailyMetricsPoint{
+			Date: day.Format("2006-01-02"),
+		})
+	}
+	return series
+}
+
+func sumDailyMetrics(series []usagestats.DailyMetricsPoint) usagestats.DailyMetricsTotals {
+	var totals usagestats.DailyMetricsTotals
+	for _, point := range series {
+		totals.TotalTokens += point.TotalTokens
+		totals.NewUsers += point.NewUsers
+		totals.ActiveUsers += point.ActiveUsers
+	}
+	return totals
+}
+
 func (r *usageLogRepository) GetDashboardStatsWithRange(ctx context.Context, start, end time.Time) (*DashboardStats, error) {
 	startUTC := start.UTC()
 	endUTC := end.UTC()

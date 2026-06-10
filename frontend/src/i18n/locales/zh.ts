@@ -377,6 +377,7 @@ export default {
   // Navigation
   nav: {
     dashboard: '仪表盘',
+    dataDashboard: '数据看板',
     announcements: '公告',
     apiKeys: 'API 密钥',
     usage: '使用记录',
@@ -1501,6 +1502,24 @@ export default {
       systemSettings: '系统设置',
       configureSystem: '配置系统设置',
       failedToLoad: '加载仪表盘数据失败'
+    },
+
+    dataDashboard: {
+      title: '数据看板',
+      description: '按天查看 Token 用量、新增用户与活跃用户趋势',
+      timeRange: '日期范围',
+      refresh: '刷新',
+      totalTokens: 'Token 总量',
+      newUsers: '新增用户',
+      activeUsers: '活跃用户',
+      tokenTrend: '每日 Token 用量',
+      newUsersTrend: '每日新增用户',
+      activeUsersTrend: '每日活跃用户',
+      trendTitle: '每日数据趋势',
+      rangeSummary: '{start} 至 {end}',
+      noData: '当前日期范围暂无数据',
+      noDataHint: '更换日期范围后可查看历史趋势。',
+      failedToLoad: '加载数据看板失败'
     },
 
     backup: {

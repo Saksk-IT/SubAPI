@@ -16,15 +16,20 @@ import (
 
 type usageRepoStub struct {
 	UsageLogRepository
-	stats      *usagestats.DashboardStats
-	rangeStats *usagestats.DashboardStats
-	err        error
-	rangeErr   error
-	calls      int32
-	rangeCalls int32
-	rangeStart time.Time
-	rangeEnd   time.Time
-	onCall     chan struct{}
+	stats        *usagestats.DashboardStats
+	rangeStats   *usagestats.DashboardStats
+	dailyMetrics *usagestats.DailyMetricsResponse
+	err          error
+	rangeErr     error
+	dailyErr     error
+	calls        int32
+	rangeCalls   int32
+	dailyCalls   int32
+	rangeStart   time.Time
+	rangeEnd     time.Time
+	dailyStart   time.Time
+	dailyEnd     time.Time
+	onCall       chan struct{}
 }
 
 func (s *usageRepoStub) GetDashboardStats(ctx context.Context) (*usagestats.DashboardStats, error) {
@@ -52,6 +57,16 @@ func (s *usageRepoStub) GetDashboardStatsWithRange(ctx context.Context, start, e
 		return s.rangeStats, nil
 	}
 	return s.stats, nil
+}
+
+func (s *usageRepoStub) GetDailyMetrics(ctx context.Context, start, end time.Time) (*usagestats.DailyMetricsResponse, error) {
+	atomic.AddInt32(&s.dailyCalls, 1)
+	s.dailyStart = start
+	s.dailyEnd = end
+	if s.dailyErr != nil {
+		return nil, s.dailyErr
+	}
+	return s.dailyMetrics, nil
 }
 
 type dashboardCacheStub struct {
@@ -392,4 +407,34 @@ func TestDashboardService_AggDisabled_UsesUsageLogsFallback(t *testing.T) {
 	require.Equal(t, int32(1), atomic.LoadInt32(&repo.rangeCalls))
 	require.False(t, repo.rangeEnd.IsZero())
 	require.Equal(t, truncateToDayUTC(repo.rangeEnd.AddDate(0, 0, -7)), repo.rangeStart)
+}
+
+func TestDashboardService_GetDailyMetrics(t *testing.T) {
+	start := time.Date(2026, 3, 1, 0, 0, 0, 0, time.UTC)
+	end := time.Date(2026, 3, 4, 0, 0, 0, 0, time.UTC)
+	expected := &usagestats.DailyMetricsResponse{
+		StartDate: "2026-03-01",
+		EndDate:   "2026-03-03",
+		Series: []usagestats.DailyMetricsPoint{
+			{Date: "2026-03-01", TotalTokens: 100, NewUsers: 2, ActiveUsers: 5},
+		},
+	}
+	repo := &usageRepoStub{dailyMetrics: expected}
+	svc := NewDashboardService(repo, nil, nil, nil)
+
+	got, err := svc.GetDailyMetrics(context.Background(), start, end)
+	require.NoError(t, err)
+	require.Equal(t, expected, got)
+	require.Equal(t, int32(1), atomic.LoadInt32(&repo.dailyCalls))
+	require.Equal(t, start, repo.dailyStart)
+	require.Equal(t, end, repo.dailyEnd)
+}
+
+func TestDashboardService_GetDailyMetricsWrapsError(t *testing.T) {
+	repo := &usageRepoStub{dailyErr: errors.New("db down")}
+	svc := NewDashboardService(repo, nil, nil, nil)
+
+	_, err := svc.GetDailyMetrics(context.Background(), time.Now(), time.Now().Add(24*time.Hour))
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "get daily metrics")
 }

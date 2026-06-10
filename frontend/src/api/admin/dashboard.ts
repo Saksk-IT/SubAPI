@@ -65,6 +65,45 @@ export interface TrendResponse {
   granularity: string
 }
 
+export interface DailyMetricsPoint {
+  date: string
+  total_tokens: number
+  new_users: number
+  active_users: number
+}
+
+export interface DailyMetricsTotals {
+  total_tokens: number
+  new_users: number
+  active_users: number
+}
+
+export interface DailyMetricsResponse {
+  start_date: string
+  end_date: string
+  series: DailyMetricsPoint[]
+  totals: DailyMetricsTotals
+}
+
+export interface DailyMetricsParams {
+  start_date?: string
+  end_date?: string
+}
+
+/**
+ * Get daily admin data-dashboard metrics.
+ * @param params - Date range query parameters
+ * @returns Daily token, new-user, and active-user metrics
+ */
+export async function getDailyMetrics(
+  params?: DailyMetricsParams
+): Promise<DailyMetricsResponse> {
+  const { data } = await apiClient.get<DailyMetricsResponse>('/admin/dashboard/daily-metrics', {
+    params
+  })
+  return data
+}
+
 /**
  * Get usage trend data
  * @param params - Query parameters for filtering
@@ -325,6 +364,7 @@ export async function getBatchApiKeysUsage(
 export const dashboardAPI = {
   getStats,
   getRealtimeMetrics,
+  getDailyMetrics,
   getUsageTrend,
   getModelStats,
   getGroupStats,

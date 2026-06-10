@@ -2,6 +2,7 @@ package admin
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -22,6 +23,10 @@ type dashboardUsageRepoCapture struct {
 	rankingLimit     int
 	ranking          []usagestats.UserSpendingRankingItem
 	rankingTotal     float64
+	dailyMetrics     *usagestats.DailyMetricsResponse
+	dailyStart       time.Time
+	dailyEnd         time.Time
+	dailyCalls       int
 }
 
 func (s *dashboardUsageRepoCapture) GetUsageTrendWithFilters(
@@ -66,6 +71,23 @@ func (s *dashboardUsageRepoCapture) GetUserSpendingRanking(
 	}, nil
 }
 
+func (s *dashboardUsageRepoCapture) GetDailyMetrics(
+	ctx context.Context,
+	startTime, endTime time.Time,
+) (*usagestats.DailyMetricsResponse, error) {
+	s.dailyStart = startTime
+	s.dailyEnd = endTime
+	s.dailyCalls++
+	if s.dailyMetrics != nil {
+		return s.dailyMetrics, nil
+	}
+	return &usagestats.DailyMetricsResponse{
+		StartDate: startTime.Format("2006-01-02"),
+		EndDate:   endTime.AddDate(0, 0, -1).Format("2006-01-02"),
+		Series:    []usagestats.DailyMetricsPoint{},
+	}, nil
+}
+
 func newDashboardRequestTypeTestRouter(repo *dashboardUsageRepoCapture) *gin.Engine {
 	gin.SetMode(gin.TestMode)
 	dashboardSvc := service.NewDashboardService(repo, nil, nil, nil)
@@ -74,6 +96,7 @@ func newDashboardRequestTypeTestRouter(repo *dashboardUsageRepoCapture) *gin.Eng
 	router.GET("/admin/dashboard/trend", handler.GetUsageTrend)
 	router.GET("/admin/dashboard/models", handler.GetModelStats)
 	router.GET("/admin/dashboard/users-ranking", handler.GetUserSpendingRanking)
+	router.GET("/admin/dashboard/daily-metrics", handler.GetDailyMetrics)
 	return router
 }
 
@@ -198,4 +221,68 @@ func TestDashboardUsersRankingLimitAndCache(t *testing.T) {
 
 	require.Equal(t, http.StatusOK, rec2.Code)
 	require.Equal(t, "hit", rec2.Header().Get("X-Snapshot-Cache"))
+}
+
+func TestDashboardDailyMetricsValidRange(t *testing.T) {
+	repo := &dashboardUsageRepoCapture{
+		dailyMetrics: &usagestats.DailyMetricsResponse{
+			StartDate: "2026-03-01",
+			EndDate:   "2026-03-03",
+			Series: []usagestats.DailyMetricsPoint{
+				{Date: "2026-03-01", TotalTokens: 100, NewUsers: 1, ActiveUsers: 2},
+				{Date: "2026-03-02", TotalTokens: 0, NewUsers: 0, ActiveUsers: 0},
+				{Date: "2026-03-03", TotalTokens: 300, NewUsers: 2, ActiveUsers: 4},
+			},
+			Totals: usagestats.DailyMetricsTotals{TotalTokens: 400, NewUsers: 3, ActiveUsers: 6},
+		},
+	}
+	router := newDashboardRequestTypeTestRouter(repo)
+
+	req := httptest.NewRequest(http.MethodGet, "/admin/dashboard/daily-metrics?start_date=2026-03-01&end_date=2026-03-03&timezone=UTC", nil)
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusOK, rec.Code)
+	require.Equal(t, 1, repo.dailyCalls)
+	require.Equal(t, "2026-03-01", repo.dailyStart.Format("2006-01-02"))
+	require.Equal(t, "2026-03-04", repo.dailyEnd.Format("2006-01-02"))
+
+	var payload struct {
+		Code int                             `json:"code"`
+		Data usagestats.DailyMetricsResponse `json:"data"`
+	}
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &payload))
+	require.Equal(t, 0, payload.Code)
+	require.Equal(t, "2026-03-01", payload.Data.StartDate)
+	require.Equal(t, "2026-03-03", payload.Data.EndDate)
+	require.Len(t, payload.Data.Series, 3)
+	require.Equal(t, int64(400), payload.Data.Totals.TotalTokens)
+	require.Equal(t, int64(3), payload.Data.Totals.NewUsers)
+	require.Equal(t, int64(6), payload.Data.Totals.ActiveUsers)
+}
+
+func TestDashboardDailyMetricsInvalidStartDate(t *testing.T) {
+	repo := &dashboardUsageRepoCapture{}
+	router := newDashboardRequestTypeTestRouter(repo)
+
+	req := httptest.NewRequest(http.MethodGet, "/admin/dashboard/daily-metrics?start_date=bad&end_date=2026-03-03", nil)
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusBadRequest, rec.Code)
+	require.Equal(t, 0, repo.dailyCalls)
+	require.Contains(t, rec.Body.String(), "invalid start_date")
+}
+
+func TestDashboardDailyMetricsRejectsEndBeforeStart(t *testing.T) {
+	repo := &dashboardUsageRepoCapture{}
+	router := newDashboardRequestTypeTestRouter(repo)
+
+	req := httptest.NewRequest(http.MethodGet, "/admin/dashboard/daily-metrics?start_date=2026-03-04&end_date=2026-03-03", nil)
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusBadRequest, rec.Code)
+	require.Equal(t, 0, repo.dailyCalls)
+	require.Contains(t, rec.Body.String(), "end_date")
 }

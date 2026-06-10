@@ -64,6 +64,38 @@ func parseTimeRange(c *gin.Context) (time.Time, time.Time) {
 	return startTime, endTime
 }
 
+func parseDailyMetricsTimeRange(c *gin.Context) (time.Time, time.Time, error) {
+	now := timezone.Now()
+	startDate := strings.TrimSpace(c.Query("start_date"))
+	endDate := strings.TrimSpace(c.Query("end_date"))
+
+	defaultStart := timezone.StartOfDay(now.AddDate(0, 0, -29))
+	defaultEnd := timezone.StartOfDay(now.AddDate(0, 0, 1))
+
+	startTime := defaultStart
+	if startDate != "" {
+		parsed, err := timezone.ParseInLocation("2006-01-02", startDate)
+		if err != nil {
+			return time.Time{}, time.Time{}, errors.New("invalid start_date, expected YYYY-MM-DD")
+		}
+		startTime = parsed
+	}
+
+	endTime := defaultEnd
+	if endDate != "" {
+		parsed, err := timezone.ParseInLocation("2006-01-02", endDate)
+		if err != nil {
+			return time.Time{}, time.Time{}, errors.New("invalid end_date, expected YYYY-MM-DD")
+		}
+		endTime = parsed.AddDate(0, 0, 1)
+	}
+
+	if !endTime.After(startTime) {
+		return time.Time{}, time.Time{}, errors.New("end_date must be greater than or equal to start_date")
+	}
+	return startTime, endTime, nil
+}
+
 // GetStats handles getting dashboard statistics
 // GET /api/v1/admin/dashboard/stats
 func (h *DashboardHandler) GetStats(c *gin.Context) {
@@ -126,6 +158,24 @@ func (h *DashboardHandler) GetStats(c *gin.Context) {
 		"stats_updated_at":    stats.StatsUpdatedAt,
 		"stats_stale":         stats.StatsStale,
 	})
+}
+
+// GetDailyMetrics handles getting daily token, new-user, and active-user metrics.
+// GET /api/v1/admin/dashboard/daily-metrics
+func (h *DashboardHandler) GetDailyMetrics(c *gin.Context) {
+	startTime, endTime, err := parseDailyMetricsTimeRange(c)
+	if err != nil {
+		response.BadRequest(c, err.Error())
+		return
+	}
+
+	metrics, err := h.dashboardService.GetDailyMetrics(c.Request.Context(), startTime, endTime)
+	if err != nil {
+		response.Error(c, 500, "Failed to get daily metrics")
+		return
+	}
+
+	response.Success(c, metrics)
 }
 
 type DashboardAggregationBackfillRequest struct {
