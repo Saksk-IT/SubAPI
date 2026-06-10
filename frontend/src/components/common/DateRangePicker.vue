@@ -21,7 +21,12 @@
     </button>
 
     <Transition name="date-picker-dropdown">
-      <div v-if="isOpen" class="date-picker-dropdown">
+      <div
+        v-if="isOpen"
+        ref="dropdownRef"
+        class="date-picker-dropdown"
+        :style="{ left: `${dropdownOffsetX}px` }"
+      >
         <!-- Quick presets -->
         <div class="date-picker-presets">
           <button
@@ -76,7 +81,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
+import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue'
 import { useI18n } from 'vue-i18n'
 import Icon from '@/components/icons/Icon.vue'
 
@@ -104,9 +109,14 @@ const { t, locale } = useI18n()
 
 const isOpen = ref(false)
 const containerRef = ref<HTMLElement | null>(null)
+const dropdownRef = ref<HTMLElement | null>(null)
+const dropdownOffsetX = ref(0)
 const localStartDate = ref(props.startDate)
 const localEndDate = ref(props.endDate)
 const activePreset = ref<string | null>('last24Hours')
+
+const DROPDOWN_VIEWPORT_MARGIN = 16
+const DEFAULT_DROPDOWN_WIDTH = 320
 
 const today = computed(() => {
   // Use local timezone to avoid UTC timezone issues
@@ -263,8 +273,37 @@ const onDateChange = () => {
   }
 }
 
-const toggle = () => {
+const updateDropdownPosition = () => {
+  if (!containerRef.value || typeof window === 'undefined') {
+    dropdownOffsetX.value = 0
+    return
+  }
+
+  const containerRect = containerRef.value.getBoundingClientRect()
+  const viewportWidth =
+    window.innerWidth || document.documentElement.clientWidth || DEFAULT_DROPDOWN_WIDTH
+  const availableWidth = Math.max(0, viewportWidth - DROPDOWN_VIEWPORT_MARGIN * 2)
+  const measuredWidth =
+    dropdownRef.value?.getBoundingClientRect().width ||
+    dropdownRef.value?.offsetWidth ||
+    DEFAULT_DROPDOWN_WIDTH
+  const dropdownWidth = Math.min(measuredWidth, availableWidth)
+  const minOffset = DROPDOWN_VIEWPORT_MARGIN - containerRect.left
+  const maxOffset =
+    viewportWidth - DROPDOWN_VIEWPORT_MARGIN - containerRect.left - dropdownWidth
+  const nextOffset = Math.min(Math.max(0, minOffset), maxOffset)
+
+  dropdownOffsetX.value = Math.round(nextOffset)
+}
+
+const toggle = async () => {
   isOpen.value = !isOpen.value
+  if (isOpen.value) {
+    await nextTick()
+    updateDropdownPosition()
+  } else {
+    dropdownOffsetX.value = 0
+  }
 }
 
 const apply = () => {
@@ -276,17 +315,26 @@ const apply = () => {
     preset: activePreset.value
   })
   isOpen.value = false
+  dropdownOffsetX.value = 0
 }
 
 const handleClickOutside = (event: MouseEvent) => {
   if (containerRef.value && !containerRef.value.contains(event.target as Node)) {
     isOpen.value = false
+    dropdownOffsetX.value = 0
   }
 }
 
 const handleEscape = (event: KeyboardEvent) => {
   if (event.key === 'Escape' && isOpen.value) {
     isOpen.value = false
+    dropdownOffsetX.value = 0
+  }
+}
+
+const handleViewportChange = () => {
+  if (isOpen.value) {
+    updateDropdownPosition()
   }
 }
 
@@ -310,6 +358,8 @@ watch(
 onMounted(() => {
   document.addEventListener('click', handleClickOutside)
   document.addEventListener('keydown', handleEscape)
+  window.addEventListener('resize', handleViewportChange)
+  window.addEventListener('scroll', handleViewportChange, true)
   // Initialize active preset detection
   onDateChange()
 })
@@ -317,6 +367,8 @@ onMounted(() => {
 onUnmounted(() => {
   document.removeEventListener('click', handleClickOutside)
   document.removeEventListener('keydown', handleEscape)
+  window.removeEventListener('resize', handleViewportChange)
+  window.removeEventListener('scroll', handleViewportChange, true)
 })
 </script>
 
@@ -350,13 +402,13 @@ onUnmounted(() => {
 }
 
 .date-picker-dropdown {
-  @apply absolute left-0 z-[100] mt-2;
+  @apply absolute z-[100] mt-2;
   @apply bg-white dark:bg-dark-800;
   @apply rounded-xl;
   @apply border border-gray-200 dark:border-dark-700;
   @apply shadow-lg shadow-black/10 dark:shadow-black/30;
   @apply overflow-hidden;
-  @apply min-w-[320px];
+  width: min(320px, calc(100vw - 2rem));
 }
 
 .date-picker-presets {
