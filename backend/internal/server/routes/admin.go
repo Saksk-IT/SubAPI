@@ -4,6 +4,7 @@ package routes
 import (
 	"github.com/Wei-Shaw/sub2api/internal/handler"
 	"github.com/Wei-Shaw/sub2api/internal/server/middleware"
+	"github.com/Wei-Shaw/sub2api/internal/service"
 
 	"github.com/gin-gonic/gin"
 )
@@ -13,10 +14,15 @@ func RegisterAdminRoutes(
 	v1 *gin.RouterGroup,
 	h *handler.Handlers,
 	adminAuth middleware.AdminAuthMiddleware,
+	settingService *service.SettingService,
 ) {
 	admin := v1.Group("/admin")
 	admin.Use(gin.HandlerFunc(adminAuth))
+	admin.Use(middleware.AdminComplianceGuard(settingService))
 	{
+		// 部署与运营合规确认
+		registerAdminComplianceRoutes(admin, h)
+
 		// 仪表盘
 		registerDashboardRoutes(admin, h)
 
@@ -115,6 +121,14 @@ func registerActivityRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
 			firstRecharge.POST("/users", h.Admin.Activity.AddFirstRechargeUser)
 			firstRecharge.DELETE("/users/:user_id", h.Admin.Activity.RemoveFirstRechargeUser)
 		}
+	}
+}
+
+func registerAdminComplianceRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
+	compliance := admin.Group("/compliance")
+	{
+		compliance.GET("", h.Admin.Compliance.GetStatus)
+		compliance.POST("/accept", h.Admin.Compliance.Accept)
 	}
 }
 

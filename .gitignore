@@ -135,6 +135,8 @@ docs/*
 !docs/static-guides/*.md
 docs/static-guides/*.png
 docs/static-guides/*.pdf
+!docs/legal/
+!docs/legal/*.md
 .serena/
 .codex/
 frontend/coverage/
