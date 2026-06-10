@@ -223,6 +223,16 @@ const routes: RouteRecordRaw[] = [
       guideKey: 'mobile'
     }
   },
+  {
+    path: '/image-guide',
+    name: 'ImageGuide',
+    component: () => import('@/views/public/ClientGuideView.vue'),
+    meta: {
+      requiresAuth: false,
+      title: '图像生成教程',
+      guideKey: 'image'
+    }
+  },
 
   // ==================== User Routes ====================
   {
@@ -778,6 +788,7 @@ const BACKEND_MODE_ALLOWED_PATHS = [
   '/open-code-guide',
   '/open-claw-guide',
   '/mobile-guide',
+  '/image-guide',
 ]
 const BACKEND_MODE_CALLBACK_PATHS = [
   '/auth/callback',

@@ -18,6 +18,7 @@
 | [open-code-guide.md](./open-code-guide.md) | `/open-code-guide` | `frontend/src/views/public/client-guides/OpenCodeGuideContent.vue` | Open Code 配置教程 |
 | [open-claw-guide.md](./open-claw-guide.md) | `/open-claw-guide` | `frontend/src/views/public/client-guides/OpenClawGuideContent.vue` | Open Claw 配置教程 |
 | [mobile-guide.md](./mobile-guide.md) | `/mobile-guide` | `frontend/src/views/public/client-guides/MobileGuideContent.vue` | 移动端 Chatbox 配置教程 |
+| [image-guide.md](./image-guide.md) | `/image-guide` | `frontend/src/views/public/client-guides/ImageGuideContent.vue` | Cherry Studio 图像生成教程 |
 
 公共页面外壳、目录、顶部互跳卡片来自：
 
@@ -28,6 +29,7 @@
 公共图片目录：
 
 - `frontend/public/img/codex-guide/`
+- `frontend/public/img/image-guide/`
 
 ## 给 AI 的同步要求
 

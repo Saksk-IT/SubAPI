@@ -113,12 +113,12 @@ const tocSections: TocSection[] = [
         <section class="codex-doc-hero" aria-labelledby="guideTitle">
           <p class="codex-doc-base">API base_url: https://api.sakms.top/</p>
           <h1 id="guideTitle">兑换中转 API Key，并接入 Codex</h1>
-          <p class="codex-doc-lead">从注册中转账户、兑换中转码、创建 API 密钥，到手动接入 Codex 和常见排错；Claude Code、Open Code、Open Claw 请打开对应独立教程页，移动端请查看 Chatbox 教程。</p>
+          <p class="codex-doc-lead">从注册中转账户、兑换中转码、创建 API 密钥，到手动接入 Codex 和常见排错；Claude Code、Open Code、Open Claw、移动端和图像生成请打开对应独立教程页。</p>
           <div class="codex-doc-badges" aria-label="教程要点">
             <span><Icon name="gift" class="codex-icon" /> 先兑换中转码</span>
             <span><Icon name="key" class="codex-icon" /> 生成 API Key</span>
             <span><Icon name="cog" class="codex-icon" /> 手动配置 Codex</span>
-            <span><Icon name="chat" class="codex-icon" /> 移动端 Chatbox</span>
+            <span><Icon name="sparkles" class="codex-icon" /> 图像生成</span>
           </div>
           <nav class="codex-doc-jump" aria-label="章节快捷入口">
             <a href="#chapterPrepare">准备</a>
@@ -163,6 +163,13 @@ const tocSections: TocSection[] = [
                 <span>
                   <strong>移动端配置教程</strong>
                   <small>Chatbox / 手机配置 / 模型切换</small>
+                </span>
+              </a>
+              <a class="codex-client-guide-card codex-client-guide-card--compact" href="/image-guide">
+                <Icon name="sparkles" class="codex-icon" />
+                <span>
+                  <strong>图像生成教程</strong>
+                  <small>Cherry Studio / imagegen / gpt-image-2</small>
                 </span>
               </a>
             </div>
@@ -530,6 +537,13 @@ const tocSections: TocSection[] = [
             <span>
               <strong>移动端配置教程</strong>
               <small>Chatbox / 手机配置 / 模型切换</small>
+            </span>
+          </a>
+          <a class="codex-client-guide-card" href="/image-guide">
+            <Icon name="sparkles" class="codex-icon" />
+            <span>
+              <strong>图像生成教程</strong>
+              <small>Cherry Studio / imagegen / gpt-image-2</small>
             </span>
           </a>
         </div>

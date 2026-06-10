@@ -2,7 +2,7 @@ import type { Component } from 'vue'
 
 import { Icon } from '@/components/icons'
 
-export type GuideKey = 'codex' | 'claude' | 'openCode' | 'openClaw' | 'mobile'
+export type GuideKey = 'codex' | 'claude' | 'openCode' | 'openClaw' | 'mobile' | 'image'
 
 export type GuideLink = {
   key: GuideKey
@@ -71,5 +71,12 @@ export const guideLinks: GuideLink[] = [
     title: '移动端配置教程',
     description: 'Chatbox / 手机配置 / 模型切换',
     icon: 'chat',
+  },
+  {
+    key: 'image',
+    path: '/image-guide',
+    title: '图像生成教程',
+    description: 'Cherry Studio / imagegen / gpt-image-2',
+    icon: 'sparkles',
   },
 ]

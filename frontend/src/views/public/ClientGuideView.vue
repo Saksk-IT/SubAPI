@@ -5,6 +5,7 @@ import { useRoute } from 'vue-router'
 import { Icon } from '@/components/icons'
 
 import ClaudeCodeGuideContent from './client-guides/ClaudeCodeGuideContent.vue'
+import ImageGuideContent from './client-guides/ImageGuideContent.vue'
 import MobileGuideContent from './client-guides/MobileGuideContent.vue'
 import OpenClawGuideContent from './client-guides/OpenClawGuideContent.vue'
 import OpenCodeGuideContent from './client-guides/OpenCodeGuideContent.vue'
@@ -135,6 +136,38 @@ const guidePages: Record<Exclude<GuideKey, 'codex'>, GuidePage> = {
       },
     ],
     component: MobileGuideContent,
+  },
+  image: {
+    active: 'image',
+    title: '图像生成教程',
+    lead: '使用 Cherry Studio 接入 https://api.sakms.top/，配置 gpt-image-2 图像生成端点，并通过绘画入口完成专业生图。',
+    badges: [
+      { icon: 'download', label: '下载 Cherry Studio' },
+      { icon: 'key', label: '填写 API Key' },
+      { icon: 'sparkles', label: 'gpt-image-2' },
+      { icon: 'checkCircle', label: '绘画入口验证' },
+    ],
+    jumps: [
+      { href: '#imageDownload', label: '下载' },
+      { href: '#imageService', label: '模型服务' },
+      { href: '#imageModel', label: '配置模型' },
+      { href: '#imageGenerate', label: '开始生图' },
+    ],
+    toc: [
+      {
+        title: '图像生成教程',
+        items: [
+          { href: '#guideTitle', label: '教程总览' },
+          { href: '#imageGuideIntro', label: '生图路径说明' },
+          { href: '#imageDownload', label: '下载 Cherry Studio' },
+          { href: '#imageService', label: '配置模型服务' },
+          { href: '#imageModel', label: '配置图像模型' },
+          { href: '#imageGenerate', label: '开始生图' },
+          { href: '#imageCheck', label: '完成检查' },
+        ],
+      },
+    ],
+    component: ImageGuideContent,
   },
 }
 

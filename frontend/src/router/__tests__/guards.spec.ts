@@ -94,6 +94,7 @@ function simulateGuard(
         '/open-code-guide',
         '/open-claw-guide',
         '/mobile-guide',
+        '/image-guide',
       ]
       const callbackPaths = [
         '/auth/callback',
@@ -153,6 +154,7 @@ function simulateGuard(
       '/open-code-guide',
       '/open-claw-guide',
       '/mobile-guide',
+      '/image-guide',
     ]
     const callbackPaths = [
       '/auth/callback',
@@ -413,7 +415,7 @@ describe('路由守卫逻辑', () => {
         hasPendingAuthSession: false,
       }
 
-      for (const path of ['/claude-code-guide', '/open-code-guide', '/open-claw-guide', '/mobile-guide']) {
+      for (const path of ['/claude-code-guide', '/open-code-guide', '/open-claw-guide', '/mobile-guide', '/image-guide']) {
         const redirect = simulateGuard(path, { requiresAuth: false }, authState)
         expect(redirect).toBeNull()
       }
