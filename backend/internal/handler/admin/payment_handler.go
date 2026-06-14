@@ -418,6 +418,22 @@ func (h *PaymentHandler) UpdateBalanceProduct(c *gin.Context) {
 	response.Success(c, product)
 }
 
+// BulkUpdateBalanceProducts updates selected fields for multiple balance products.
+// PUT /api/v1/admin/payment/balance-products/bulk
+func (h *PaymentHandler) BulkUpdateBalanceProducts(c *gin.Context) {
+	var req service.BulkUpdateBalanceProductsRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "Invalid request: "+err.Error())
+		return
+	}
+	updated, err := h.configService.BulkUpdateBalanceProducts(c.Request.Context(), req)
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	response.Success(c, gin.H{"updated": updated})
+}
+
 func (h *PaymentHandler) UpdateBalanceProductSortOrder(c *gin.Context) {
 	var req ProductSortOrderRequest
 	if err := c.ShouldBindJSON(&req); err != nil {

@@ -192,6 +192,11 @@ type BulkUpdatePlansRequest struct {
 	Fields  UpdatePlanRequest `json:"fields"`
 }
 
+type BulkUpdateBalanceProductsRequest struct {
+	ProductIDs []int64                     `json:"product_ids"`
+	Fields     UpdateBalanceProductRequest `json:"fields"`
+}
+
 type ProductSortOrderUpdate struct {
 	ID        int64 `json:"id"`
 	SortOrder int   `json:"sort_order"`

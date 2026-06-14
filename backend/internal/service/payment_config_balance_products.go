@@ -119,6 +119,41 @@ func validateBalanceProductPatch(req UpdateBalanceProductRequest) error {
 	return nil
 }
 
+func validateBulkBalanceProductPatch(req UpdateBalanceProductRequest) error {
+	unsupported := make([]string, 0)
+	if req.Name != nil {
+		unsupported = append(unsupported, "name")
+	}
+	if req.Price != nil {
+		unsupported = append(unsupported, "price")
+	}
+	if req.Amount != nil {
+		unsupported = append(unsupported, "amount")
+	}
+	if req.OriginalPrice != nil {
+		unsupported = append(unsupported, "original_price")
+	}
+	if req.ProductName != nil {
+		unsupported = append(unsupported, "product_name")
+	}
+	if req.ForSale != nil {
+		unsupported = append(unsupported, "for_sale")
+	}
+	if req.PurchaseLimit != nil {
+		unsupported = append(unsupported, "purchase_limit")
+	}
+	if req.SortOrder != nil {
+		unsupported = append(unsupported, "sort_order")
+	}
+	if len(unsupported) > 0 {
+		return infraerrors.BadRequest("BALANCE_PRODUCT_BULK_FIELDS_UNSUPPORTED", "unsupported bulk balance product fields: "+strings.Join(unsupported, ", "))
+	}
+	if req.Description == nil && req.Features == nil && req.Tags == nil {
+		return infraerrors.BadRequest("BALANCE_PRODUCT_BULK_FIELDS_REQUIRED", "select at least one field to update")
+	}
+	return validateBalanceProductPatch(req)
+}
+
 func validateProductLines(raw string, maxLines int, maxLen int, code string) error {
 	lines := splitProductLines(raw)
 	if len(lines) > maxLines {
@@ -338,6 +373,50 @@ func (s *PaymentConfigService) UpdateBalanceProductSortOrders(ctx context.Contex
 		return fmt.Errorf("commit balance product sort update: %w", err)
 	}
 	return nil
+}
+
+func (s *PaymentConfigService) BulkUpdateBalanceProducts(ctx context.Context, req BulkUpdateBalanceProductsRequest) (int, error) {
+	seen := make(map[int64]struct{}, len(req.ProductIDs))
+	ids := make([]int64, 0, len(req.ProductIDs))
+	for _, id := range req.ProductIDs {
+		if id <= 0 {
+			continue
+		}
+		if _, exists := seen[id]; exists {
+			continue
+		}
+		seen[id] = struct{}{}
+		ids = append(ids, id)
+	}
+	if len(ids) == 0 {
+		return 0, infraerrors.BadRequest("BALANCE_PRODUCT_IDS_REQUIRED", "select at least one balance product")
+	}
+	if err := validateBulkBalanceProductPatch(req.Fields); err != nil {
+		return 0, err
+	}
+	existingCount, err := s.entClient.BalanceProduct.Query().Where(balanceproduct.IDIn(ids...)).Count(ctx)
+	if err != nil {
+		return 0, fmt.Errorf("count balance products for bulk update: %w", err)
+	}
+	if existingCount != len(ids) {
+		return 0, infraerrors.NotFound("BALANCE_PRODUCT_NOT_FOUND", "balance product not found")
+	}
+	tx, err := s.entClient.Tx(ctx)
+	if err != nil {
+		return 0, fmt.Errorf("begin bulk balance product update: %w", err)
+	}
+	txSvc := *s
+	txSvc.entClient = tx.Client()
+	for _, id := range ids {
+		if _, err := txSvc.UpdateBalanceProduct(ctx, id, req.Fields); err != nil {
+			_ = tx.Rollback()
+			return 0, err
+		}
+	}
+	if err := tx.Commit(); err != nil {
+		return 0, fmt.Errorf("commit bulk balance product update: %w", err)
+	}
+	return len(ids), nil
 }
 
 func (s *PaymentConfigService) DeleteBalanceProduct(ctx context.Context, id int64) error {

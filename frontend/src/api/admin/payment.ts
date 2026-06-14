@@ -29,6 +29,15 @@ export interface BulkUpdatePlansRequest {
   }
 }
 
+export interface BulkUpdateBalanceProductsRequest {
+  product_ids: number[]
+  fields: {
+    description?: string
+    features?: string
+    tags?: string
+  }
+}
+
 /** Admin-facing payment config returned by GET /admin/payment/config */
 export interface AdminPaymentConfig {
   enabled: boolean
@@ -192,6 +201,10 @@ export const adminPaymentAPI = {
 
   updateBalanceProduct(id: number, data: Record<string, unknown>) {
     return apiClient.put<BalanceProduct>(`/admin/payment/balance-products/${id}`, data)
+  },
+
+  bulkUpdateBalanceProducts(data: BulkUpdateBalanceProductsRequest) {
+    return apiClient.put<{ updated: number }>('/admin/payment/balance-products/bulk', data)
   },
 
   updateBalanceProductSortOrder(updates: ProductSortOrderUpdate[]) {

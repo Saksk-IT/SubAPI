@@ -103,6 +103,7 @@ func RegisterPaymentRoutes(
 		{
 			balanceProducts.GET("", adminPaymentHandler.ListBalanceProducts)
 			balanceProducts.POST("", adminPaymentHandler.CreateBalanceProduct)
+			balanceProducts.PUT("/bulk", adminPaymentHandler.BulkUpdateBalanceProducts)
 			balanceProducts.PUT("/:id", adminPaymentHandler.UpdateBalanceProduct)
 			balanceProducts.DELETE("/:id", adminPaymentHandler.DeleteBalanceProduct)
 		}
