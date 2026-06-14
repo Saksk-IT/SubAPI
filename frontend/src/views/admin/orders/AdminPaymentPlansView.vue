@@ -47,7 +47,13 @@
         <button v-else @click="openPlanEdit(null)" class="btn btn-primary">{{ t('payment.admin.createPlan') }}</button>
       </div>
 
-      <DataTable v-if="activeProductTab === 'balance'" :columns="balanceProductColumns" :data="balanceProducts" :loading="balanceProductsLoading">
+      <DataTable
+        v-if="activeProductTab === 'balance'"
+        :columns="balanceProductColumns"
+        :data="balanceProducts"
+        :loading="balanceProductsLoading"
+        :sticky-first-column="false"
+      >
         <template #header-select>
           <input
             type="checkbox"
@@ -107,7 +113,12 @@
 
       <template v-else>
         <!-- Plans Table -->
-        <DataTable :columns="planColumns" :data="plans" :loading="plansLoading">
+        <DataTable
+          :columns="planColumns"
+          :data="plans"
+          :loading="plansLoading"
+          :sticky-first-column="false"
+        >
           <template #header-select>
             <input
               type="checkbox"
@@ -418,8 +429,8 @@ const sortableProductCount = computed(() =>
 
 const balanceProductColumns = computed((): Column[] => [
   { key: 'select', label: '', class: 'w-10 min-w-10 max-w-10' },
-  { key: 'name', label: t('payment.admin.productName'), class: 'min-w-44 max-w-72 whitespace-normal' },
-  { key: 'id', label: 'ID' },
+  { key: 'name', label: t('payment.admin.productName'), class: 'w-56 min-w-56 max-w-56 whitespace-normal' },
+  { key: 'id', label: 'ID', class: 'w-16 min-w-16 max-w-16' },
   { key: 'price', label: t('payment.admin.payPrice') },
   { key: 'amount', label: t('payment.admin.creditAmount') },
   { key: 'sales_count', label: t('payment.admin.salesCount') },
@@ -430,8 +441,8 @@ const balanceProductColumns = computed((): Column[] => [
 
 const planColumns = computed((): Column[] => [
   { key: 'select', label: '', class: 'w-10 min-w-10 max-w-10' },
-  { key: 'name', label: t('payment.admin.planName'), class: 'min-w-56 max-w-80 whitespace-normal' },
-  { key: 'id', label: 'ID' },
+  { key: 'name', label: t('payment.admin.planName'), class: 'w-64 min-w-64 max-w-64 whitespace-normal' },
+  { key: 'id', label: 'ID', class: 'w-16 min-w-16 max-w-16' },
   { key: 'group_id', label: t('payment.admin.group') },
   { key: 'price_multiplier', label: t('payment.admin.planPriceMultiplier') },
   { key: 'price', label: t('payment.admin.price') },

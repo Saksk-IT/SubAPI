@@ -40,8 +40,9 @@ vi.mock('@/components/layout/AppLayout.vue', () => ({
 
 vi.mock('@/components/common/DataTable.vue', () => ({
   default: {
-    props: ['columns', 'data', 'loading'],
-    template: '<div />',
+    name: 'DataTable',
+    props: ['columns', 'data', 'loading', 'stickyFirstColumn'],
+    template: '<div class="data-table-stub" />',
   },
 }))
 
@@ -97,6 +98,9 @@ describe('AdminPaymentPlansView', () => {
     expect(planColumns[0].key).toBe('select')
     expect(planColumns[1].key).toBe('name')
     expect(planColumns[2].key).toBe('id')
+    expect(planColumns[1].class).toContain('w-64')
+    expect(planColumns[2].class).toContain('w-16')
+    expect(wrapper.findComponent({ name: 'DataTable' }).props('stickyFirstColumn')).toBe(false)
   })
 
   it('充值商品表格也有选择列', () => {
@@ -111,5 +115,8 @@ describe('AdminPaymentPlansView', () => {
     const balanceColumns = (wrapper.vm as any).balanceProductColumns
     expect(balanceColumns[0].key).toBe('select')
     expect(balanceColumns[1].key).toBe('name')
+    expect(balanceColumns[1].class).toContain('w-56')
+    expect(balanceColumns[2].class).toContain('w-16')
+    expect(wrapper.findComponent({ name: 'DataTable' }).props('stickyFirstColumn')).toBe(false)
   })
 })
