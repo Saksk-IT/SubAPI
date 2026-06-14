@@ -32752,37 +32752,39 @@ func (m *SettingMutation) ResetEdge(name string) error {
 // SubscriptionPlanMutation represents an operation that mutates the SubscriptionPlan nodes in the graph.
 type SubscriptionPlanMutation struct {
 	config
-	op                Op
-	typ               string
-	id                *int64
-	group_id          *int64
-	addgroup_id       *int64
-	name              *string
-	description       *string
-	price             *float64
-	addprice          *float64
-	original_price    *float64
-	addoriginal_price *float64
-	validity_days     *int
-	addvalidity_days  *int
-	validity_unit     *string
-	features          *string
-	tags              *string
-	total_quota       *float64
-	addtotal_quota    *float64
-	daily_quota       *float64
-	adddaily_quota    *float64
-	display_notes     *string
-	product_name      *string
-	for_sale          *bool
-	sort_order        *int
-	addsort_order     *int
-	created_at        *time.Time
-	updated_at        *time.Time
-	clearedFields     map[string]struct{}
-	done              bool
-	oldValue          func(context.Context) (*SubscriptionPlan, error)
-	predicates        []predicate.SubscriptionPlan
+	op                  Op
+	typ                 string
+	id                  *int64
+	group_id            *int64
+	addgroup_id         *int64
+	name                *string
+	description         *string
+	price               *float64
+	addprice            *float64
+	price_multiplier    *float64
+	addprice_multiplier *float64
+	original_price      *float64
+	addoriginal_price   *float64
+	validity_days       *int
+	addvalidity_days    *int
+	validity_unit       *string
+	features            *string
+	tags                *string
+	total_quota         *float64
+	addtotal_quota      *float64
+	daily_quota         *float64
+	adddaily_quota      *float64
+	display_notes       *string
+	product_name        *string
+	for_sale            *bool
+	sort_order          *int
+	addsort_order       *int
+	created_at          *time.Time
+	updated_at          *time.Time
+	clearedFields       map[string]struct{}
+	done                bool
+	oldValue            func(context.Context) (*SubscriptionPlan, error)
+	predicates          []predicate.SubscriptionPlan
 }
 
 var _ ent.Mutation = (*SubscriptionPlanMutation)(nil)
@@ -33065,6 +33067,62 @@ func (m *SubscriptionPlanMutation) AddedPrice() (r float64, exists bool) {
 func (m *SubscriptionPlanMutation) ResetPrice() {
 	m.price = nil
 	m.addprice = nil
+}
+
+// SetPriceMultiplier sets the "price_multiplier" field.
+func (m *SubscriptionPlanMutation) SetPriceMultiplier(f float64) {
+	m.price_multiplier = &f
+	m.addprice_multiplier = nil
+}
+
+// PriceMultiplier returns the value of the "price_multiplier" field in the mutation.
+func (m *SubscriptionPlanMutation) PriceMultiplier() (r float64, exists bool) {
+	v := m.price_multiplier
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldPriceMultiplier returns the old "price_multiplier" field's value of the SubscriptionPlan entity.
+// If the SubscriptionPlan object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *SubscriptionPlanMutation) OldPriceMultiplier(ctx context.Context) (v float64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldPriceMultiplier is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldPriceMultiplier requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldPriceMultiplier: %w", err)
+	}
+	return oldValue.PriceMultiplier, nil
+}
+
+// AddPriceMultiplier adds f to the "price_multiplier" field.
+func (m *SubscriptionPlanMutation) AddPriceMultiplier(f float64) {
+	if m.addprice_multiplier != nil {
+		*m.addprice_multiplier += f
+	} else {
+		m.addprice_multiplier = &f
+	}
+}
+
+// AddedPriceMultiplier returns the value that was added to the "price_multiplier" field in this mutation.
+func (m *SubscriptionPlanMutation) AddedPriceMultiplier() (r float64, exists bool) {
+	v := m.addprice_multiplier
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetPriceMultiplier resets all changes to the "price_multiplier" field.
+func (m *SubscriptionPlanMutation) ResetPriceMultiplier() {
+	m.price_multiplier = nil
+	m.addprice_multiplier = nil
 }
 
 // SetOriginalPrice sets the "original_price" field.
@@ -33711,7 +33769,7 @@ func (m *SubscriptionPlanMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *SubscriptionPlanMutation) Fields() []string {
-	fields := make([]string, 0, 17)
+	fields := make([]string, 0, 18)
 	if m.group_id != nil {
 		fields = append(fields, subscriptionplan.FieldGroupID)
 	}
@@ -33723,6 +33781,9 @@ func (m *SubscriptionPlanMutation) Fields() []string {
 	}
 	if m.price != nil {
 		fields = append(fields, subscriptionplan.FieldPrice)
+	}
+	if m.price_multiplier != nil {
+		fields = append(fields, subscriptionplan.FieldPriceMultiplier)
 	}
 	if m.original_price != nil {
 		fields = append(fields, subscriptionplan.FieldOriginalPrice)
@@ -33779,6 +33840,8 @@ func (m *SubscriptionPlanMutation) Field(name string) (ent.Value, bool) {
 		return m.Description()
 	case subscriptionplan.FieldPrice:
 		return m.Price()
+	case subscriptionplan.FieldPriceMultiplier:
+		return m.PriceMultiplier()
 	case subscriptionplan.FieldOriginalPrice:
 		return m.OriginalPrice()
 	case subscriptionplan.FieldValidityDays:
@@ -33822,6 +33885,8 @@ func (m *SubscriptionPlanMutation) OldField(ctx context.Context, name string) (e
 		return m.OldDescription(ctx)
 	case subscriptionplan.FieldPrice:
 		return m.OldPrice(ctx)
+	case subscriptionplan.FieldPriceMultiplier:
+		return m.OldPriceMultiplier(ctx)
 	case subscriptionplan.FieldOriginalPrice:
 		return m.OldOriginalPrice(ctx)
 	case subscriptionplan.FieldValidityDays:
@@ -33884,6 +33949,13 @@ func (m *SubscriptionPlanMutation) SetField(name string, value ent.Value) error 
 			return fmt.Errorf("unexpected type %T for field %s", value, name)
 		}
 		m.SetPrice(v)
+		return nil
+	case subscriptionplan.FieldPriceMultiplier:
+		v, ok := value.(float64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetPriceMultiplier(v)
 		return nil
 	case subscriptionplan.FieldOriginalPrice:
 		v, ok := value.(float64)
@@ -33990,6 +34062,9 @@ func (m *SubscriptionPlanMutation) AddedFields() []string {
 	if m.addprice != nil {
 		fields = append(fields, subscriptionplan.FieldPrice)
 	}
+	if m.addprice_multiplier != nil {
+		fields = append(fields, subscriptionplan.FieldPriceMultiplier)
+	}
 	if m.addoriginal_price != nil {
 		fields = append(fields, subscriptionplan.FieldOriginalPrice)
 	}
@@ -34017,6 +34092,8 @@ func (m *SubscriptionPlanMutation) AddedField(name string) (ent.Value, bool) {
 		return m.AddedGroupID()
 	case subscriptionplan.FieldPrice:
 		return m.AddedPrice()
+	case subscriptionplan.FieldPriceMultiplier:
+		return m.AddedPriceMultiplier()
 	case subscriptionplan.FieldOriginalPrice:
 		return m.AddedOriginalPrice()
 	case subscriptionplan.FieldValidityDays:
@@ -34049,6 +34126,13 @@ func (m *SubscriptionPlanMutation) AddField(name string, value ent.Value) error 
 			return fmt.Errorf("unexpected type %T for field %s", value, name)
 		}
 		m.AddPrice(v)
+		return nil
+	case subscriptionplan.FieldPriceMultiplier:
+		v, ok := value.(float64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddPriceMultiplier(v)
 		return nil
 	case subscriptionplan.FieldOriginalPrice:
 		v, ok := value.(float64)
@@ -34144,6 +34228,9 @@ func (m *SubscriptionPlanMutation) ResetField(name string) error {
 		return nil
 	case subscriptionplan.FieldPrice:
 		m.ResetPrice()
+		return nil
+	case subscriptionplan.FieldPriceMultiplier:
+		m.ResetPriceMultiplier()
 		return nil
 	case subscriptionplan.FieldOriginalPrice:
 		m.ResetOriginalPrice()

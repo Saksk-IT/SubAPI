@@ -38,16 +38,16 @@ func TestValidatePlanRequired_NegativeGroupID(t *testing.T) {
 	require.Contains(t, err.Error(), "group")
 }
 
-func TestValidatePlanRequired_ZeroPrice(t *testing.T) {
+func TestValidatePlanRequired_ZeroPriceMultiplier(t *testing.T) {
 	err := validatePlanRequired("Pro", 1, 0, 30, "days", nil)
 	require.Error(t, err)
-	require.Contains(t, err.Error(), "price")
+	require.Contains(t, err.Error(), "price multiplier")
 }
 
-func TestValidatePlanRequired_NegativePrice(t *testing.T) {
+func TestValidatePlanRequired_NegativePriceMultiplier(t *testing.T) {
 	err := validatePlanRequired("Pro", 1, -5, 30, "days", nil)
 	require.Error(t, err)
-	require.Contains(t, err.Error(), "price")
+	require.Contains(t, err.Error(), "price multiplier")
 }
 
 func TestValidatePlanRequired_ZeroValidityDays(t *testing.T) {
@@ -248,7 +248,7 @@ func TestDerivePlanQuotaFromGroup_UnlimitedCycleKeepsTotalNil(t *testing.T) {
 	require.Equal(t, 23.0, *got.DailyQuota)
 }
 
-func TestDerivePlanValidityUnitFromGroup_PrefersLargestActivePeriod(t *testing.T) {
+func TestDerivePlanValidityUnitFromGroup_PrefersSmallestActivePeriod(t *testing.T) {
 	daily := 10.0
 	weekly := 50.0
 	monthly := 0.0
@@ -259,10 +259,10 @@ func TestDerivePlanValidityUnitFromGroup_PrefersLargestActivePeriod(t *testing.T
 		MonthlyLimitUsd: &monthly,
 	})
 
-	require.Equal(t, "weeks", got)
+	require.Equal(t, "days", got)
 }
 
-func TestDerivePlanValidityUnitFromGroup_MonthlyWins(t *testing.T) {
+func TestDerivePlanValidityUnitFromGroup_DailyStillWinsWhenMonthlyPresent(t *testing.T) {
 	daily := 10.0
 	weekly := 50.0
 	monthly := 200.0
@@ -273,7 +273,7 @@ func TestDerivePlanValidityUnitFromGroup_MonthlyWins(t *testing.T) {
 		MonthlyLimitUsd: &monthly,
 	})
 
-	require.Equal(t, "months", got)
+	require.Equal(t, "days", got)
 }
 
 func TestDerivePlanValidityUnitFromGroup_DailyFallback(t *testing.T) {
@@ -298,4 +298,16 @@ func TestDerivePlanValidityUnitFromGroup_NoActiveQuotaFallback(t *testing.T) {
 	})
 
 	require.Equal(t, "days", got)
+}
+
+func TestDerivePlanPriceFromGroup_UsesFixedPlanMultiplier(t *testing.T) {
+	daily := 120.0
+	group := &dbent.Group{
+		DailyLimitUsd: &daily,
+		RateMultiplier: 2.5,
+	}
+
+	price, err := derivePlanPriceFromGroup(group, 7, "days", 2.5, 0.14)
+	require.NoError(t, err)
+	require.Equal(t, 47.04, price)
 }

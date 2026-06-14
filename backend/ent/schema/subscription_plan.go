@@ -39,6 +39,9 @@ func (SubscriptionPlan) Fields() []ent.Field {
 			Default(""),
 		field.Float("price").
 			SchemaType(map[string]string{dialect.Postgres: "decimal(20,2)"}),
+		field.Float("price_multiplier").
+			SchemaType(map[string]string{dialect.Postgres: "decimal(20,8)"}).
+			Default(1.0),
 		field.Float("original_price").
 			SchemaType(map[string]string{dialect.Postgres: "decimal(20,2)"}).
 			Optional().

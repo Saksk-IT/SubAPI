@@ -199,23 +199,24 @@ func (h *PaymentHandler) ProcessRefund(c *gin.Context) {
 // --- Subscription Plans ---
 
 type AdminPlanResult struct {
-	ID            int64    `json:"id"`
-	GroupID       int64    `json:"group_id"`
-	Name          string   `json:"name"`
-	Description   string   `json:"description"`
-	Price         float64  `json:"price"`
-	OriginalPrice *float64 `json:"original_price,omitempty"`
-	ValidityDays  int      `json:"validity_days"`
-	ValidityUnit  string   `json:"validity_unit"`
-	Features      string   `json:"features"`
-	Tags          string   `json:"tags"`
-	TotalQuota    *float64 `json:"total_quota,omitempty"`
-	DailyQuota    *float64 `json:"daily_quota,omitempty"`
-	DisplayNotes  string   `json:"display_notes"`
-	ProductName   string   `json:"product_name"`
-	ForSale       bool     `json:"for_sale"`
-	SortOrder     int      `json:"sort_order"`
-	SalesCount    int64    `json:"sales_count"`
+	ID              int64    `json:"id"`
+	GroupID         int64    `json:"group_id"`
+	Name            string   `json:"name"`
+	Description     string   `json:"description"`
+	Price           float64  `json:"price"`
+	PriceMultiplier float64  `json:"price_multiplier"`
+	OriginalPrice   *float64 `json:"original_price,omitempty"`
+	ValidityDays    int      `json:"validity_days"`
+	ValidityUnit    string   `json:"validity_unit"`
+	Features        string   `json:"features"`
+	Tags            string   `json:"tags"`
+	TotalQuota      *float64 `json:"total_quota,omitempty"`
+	DailyQuota      *float64 `json:"daily_quota,omitempty"`
+	DisplayNotes    string   `json:"display_notes"`
+	ProductName     string   `json:"product_name"`
+	ForSale         bool     `json:"for_sale"`
+	SortOrder       int      `json:"sort_order"`
+	SalesCount      int64    `json:"sales_count"`
 }
 
 type ProductSortOrderRequest struct {
@@ -298,6 +299,22 @@ func (h *PaymentHandler) UpdatePlan(c *gin.Context) {
 	response.Success(c, results[0])
 }
 
+// BulkUpdatePlans updates selected fields for multiple subscription plans.
+// PUT /api/v1/admin/payment/plans/bulk
+func (h *PaymentHandler) BulkUpdatePlans(c *gin.Context) {
+	var req service.BulkUpdatePlansRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "Invalid request: "+err.Error())
+		return
+	}
+	updated, err := h.configService.BulkUpdatePlans(c.Request.Context(), req)
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	response.Success(c, gin.H{"updated": updated})
+}
+
 func (h *PaymentHandler) UpdatePlanSortOrder(c *gin.Context) {
 	var req ProductSortOrderRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -335,23 +352,24 @@ func (h *PaymentHandler) buildAdminPlanResults(c *gin.Context, plans []*dbent.Su
 	for _, plan := range plans {
 		display := displayInfo[plan.ID]
 		out = append(out, AdminPlanResult{
-			ID:            plan.ID,
-			GroupID:       plan.GroupID,
-			Name:          plan.Name,
-			Description:   plan.Description,
-			Price:         plan.Price,
-			OriginalPrice: plan.OriginalPrice,
-			ValidityDays:  plan.ValidityDays,
-			ValidityUnit:  plan.ValidityUnit,
-			Features:      plan.Features,
-			Tags:          display.Tags,
-			TotalQuota:    display.TotalQuota,
-			DailyQuota:    display.DailyQuota,
-			DisplayNotes:  display.DisplayNotes,
-			ProductName:   plan.ProductName,
-			ForSale:       plan.ForSale,
-			SortOrder:     plan.SortOrder,
-			SalesCount:    salesCounts[plan.ID],
+			ID:              plan.ID,
+			GroupID:         plan.GroupID,
+			Name:            plan.Name,
+			Description:     plan.Description,
+			Price:           plan.Price,
+			PriceMultiplier: plan.PriceMultiplier,
+			OriginalPrice:   plan.OriginalPrice,
+			ValidityDays:    plan.ValidityDays,
+			ValidityUnit:    plan.ValidityUnit,
+			Features:        plan.Features,
+			Tags:            display.Tags,
+			TotalQuota:      display.TotalQuota,
+			DailyQuota:      display.DailyQuota,
+			DisplayNotes:    display.DisplayNotes,
+			ProductName:     plan.ProductName,
+			ForSale:         plan.ForSale,
+			SortOrder:       plan.SortOrder,
+			SalesCount:      salesCounts[plan.ID],
 		})
 	}
 	return out, nil

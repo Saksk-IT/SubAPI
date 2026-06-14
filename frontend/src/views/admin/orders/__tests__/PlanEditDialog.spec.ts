@@ -5,6 +5,7 @@ const apiMocks = vi.hoisted(() => ({
   createPlan: vi.fn(),
   updatePlan: vi.fn(),
   getRateSchedule: vi.fn(),
+  bulkUpdatePlans: vi.fn(),
 }))
 
 const appStoreMocks = vi.hoisted(() => ({
@@ -17,6 +18,7 @@ vi.mock('@/api/admin/payment', () => ({
   adminPaymentAPI: {
     createPlan: apiMocks.createPlan,
     updatePlan: apiMocks.updatePlan,
+    bulkUpdatePlans: apiMocks.bulkUpdatePlans,
   },
 }))
 
@@ -110,6 +112,60 @@ function mountDialog() {
   })
 }
 
+function mountEditDialog(plan: Record<string, unknown>) {
+  return mount(PlanEditDialog, {
+    props: {
+      show: false,
+      plan: {
+        id: 99,
+        group_id: 12,
+        name: '旧套餐',
+        description: '旧描述',
+        price: 336,
+        price_multiplier: 0.2,
+        original_price: 0,
+        validity_days: 7,
+        validity_unit: 'days',
+        features: ['旧特性'],
+        tags: [],
+        for_sale: true,
+        sort_order: 0,
+        ...plan,
+      },
+      groups: [subscriptionGroup],
+    },
+    global: {
+      stubs: {
+        BaseDialog: {
+          props: ['show'],
+          template: '<div v-if="show"><slot /><slot name="footer" /></div>',
+        },
+        Select: {
+          props: ['modelValue', 'options', 'disabled'],
+          emits: ['update:modelValue'],
+          template: `
+            <select
+              :disabled="disabled"
+              :value="modelValue ?? ''"
+              @change="$emit('update:modelValue', Number($event.target.value))"
+            >
+              <option value=""></option>
+              <option v-for="option in options" :key="option.value" :value="option.value">
+                {{ option.label }}
+              </option>
+            </select>
+          `,
+        },
+        GroupBadge: {
+          props: ['name', 'rateMultiplier'],
+          template: '<span>{{ name }} {{ rateMultiplier }}x</span>',
+        },
+        Icon: true,
+      },
+    },
+  })
+}
+
 describe('PlanEditDialog', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -151,6 +207,7 @@ describe('PlanEditDialog', () => {
     expect(apiMocks.createPlan).toHaveBeenCalledWith(expect.objectContaining({
       group_id: 12,
       price: 47.04,
+      price_multiplier: 0.14,
       validity_days: 7,
       validity_unit: 'days',
       total_quota: 840,
@@ -187,7 +244,29 @@ describe('PlanEditDialog', () => {
     expect(apiMocks.createPlan).toHaveBeenCalledWith(expect.objectContaining({
       group_id: 12,
       price: 41.33,
+      price_multiplier: 0.123,
       validity_days: 7,
+    }))
+  })
+
+  it('编辑时优先使用持久化套餐倍率而不是从价格反推', async () => {
+    apiMocks.updatePlan.mockResolvedValue({ data: { id: 99 } })
+    const wrapper = mountEditDialog({ price: 1, price_multiplier: 0.2 })
+
+    await wrapper.setProps({ show: true })
+    await flushPromises()
+
+    const inputs = wrapper.findAll('input')
+    expect((inputs[2].element as HTMLInputElement).value).toBe('0.2')
+    const priceInput = wrapper.findAll('input[type="text"]')[1]
+    expect(priceInput.element.value).toBe('67.20')
+
+    await wrapper.get('#plan-form').trigger('submit.prevent')
+    await flushPromises()
+
+    expect(apiMocks.updatePlan).toHaveBeenCalledWith(99, expect.objectContaining({
+      price: 67.2,
+      price_multiplier: 0.2,
     }))
   })
 })

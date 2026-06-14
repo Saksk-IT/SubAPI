@@ -20,15 +20,15 @@ type planDerivedQuota struct {
 }
 
 // validatePlanRequired checks that all required fields for a plan are provided.
-func validatePlanRequired(name string, groupID int64, price float64, validityDays int, validityUnit string, originalPrice *float64) error {
+func validatePlanRequired(name string, groupID int64, priceMultiplier float64, validityDays int, validityUnit string, originalPrice *float64) error {
 	if strings.TrimSpace(name) == "" {
 		return infraerrors.BadRequest("PLAN_NAME_REQUIRED", "plan name is required")
 	}
 	if groupID <= 0 {
 		return infraerrors.BadRequest("PLAN_GROUP_REQUIRED", "group is required")
 	}
-	if price <= 0 {
-		return infraerrors.BadRequest("PLAN_PRICE_INVALID", "price must be > 0")
+	if priceMultiplier <= 0 {
+		return infraerrors.BadRequest("PLAN_PRICE_MULTIPLIER_INVALID", "price multiplier must be > 0")
 	}
 	if validityDays <= 0 {
 		return infraerrors.BadRequest("PLAN_VALIDITY_REQUIRED", "validity days must be > 0")
@@ -79,6 +79,10 @@ func roundQuota(value float64) float64 {
 	return math.Round(value*100) / 100
 }
 
+func roundPlanPrice(value float64) float64 {
+	return math.Round(value*100) / 100
+}
+
 func derivePlanQuotaFromGroup(group *dbent.Group, validityDays int, validityUnit string) planDerivedQuota {
 	if group == nil || validityDays <= 0 {
 		return planDerivedQuota{}
@@ -110,16 +114,114 @@ func derivePlanValidityUnitFromGroup(group *dbent.Group) string {
 	if group == nil {
 		return "days"
 	}
-	if positiveQuotaPtr(group.MonthlyLimitUsd) != nil {
-		return "months"
+	if positiveQuotaPtr(group.DailyLimitUsd) != nil {
+		return "days"
 	}
 	if positiveQuotaPtr(group.WeeklyLimitUsd) != nil {
 		return "weeks"
 	}
-	if positiveQuotaPtr(group.DailyLimitUsd) != nil {
-		return "days"
+	if positiveQuotaPtr(group.MonthlyLimitUsd) != nil {
+		return "months"
 	}
 	return "days"
+}
+
+func derivePlanPriceFromGroup(group *dbent.Group, validityDays int, validityUnit string, groupRateMultiplier float64, priceMultiplier float64) (float64, error) {
+	if group == nil {
+		return 0, infraerrors.NotFound("GROUP_NOT_FOUND", "subscription group is no longer available")
+	}
+	if validityDays <= 0 {
+		return 0, infraerrors.BadRequest("PLAN_VALIDITY_REQUIRED", "validity days must be > 0")
+	}
+	if groupRateMultiplier <= 0 {
+		return 0, infraerrors.BadRequest("PLAN_GROUP_RATE_INVALID", "group rate multiplier must be > 0")
+	}
+	if priceMultiplier <= 0 {
+		return 0, infraerrors.BadRequest("PLAN_PRICE_MULTIPLIER_INVALID", "price multiplier must be > 0")
+	}
+	quota := derivePlanQuotaFromGroup(group, 1, validityUnit).TotalQuota
+	if quota == nil || *quota <= 0 {
+		return 0, infraerrors.BadRequest("PLAN_PRICE_UNAVAILABLE", "plan price cannot be calculated from group quota")
+	}
+	price := roundPlanPrice((*quota / groupRateMultiplier) * float64(validityDays) * priceMultiplier)
+	if price <= 0 {
+		return 0, infraerrors.BadRequest("PLAN_PRICE_INVALID", "price must be > 0")
+	}
+	return price, nil
+}
+
+func (s *PaymentConfigService) attachCurrentPlanPrices(ctx context.Context, plans []*dbent.SubscriptionPlan) []*dbent.SubscriptionPlan {
+	if len(plans) == 0 {
+		return plans
+	}
+	baseRateByGroupID := s.getPlanBaseRateMultiplierMap(ctx)
+	groupByID := make(map[int64]*dbent.Group)
+	for _, plan := range plans {
+		if _, exists := groupByID[plan.GroupID]; exists {
+			continue
+		}
+		groupInfo, err := s.getActiveSubscriptionGroup(ctx, plan.GroupID)
+		if err != nil {
+			groupByID[plan.GroupID] = nil
+			continue
+		}
+		groupByID[plan.GroupID] = groupInfo
+	}
+	out := make([]*dbent.SubscriptionPlan, 0, len(plans))
+	for _, plan := range plans {
+		next := *plan
+		if groupInfo := groupByID[plan.GroupID]; groupInfo != nil {
+			groupRateMultiplier := resolvePlanBaseRateMultiplier(groupInfo, baseRateByGroupID)
+			if price, err := derivePlanPriceFromGroup(groupInfo, plan.ValidityDays, plan.ValidityUnit, groupRateMultiplier, plan.PriceMultiplier); err == nil {
+				next.Price = price
+			}
+		}
+		out = append(out, &next)
+	}
+	return out
+}
+
+func (s *PaymentConfigService) getPlanBaseRateMultiplierMap(ctx context.Context) map[int64]float64 {
+	if s.settingRepo == nil {
+		return nil
+	}
+	settings, err := loadGroupRateScheduleSettings(ctx, s.settingRepo)
+	if err != nil || settings == nil || !settings.Active {
+		return nil
+	}
+	out := make(map[int64]float64, len(settings.OriginalRates))
+	for rawID, rate := range settings.OriginalRates {
+		groupID, err := parsePositiveInt64(rawID)
+		if err != nil || rate <= 0 {
+			continue
+		}
+		out[groupID] = rate
+	}
+	return out
+}
+
+func parsePositiveInt64(raw string) (int64, error) {
+	var value int64
+	for _, r := range strings.TrimSpace(raw) {
+		if r < '0' || r > '9' {
+			return 0, fmt.Errorf("invalid integer")
+		}
+		value = value*10 + int64(r-'0')
+	}
+	if value <= 0 {
+		return 0, fmt.Errorf("invalid integer")
+	}
+	return value, nil
+}
+
+func resolvePlanBaseRateMultiplier(group *dbent.Group, baseRateByGroupID map[int64]float64) float64 {
+	if group == nil {
+		return 0
+	}
+	if rate := baseRateByGroupID[int64(group.ID)]; rate > 0 {
+		return rate
+	}
+	return group.RateMultiplier
 }
 
 // validatePlanPatch validates only the non-nil fields in a patch update.
@@ -132,6 +234,9 @@ func validatePlanPatch(req UpdatePlanRequest) error {
 	}
 	if req.Price != nil && *req.Price <= 0 {
 		return infraerrors.BadRequest("PLAN_PRICE_INVALID", "price must be > 0")
+	}
+	if req.PriceMultiplier != nil && *req.PriceMultiplier <= 0 {
+		return infraerrors.BadRequest("PLAN_PRICE_MULTIPLIER_INVALID", "price multiplier must be > 0")
 	}
 	if req.ValidityDays != nil && *req.ValidityDays <= 0 {
 		return infraerrors.BadRequest("PLAN_VALIDITY_REQUIRED", "validity days must be > 0")
@@ -159,6 +264,53 @@ func validatePlanPatch(req UpdatePlanRequest) error {
 		return infraerrors.BadRequest("PLAN_DAILY_QUOTA_INVALID", "daily quota must be >= 0")
 	}
 	return nil
+}
+
+func validateBulkPlanPatch(req UpdatePlanRequest) error {
+	unsupported := make([]string, 0)
+	if req.GroupID != nil {
+		unsupported = append(unsupported, "group_id")
+	}
+	if req.Name != nil {
+		unsupported = append(unsupported, "name")
+	}
+	if req.Price != nil {
+		unsupported = append(unsupported, "price")
+	}
+	if req.OriginalPrice != nil {
+		unsupported = append(unsupported, "original_price")
+	}
+	if req.ValidityDays != nil {
+		unsupported = append(unsupported, "validity_days")
+	}
+	if req.ValidityUnit != nil {
+		unsupported = append(unsupported, "validity_unit")
+	}
+	if req.TotalQuota != nil {
+		unsupported = append(unsupported, "total_quota")
+	}
+	if req.DailyQuota != nil {
+		unsupported = append(unsupported, "daily_quota")
+	}
+	if req.DisplayNotes != nil {
+		unsupported = append(unsupported, "display_notes")
+	}
+	if req.ProductName != nil {
+		unsupported = append(unsupported, "product_name")
+	}
+	if req.ForSale != nil {
+		unsupported = append(unsupported, "for_sale")
+	}
+	if req.SortOrder != nil {
+		unsupported = append(unsupported, "sort_order")
+	}
+	if len(unsupported) > 0 {
+		return infraerrors.BadRequest("PLAN_BULK_FIELDS_UNSUPPORTED", "unsupported bulk plan fields: "+strings.Join(unsupported, ", "))
+	}
+	if req.PriceMultiplier == nil && req.Description == nil && req.Features == nil && req.Tags == nil {
+		return infraerrors.BadRequest("PLAN_BULK_FIELDS_REQUIRED", "select at least one field to update")
+	}
+	return validatePlanPatch(req)
 }
 
 // --- Plan CRUD ---
@@ -269,15 +421,23 @@ WHERE id IN (%s)`, strings.Join(placeholders, ",")), args...)
 }
 
 func (s *PaymentConfigService) ListPlans(ctx context.Context) ([]*dbent.SubscriptionPlan, error) {
-	return s.entClient.SubscriptionPlan.Query().Order(subscriptionplan.BySortOrder()).All(ctx)
+	plans, err := s.entClient.SubscriptionPlan.Query().Order(subscriptionplan.BySortOrder()).All(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return s.attachCurrentPlanPrices(ctx, plans), nil
 }
 
 func (s *PaymentConfigService) ListPlansForSale(ctx context.Context) ([]*dbent.SubscriptionPlan, error) {
-	return s.entClient.SubscriptionPlan.Query().Where(subscriptionplan.ForSaleEQ(true)).Order(subscriptionplan.BySortOrder()).All(ctx)
+	plans, err := s.entClient.SubscriptionPlan.Query().Where(subscriptionplan.ForSaleEQ(true)).Order(subscriptionplan.BySortOrder()).All(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return s.attachCurrentPlanPrices(ctx, plans), nil
 }
 
 func (s *PaymentConfigService) CreatePlan(ctx context.Context, req CreatePlanRequest) (*dbent.SubscriptionPlan, error) {
-	if err := validatePlanRequired(req.Name, req.GroupID, req.Price, req.ValidityDays, req.ValidityUnit, req.OriginalPrice); err != nil {
+	if err := validatePlanRequired(req.Name, req.GroupID, req.PriceMultiplier, req.ValidityDays, req.ValidityUnit, req.OriginalPrice); err != nil {
 		return nil, err
 	}
 	if err := validatePlanDisplayFields(req.Tags, req.Features, req.TotalQuota, req.DailyQuota); err != nil {
@@ -289,9 +449,13 @@ func (s *PaymentConfigService) CreatePlan(ctx context.Context, req CreatePlanReq
 	}
 	derivedValidityUnit := derivePlanValidityUnitFromGroup(groupInfo)
 	derivedQuota := derivePlanQuotaFromGroup(groupInfo, req.ValidityDays, derivedValidityUnit)
+	price, err := derivePlanPriceFromGroup(groupInfo, req.ValidityDays, derivedValidityUnit, s.resolvePlanRateMultiplier(ctx, groupInfo), req.PriceMultiplier)
+	if err != nil {
+		return nil, err
+	}
 	b := s.entClient.SubscriptionPlan.Create().
 		SetGroupID(req.GroupID).SetName(req.Name).SetDescription(req.Description).
-		SetPrice(req.Price).SetValidityDays(req.ValidityDays).SetValidityUnit(derivedValidityUnit).
+		SetPrice(price).SetPriceMultiplier(req.PriceMultiplier).SetValidityDays(req.ValidityDays).SetValidityUnit(derivedValidityUnit).
 		SetFeatures(normalizeProductLines(req.Features)).SetProductName(req.ProductName).
 		SetForSale(req.ForSale).SetSortOrder(req.SortOrder)
 	if req.OriginalPrice != nil {
@@ -333,16 +497,31 @@ func (s *PaymentConfigService) UpdatePlan(ctx context.Context, id int64, req Upd
 	if req.ValidityDays != nil {
 		nextValidityDays = *req.ValidityDays
 	}
-	shouldDeriveQuota := isFullPlanSave || req.GroupID != nil || req.ValidityDays != nil || req.ValidityUnit != nil || req.TotalQuota != nil || req.DailyQuota != nil
+	nextValidityUnit := currentPlan.ValidityUnit
+	if req.ValidityUnit != nil {
+		nextValidityUnit = *req.ValidityUnit
+	}
+	nextPriceMultiplier := currentPlan.PriceMultiplier
+	if req.PriceMultiplier != nil {
+		nextPriceMultiplier = *req.PriceMultiplier
+	}
+	shouldDerivePrice := isFullPlanSave || req.GroupID != nil || req.ValidityDays != nil || req.ValidityUnit != nil || req.PriceMultiplier != nil || req.Price != nil
+	shouldDeriveQuota := isFullPlanSave || req.GroupID != nil || req.ValidityDays != nil || req.ValidityUnit != nil || req.TotalQuota != nil || req.DailyQuota != nil || req.PriceMultiplier != nil
 	var derivedQuota planDerivedQuota
 	var derivedValidityUnit string
-	if shouldDeriveQuota {
+	var derivedPrice float64
+	if shouldDeriveQuota || shouldDerivePrice {
 		groupInfo, err := s.getActiveSubscriptionGroup(ctx, nextGroupID)
 		if err != nil {
 			return nil, err
 		}
 		derivedValidityUnit = derivePlanValidityUnitFromGroup(groupInfo)
 		derivedQuota = derivePlanQuotaFromGroup(groupInfo, nextValidityDays, derivedValidityUnit)
+		nextValidityUnit = derivedValidityUnit
+		derivedPrice, err = derivePlanPriceFromGroup(groupInfo, nextValidityDays, nextValidityUnit, s.resolvePlanRateMultiplier(ctx, groupInfo), nextPriceMultiplier)
+		if err != nil {
+			return nil, err
+		}
 	}
 	u := s.entClient.SubscriptionPlan.UpdateOneID(id)
 	if req.GroupID != nil {
@@ -354,8 +533,11 @@ func (s *PaymentConfigService) UpdatePlan(ctx context.Context, id int64, req Upd
 	if req.Description != nil {
 		u.SetDescription(*req.Description)
 	}
-	if req.Price != nil {
-		u.SetPrice(*req.Price)
+	if shouldDerivePrice {
+		u.SetPrice(derivedPrice)
+	}
+	if req.PriceMultiplier != nil {
+		u.SetPriceMultiplier(*req.PriceMultiplier)
 	}
 	if req.OriginalPrice != nil {
 		u.SetOriginalPrice(*req.OriginalPrice)
@@ -401,6 +583,61 @@ func (s *PaymentConfigService) UpdatePlan(ctx context.Context, id int64, req Upd
 		}
 	}
 	return s.GetPlan(ctx, id)
+}
+
+func (s *PaymentConfigService) resolvePlanRateMultiplier(ctx context.Context, groupInfo *dbent.Group) float64 {
+	if groupInfo == nil {
+		return 0
+	}
+	baseRates := s.getPlanBaseRateMultiplierMap(ctx)
+	if rate := resolvePlanBaseRateMultiplier(groupInfo, baseRates); rate > 0 {
+		return rate
+	}
+	return groupInfo.RateMultiplier
+}
+
+func (s *PaymentConfigService) BulkUpdatePlans(ctx context.Context, req BulkUpdatePlansRequest) (int, error) {
+	seen := make(map[int64]struct{}, len(req.PlanIDs))
+	ids := make([]int64, 0, len(req.PlanIDs))
+	for _, id := range req.PlanIDs {
+		if id <= 0 {
+			continue
+		}
+		if _, exists := seen[id]; exists {
+			continue
+		}
+		seen[id] = struct{}{}
+		ids = append(ids, id)
+	}
+	if len(ids) == 0 {
+		return 0, infraerrors.BadRequest("PLAN_IDS_REQUIRED", "select at least one plan")
+	}
+	if err := validateBulkPlanPatch(req.Fields); err != nil {
+		return 0, err
+	}
+	existingCount, err := s.entClient.SubscriptionPlan.Query().Where(subscriptionplan.IDIn(ids...)).Count(ctx)
+	if err != nil {
+		return 0, fmt.Errorf("count subscription plans for bulk update: %w", err)
+	}
+	if existingCount != len(ids) {
+		return 0, infraerrors.NotFound("PLAN_NOT_FOUND", "subscription plan not found")
+	}
+	tx, err := s.entClient.Tx(ctx)
+	if err != nil {
+		return 0, fmt.Errorf("begin bulk plan update: %w", err)
+	}
+	txSvc := *s
+	txSvc.entClient = tx.Client()
+	for _, id := range ids {
+		if _, err := txSvc.UpdatePlan(ctx, id, req.Fields); err != nil {
+			_ = tx.Rollback()
+			return 0, err
+		}
+	}
+	if err := tx.Commit(); err != nil {
+		return 0, fmt.Errorf("commit bulk plan update: %w", err)
+	}
+	return len(ids), nil
 }
 
 func (s *PaymentConfigService) UpdatePlanSortOrders(ctx context.Context, updates []ProductSortOrderUpdate) error {
@@ -497,5 +734,6 @@ func (s *PaymentConfigService) GetPlan(ctx context.Context, id int64) (*dbent.Su
 	if err != nil {
 		return nil, infraerrors.NotFound("PLAN_NOT_FOUND", "subscription plan not found")
 	}
-	return plan, nil
+	plans := s.attachCurrentPlanPrices(ctx, []*dbent.SubscriptionPlan{plan})
+	return plans[0], nil
 }

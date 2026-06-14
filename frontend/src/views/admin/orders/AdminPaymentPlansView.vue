@@ -20,6 +20,14 @@
 
       <!-- Actions -->
       <div class="flex items-center justify-end gap-2">
+        <button
+          v-if="activeProductTab === 'subscription' && selectedPlanIds.length > 0"
+          @click="showBulkPlanDialog = true"
+          class="btn btn-primary"
+        >
+          <Icon name="edit" size="sm" />
+          <span>{{ t('payment.admin.bulkEditPlans') }} ({{ selectedPlanIds.length }})</span>
+        </button>
         <button @click="openSortDialog" :disabled="activeLoading" class="btn btn-secondary" :title="t('payment.admin.sortProducts')">
           <Icon name="sort" size="md" />
           <span>{{ t('payment.admin.sortProducts') }}</span>
@@ -76,8 +84,27 @@
       <template v-else>
         <!-- Plans Table -->
         <DataTable :columns="planColumns" :data="plans" :loading="plansLoading">
+          <template #header-select>
+            <input
+              type="checkbox"
+              class="h-4 w-4 cursor-pointer rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+              :checked="allPlansSelected"
+              @change="toggleAllPlans($event)"
+            />
+          </template>
+          <template #cell-select="{ row }">
+            <input
+              type="checkbox"
+              class="rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+              :checked="isPlanSelected(row.id)"
+              @change="togglePlanSelection(row.id)"
+            />
+          </template>
           <template #cell-name="{ value, row }">
             <span class="text-sm font-medium" :class="getPlanNameClass(row.group_id)">{{ value }}</span>
+          </template>
+          <template #cell-price_multiplier="{ value }">
+            <span class="text-sm font-medium text-gray-900 dark:text-white">{{ Number(value || 0).toFixed(4) }}x</span>
           </template>
           <template #cell-group_id="{ value }">
             <span v-if="isGroupMissing(value)" class="text-sm">
@@ -135,6 +162,7 @@
     <!-- Plan Edit Dialog -->
     <PlanEditDialog :show="showPlanDialog" :plan="editingPlan" :groups="groups" @close="showPlanDialog = false" @saved="loadPlans" />
     <BalanceProductEditDialog :show="showBalanceProductDialog" :product="editingBalanceProduct" @close="showBalanceProductDialog = false" @saved="loadBalanceProducts" />
+    <PlanBulkEditDialog :show="showBulkPlanDialog" :plan-ids="selectedPlanIds" @close="showBulkPlanDialog = false" @updated="handleBulkPlanUpdated" />
 
     <BaseDialog
       :show="showSortDialog"
@@ -286,6 +314,7 @@ import ConfirmDialog from '@/components/common/ConfirmDialog.vue'
 import Icon from '@/components/icons/Icon.vue'
 import GroupBadge from '@/components/common/GroupBadge.vue'
 import PlanEditDialog from './PlanEditDialog.vue'
+import PlanBulkEditDialog from './PlanBulkEditDialog.vue'
 import BalanceProductEditDialog from './BalanceProductEditDialog.vue'
 import { platformLabel, platformTextClass } from '@/utils/platformColors'
 
@@ -331,8 +360,10 @@ const plansLoading = ref(false)
 const plans = ref<SubscriptionPlan[]>([])
 const showPlanDialog = ref(false)
 const showDeletePlanDialog = ref(false)
+const showBulkPlanDialog = ref(false)
 const editingPlan = ref<SubscriptionPlan | null>(null)
 const deletingPlanId = ref<number | null>(null)
+const selectedPlanIds = ref<number[]>([])
 
 const balanceProductsLoading = ref(false)
 const balanceProducts = ref<BalanceProduct[]>([])
@@ -369,9 +400,11 @@ const balanceProductColumns = computed((): Column[] => [
 ])
 
 const planColumns = computed((): Column[] => [
+  { key: 'select', label: '', class: 'w-10' },
   { key: 'id', label: 'ID' },
   { key: 'name', label: t('payment.admin.planName') },
   { key: 'group_id', label: t('payment.admin.group') },
+  { key: 'price_multiplier', label: t('payment.admin.planPriceMultiplier') },
   { key: 'price', label: t('payment.admin.price') },
   { key: 'validity_days', label: t('payment.admin.validityDays') },
   { key: 'sales_count', label: t('payment.admin.salesCount') },
@@ -395,6 +428,8 @@ async function loadPlans() {
         ? p.features.split('\n').map((f: string) => f.trim()).filter(Boolean)
         : (p.features || []),
     }))
+    const visibleIDs = new Set(plans.value.map(plan => plan.id))
+    selectedPlanIds.value = selectedPlanIds.value.filter(id => visibleIDs.has(id))
   }
   catch (err: unknown) { appStore.showError(extractI18nErrorMessage(err, t, 'payment.errors', t('common.error'))) }
   finally { plansLoading.value = false }
@@ -451,6 +486,29 @@ function buildPlanPlatformGroups(planItems: SubscriptionPlan[]): PlanPlatformSor
     label: formatPlatformLabel(platform),
     plans: [...(plansByPlatform.get(platform) || [])],
   }))
+}
+
+const allPlansSelected = computed(() => plans.value.length > 0 && plans.value.every(plan => selectedPlanIds.value.includes(plan.id)))
+
+function isPlanSelected(id: number): boolean {
+  return selectedPlanIds.value.includes(id)
+}
+
+function togglePlanSelection(id: number) {
+  selectedPlanIds.value = isPlanSelected(id)
+    ? selectedPlanIds.value.filter(selectedID => selectedID !== id)
+    : [...selectedPlanIds.value, id]
+}
+
+function toggleAllPlans(event: Event) {
+  const checked = (event.target as HTMLInputElement).checked
+  selectedPlanIds.value = checked ? plans.value.map(plan => plan.id) : []
+}
+
+async function handleBulkPlanUpdated() {
+  showBulkPlanDialog.value = false
+  selectedPlanIds.value = []
+  await loadPlans()
 }
 
 function openSortDialog() {

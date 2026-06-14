@@ -54,6 +54,20 @@ func (_c *SubscriptionPlanCreate) SetPrice(v float64) *SubscriptionPlanCreate {
 	return _c
 }
 
+// SetPriceMultiplier sets the "price_multiplier" field.
+func (_c *SubscriptionPlanCreate) SetPriceMultiplier(v float64) *SubscriptionPlanCreate {
+	_c.mutation.SetPriceMultiplier(v)
+	return _c
+}
+
+// SetNillablePriceMultiplier sets the "price_multiplier" field if the given value is not nil.
+func (_c *SubscriptionPlanCreate) SetNillablePriceMultiplier(v *float64) *SubscriptionPlanCreate {
+	if v != nil {
+		_c.SetPriceMultiplier(*v)
+	}
+	return _c
+}
+
 // SetOriginalPrice sets the "original_price" field.
 func (_c *SubscriptionPlanCreate) SetOriginalPrice(v float64) *SubscriptionPlanCreate {
 	_c.mutation.SetOriginalPrice(v)
@@ -275,6 +289,10 @@ func (_c *SubscriptionPlanCreate) defaults() {
 		v := subscriptionplan.DefaultDescription
 		_c.mutation.SetDescription(v)
 	}
+	if _, ok := _c.mutation.PriceMultiplier(); !ok {
+		v := subscriptionplan.DefaultPriceMultiplier
+		_c.mutation.SetPriceMultiplier(v)
+	}
 	if _, ok := _c.mutation.ValidityDays(); !ok {
 		v := subscriptionplan.DefaultValidityDays
 		_c.mutation.SetValidityDays(v)
@@ -335,6 +353,9 @@ func (_c *SubscriptionPlanCreate) check() error {
 	}
 	if _, ok := _c.mutation.Price(); !ok {
 		return &ValidationError{Name: "price", err: errors.New(`ent: missing required field "SubscriptionPlan.price"`)}
+	}
+	if _, ok := _c.mutation.PriceMultiplier(); !ok {
+		return &ValidationError{Name: "price_multiplier", err: errors.New(`ent: missing required field "SubscriptionPlan.price_multiplier"`)}
 	}
 	if _, ok := _c.mutation.ValidityDays(); !ok {
 		return &ValidationError{Name: "validity_days", err: errors.New(`ent: missing required field "SubscriptionPlan.validity_days"`)}
@@ -418,6 +439,10 @@ func (_c *SubscriptionPlanCreate) createSpec() (*SubscriptionPlan, *sqlgraph.Cre
 	if value, ok := _c.mutation.Price(); ok {
 		_spec.SetField(subscriptionplan.FieldPrice, field.TypeFloat64, value)
 		_node.Price = value
+	}
+	if value, ok := _c.mutation.PriceMultiplier(); ok {
+		_spec.SetField(subscriptionplan.FieldPriceMultiplier, field.TypeFloat64, value)
+		_node.PriceMultiplier = value
 	}
 	if value, ok := _c.mutation.OriginalPrice(); ok {
 		_spec.SetField(subscriptionplan.FieldOriginalPrice, field.TypeFloat64, value)
@@ -580,6 +605,24 @@ func (u *SubscriptionPlanUpsert) UpdatePrice() *SubscriptionPlanUpsert {
 // AddPrice adds v to the "price" field.
 func (u *SubscriptionPlanUpsert) AddPrice(v float64) *SubscriptionPlanUpsert {
 	u.Add(subscriptionplan.FieldPrice, v)
+	return u
+}
+
+// SetPriceMultiplier sets the "price_multiplier" field.
+func (u *SubscriptionPlanUpsert) SetPriceMultiplier(v float64) *SubscriptionPlanUpsert {
+	u.Set(subscriptionplan.FieldPriceMultiplier, v)
+	return u
+}
+
+// UpdatePriceMultiplier sets the "price_multiplier" field to the value that was provided on create.
+func (u *SubscriptionPlanUpsert) UpdatePriceMultiplier() *SubscriptionPlanUpsert {
+	u.SetExcluded(subscriptionplan.FieldPriceMultiplier)
+	return u
+}
+
+// AddPriceMultiplier adds v to the "price_multiplier" field.
+func (u *SubscriptionPlanUpsert) AddPriceMultiplier(v float64) *SubscriptionPlanUpsert {
+	u.Add(subscriptionplan.FieldPriceMultiplier, v)
 	return u
 }
 
@@ -887,6 +930,27 @@ func (u *SubscriptionPlanUpsertOne) AddPrice(v float64) *SubscriptionPlanUpsertO
 func (u *SubscriptionPlanUpsertOne) UpdatePrice() *SubscriptionPlanUpsertOne {
 	return u.Update(func(s *SubscriptionPlanUpsert) {
 		s.UpdatePrice()
+	})
+}
+
+// SetPriceMultiplier sets the "price_multiplier" field.
+func (u *SubscriptionPlanUpsertOne) SetPriceMultiplier(v float64) *SubscriptionPlanUpsertOne {
+	return u.Update(func(s *SubscriptionPlanUpsert) {
+		s.SetPriceMultiplier(v)
+	})
+}
+
+// AddPriceMultiplier adds v to the "price_multiplier" field.
+func (u *SubscriptionPlanUpsertOne) AddPriceMultiplier(v float64) *SubscriptionPlanUpsertOne {
+	return u.Update(func(s *SubscriptionPlanUpsert) {
+		s.AddPriceMultiplier(v)
+	})
+}
+
+// UpdatePriceMultiplier sets the "price_multiplier" field to the value that was provided on create.
+func (u *SubscriptionPlanUpsertOne) UpdatePriceMultiplier() *SubscriptionPlanUpsertOne {
+	return u.Update(func(s *SubscriptionPlanUpsert) {
+		s.UpdatePriceMultiplier()
 	})
 }
 
@@ -1392,6 +1456,27 @@ func (u *SubscriptionPlanUpsertBulk) AddPrice(v float64) *SubscriptionPlanUpsert
 func (u *SubscriptionPlanUpsertBulk) UpdatePrice() *SubscriptionPlanUpsertBulk {
 	return u.Update(func(s *SubscriptionPlanUpsert) {
 		s.UpdatePrice()
+	})
+}
+
+// SetPriceMultiplier sets the "price_multiplier" field.
+func (u *SubscriptionPlanUpsertBulk) SetPriceMultiplier(v float64) *SubscriptionPlanUpsertBulk {
+	return u.Update(func(s *SubscriptionPlanUpsert) {
+		s.SetPriceMultiplier(v)
+	})
+}
+
+// AddPriceMultiplier adds v to the "price_multiplier" field.
+func (u *SubscriptionPlanUpsertBulk) AddPriceMultiplier(v float64) *SubscriptionPlanUpsertBulk {
+	return u.Update(func(s *SubscriptionPlanUpsert) {
+		s.AddPriceMultiplier(v)
+	})
+}
+
+// UpdatePriceMultiplier sets the "price_multiplier" field to the value that was provided on create.
+func (u *SubscriptionPlanUpsertBulk) UpdatePriceMultiplier() *SubscriptionPlanUpsertBulk {
+	return u.Update(func(s *SubscriptionPlanUpsert) {
+		s.UpdatePriceMultiplier()
 	})
 }
 

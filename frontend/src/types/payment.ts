@@ -197,6 +197,7 @@ export interface SubscriptionPlan {
   name: string
   description: string
   price: number
+  price_multiplier?: number
   original_price?: number
   validity_days: number
   validity_unit: string

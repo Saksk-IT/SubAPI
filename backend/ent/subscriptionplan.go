@@ -25,6 +25,8 @@ type SubscriptionPlan struct {
 	Description string `json:"description,omitempty"`
 	// Price holds the value of the "price" field.
 	Price float64 `json:"price,omitempty"`
+	// PriceMultiplier holds the value of the "price_multiplier" field.
+	PriceMultiplier float64 `json:"price_multiplier,omitempty"`
 	// OriginalPrice holds the value of the "original_price" field.
 	OriginalPrice *float64 `json:"original_price,omitempty"`
 	// ValidityDays holds the value of the "validity_days" field.
@@ -61,7 +63,7 @@ func (*SubscriptionPlan) scanValues(columns []string) ([]any, error) {
 		switch columns[i] {
 		case subscriptionplan.FieldForSale:
 			values[i] = new(sql.NullBool)
-		case subscriptionplan.FieldPrice, subscriptionplan.FieldOriginalPrice, subscriptionplan.FieldTotalQuota, subscriptionplan.FieldDailyQuota:
+		case subscriptionplan.FieldPrice, subscriptionplan.FieldPriceMultiplier, subscriptionplan.FieldOriginalPrice, subscriptionplan.FieldTotalQuota, subscriptionplan.FieldDailyQuota:
 			values[i] = new(sql.NullFloat64)
 		case subscriptionplan.FieldID, subscriptionplan.FieldGroupID, subscriptionplan.FieldValidityDays, subscriptionplan.FieldSortOrder:
 			values[i] = new(sql.NullInt64)
@@ -113,6 +115,12 @@ func (_m *SubscriptionPlan) assignValues(columns []string, values []any) error {
 				return fmt.Errorf("unexpected type %T for field price", values[i])
 			} else if value.Valid {
 				_m.Price = value.Float64
+			}
+		case subscriptionplan.FieldPriceMultiplier:
+			if value, ok := values[i].(*sql.NullFloat64); !ok {
+				return fmt.Errorf("unexpected type %T for field price_multiplier", values[i])
+			} else if value.Valid {
+				_m.PriceMultiplier = value.Float64
 			}
 		case subscriptionplan.FieldOriginalPrice:
 			if value, ok := values[i].(*sql.NullFloat64); !ok {
@@ -242,6 +250,9 @@ func (_m *SubscriptionPlan) String() string {
 	builder.WriteString(", ")
 	builder.WriteString("price=")
 	builder.WriteString(fmt.Sprintf("%v", _m.Price))
+	builder.WriteString(", ")
+	builder.WriteString("price_multiplier=")
+	builder.WriteString(fmt.Sprintf("%v", _m.PriceMultiplier))
 	builder.WriteString(", ")
 	if v := _m.OriginalPrice; v != nil {
 		builder.WriteString("original_price=")

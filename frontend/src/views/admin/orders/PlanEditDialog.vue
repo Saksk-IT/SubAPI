@@ -305,7 +305,7 @@ watch(() => props.show, async (visible) => {
     Object.assign(planForm, { name: props.plan.name, group_id: props.plan.group_id, description: props.plan.description, price: props.plan.price, original_price: props.plan.original_price || 0, validity_days: props.plan.validity_days, validity_unit: props.plan.validity_unit || 'days', price_multiplier: DEFAULT_PLAN_PRICE_MULTIPLIER, display_notes: props.plan.display_notes || '', for_sale: props.plan.for_sale })
     planForm.validity_unit = derivedValidityUnit.value
     await loadRateScheduleSettings()
-    planForm.price_multiplier = inferPlanPriceMultiplier(props.plan.price)
+    planForm.price_multiplier = normalizePositiveNumber(props.plan.price_multiplier) ?? inferPlanPriceMultiplier(props.plan.price)
     syncCalculatedPrice()
     planFeaturesText.value = (props.plan.features || []).join('\n')
     planTagsText.value = Array.isArray(props.plan.tags) ? props.plan.tags.join('\n') : (props.plan.tags || '')
@@ -329,15 +329,22 @@ watch(calculatedPlanPrice, () => {
   syncCalculatedPrice()
 })
 
+watch(() => planForm.price_multiplier, () => {
+  if (resettingPlanForm.value) return
+  syncCalculatedPrice()
+})
+
 /** Build request payload with snake_case keys matching backend JSON tags */
 function buildPlanPayload() {
   const features = planFeaturesText.value.split('\n').map(f => f.trim()).filter(Boolean).join('\n')
   const tags = planTagsText.value.split('\n').map(f => f.trim()).filter(Boolean).join('\n')
+  const priceMultiplier = normalizePositiveNumber(planForm.price_multiplier) ?? DEFAULT_PLAN_PRICE_MULTIPLIER
   return {
     name: planForm.name,
     group_id: planForm.group_id,
     description: planForm.description,
     price: planForm.price,
+    price_multiplier: priceMultiplier,
     original_price: planForm.original_price || 0,
     validity_days: planForm.validity_days,
     validity_unit: planForm.validity_unit,

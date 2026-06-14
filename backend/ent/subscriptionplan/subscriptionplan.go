@@ -21,6 +21,8 @@ const (
 	FieldDescription = "description"
 	// FieldPrice holds the string denoting the price field in the database.
 	FieldPrice = "price"
+	// FieldPriceMultiplier holds the string denoting the price_multiplier field in the database.
+	FieldPriceMultiplier = "price_multiplier"
 	// FieldOriginalPrice holds the string denoting the original_price field in the database.
 	FieldOriginalPrice = "original_price"
 	// FieldValidityDays holds the string denoting the validity_days field in the database.
@@ -58,6 +60,7 @@ var Columns = []string{
 	FieldName,
 	FieldDescription,
 	FieldPrice,
+	FieldPriceMultiplier,
 	FieldOriginalPrice,
 	FieldValidityDays,
 	FieldValidityUnit,
@@ -88,6 +91,8 @@ var (
 	NameValidator func(string) error
 	// DefaultDescription holds the default value on creation for the "description" field.
 	DefaultDescription string
+	// DefaultPriceMultiplier holds the default value on creation for the "price_multiplier" field.
+	DefaultPriceMultiplier float64
 	// DefaultValidityDays holds the default value on creation for the "validity_days" field.
 	DefaultValidityDays int
 	// DefaultValidityUnit holds the default value on creation for the "validity_unit" field.
@@ -142,6 +147,11 @@ func ByDescription(opts ...sql.OrderTermOption) OrderOption {
 // ByPrice orders the results by the price field.
 func ByPrice(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldPrice, opts...).ToFunc()
+}
+
+// ByPriceMultiplier orders the results by the price_multiplier field.
+func ByPriceMultiplier(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldPriceMultiplier, opts...).ToFunc()
 }
 
 // ByOriginalPrice orders the results by the original_price field.

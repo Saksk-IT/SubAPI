@@ -60,7 +60,8 @@ func (h *PaymentHandler) GetPlans(c *gin.Context) {
 		result = append(result, checkoutPlan{
 			ID: int64(p.ID), GroupID: p.GroupID, GroupPlatform: platformMap[p.GroupID],
 			Name: p.Name, Description: p.Description, Price: p.Price, OriginalPrice: p.OriginalPrice,
-			ValidityDays: p.ValidityDays, ValidityUnit: p.ValidityUnit, Features: parseFeatures(p.Features),
+			PriceMultiplier: p.PriceMultiplier,
+			ValidityDays:    p.ValidityDays, ValidityUnit: p.ValidityUnit, Features: parseFeatures(p.Features),
 			Tags: parseFeatures(display.Tags), TotalQuota: display.TotalQuota, DailyQuota: display.DailyQuota, DisplayNotes: display.DisplayNotes,
 			ProductName: p.ProductName, ForSale: p.ForSale, SortOrder: p.SortOrder,
 		})
@@ -114,7 +115,8 @@ func (h *PaymentHandler) GetCheckoutInfo(c *gin.Context) {
 			WeeklyLimitUSD: gi.WeeklyLimitUSD, MonthlyLimitUSD: gi.MonthlyLimitUSD,
 			ModelScopes: gi.ModelScopes,
 			Name:        p.Name, Description: p.Description, Price: p.Price, OriginalPrice: p.OriginalPrice,
-			ValidityDays: p.ValidityDays, ValidityUnit: p.ValidityUnit, Features: parseFeatures(p.Features),
+			PriceMultiplier: p.PriceMultiplier,
+			ValidityDays:    p.ValidityDays, ValidityUnit: p.ValidityUnit, Features: parseFeatures(p.Features),
 			Tags: parseFeatures(display.Tags), TotalQuota: display.TotalQuota, DailyQuota: display.DailyQuota, DisplayNotes: display.DisplayNotes,
 			ProductName: p.ProductName, ForSale: p.ForSale, SortOrder: p.SortOrder,
 		})
@@ -188,6 +190,7 @@ type checkoutPlan struct {
 	Name            string   `json:"name"`
 	Description     string   `json:"description"`
 	Price           float64  `json:"price"`
+	PriceMultiplier float64  `json:"price_multiplier"`
 	OriginalPrice   *float64 `json:"original_price,omitempty"`
 	ValidityDays    int      `json:"validity_days"`
 	ValidityUnit    string   `json:"validity_unit"`

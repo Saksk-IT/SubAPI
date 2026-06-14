@@ -19,6 +19,16 @@ export interface ProductSortOrderUpdate {
   sort_order: number
 }
 
+export interface BulkUpdatePlansRequest {
+  plan_ids: number[]
+  fields: {
+    price_multiplier?: number
+    description?: string
+    features?: string
+    tags?: string
+  }
+}
+
 /** Admin-facing payment config returned by GET /admin/payment/config */
 export interface AdminPaymentConfig {
   enabled: boolean
@@ -155,6 +165,10 @@ export const adminPaymentAPI = {
   /** Update a subscription plan */
   updatePlan(id: number, data: Record<string, unknown>) {
     return apiClient.put<SubscriptionPlan>(`/admin/payment/plans/${id}`, data)
+  },
+
+  bulkUpdatePlans(data: BulkUpdatePlansRequest) {
+    return apiClient.put<{ updated: number }>('/admin/payment/plans/bulk', data)
   },
 
   updatePlanSortOrder(updates: ProductSortOrderUpdate[]) {
