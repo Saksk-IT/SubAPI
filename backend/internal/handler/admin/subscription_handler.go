@@ -54,6 +54,12 @@ type BulkAssignSubscriptionRequest struct {
 	Notes        string  `json:"notes"`
 }
 
+// BulkAdjustSubscriptionRequest represents bulk adjust subscription request
+type BulkAdjustSubscriptionRequest struct {
+	SubscriptionIDs []int64 `json:"subscription_ids" binding:"required,min=1"`
+	Days            int     `json:"days" binding:"required,min=-36500,max=36500"`
+}
+
 // AdjustSubscriptionRequest represents adjust subscription request (extend or shorten)
 type AdjustSubscriptionRequest struct {
 	Days int `json:"days" binding:"required,min=-36500,max=36500"` // negative to shorten, positive to extend
@@ -184,6 +190,40 @@ func (h *SubscriptionHandler) BulkAssign(c *gin.Context) {
 	}
 
 	response.Success(c, dto.BulkAssignResultFromService(result))
+}
+
+// BulkAdjust handles bulk adjusting subscriptions.
+// POST /api/v1/admin/subscriptions/bulk-adjust
+func (h *SubscriptionHandler) BulkAdjust(c *gin.Context) {
+	var req BulkAdjustSubscriptionRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "Invalid request: "+err.Error())
+		return
+	}
+
+	subscriptionIDs := normalizeInt64IDList(req.SubscriptionIDs)
+	if len(subscriptionIDs) == 0 {
+		response.BadRequest(c, "subscription_ids must include at least one valid ID")
+		return
+	}
+
+	idempotencyPayload := struct {
+		SubscriptionIDs []int64 `json:"subscription_ids"`
+		Days            int     `json:"days"`
+	}{
+		SubscriptionIDs: subscriptionIDs,
+		Days:            req.Days,
+	}
+	executeAdminIdempotentJSON(c, "admin.subscriptions.bulk-adjust", idempotencyPayload, service.DefaultWriteIdempotencyTTL(), func(ctx context.Context) (any, error) {
+		result, execErr := h.subscriptionService.BulkAdjustSubscription(ctx, &service.BulkAdjustSubscriptionInput{
+			SubscriptionIDs: subscriptionIDs,
+			Days:            req.Days,
+		})
+		if execErr != nil {
+			return nil, execErr
+		}
+		return dto.BulkAdjustResultFromService(result), nil
+	})
 }
 
 // Extend handles adjusting a subscription (extend or shorten)

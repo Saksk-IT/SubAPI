@@ -9,6 +9,8 @@ import type {
   SubscriptionProgress,
   AssignSubscriptionRequest,
   BulkAssignSubscriptionRequest,
+  BulkAdjustSubscriptionRequest,
+  BulkAdjustSubscriptionResult,
   ExtendSubscriptionRequest,
   PaginatedResponse
 } from '@/types'
@@ -89,6 +91,21 @@ export async function bulkAssign(
 ): Promise<UserSubscription[]> {
   const { data } = await apiClient.post<UserSubscription[]>(
     '/admin/subscriptions/bulk-assign',
+    request
+  )
+  return data
+}
+
+/**
+ * Bulk adjust subscription validity
+ * @param request - Bulk adjustment request
+ * @returns Adjustment summary
+ */
+export async function bulkAdjust(
+  request: BulkAdjustSubscriptionRequest
+): Promise<BulkAdjustSubscriptionResult> {
+  const { data } = await apiClient.post<BulkAdjustSubscriptionResult>(
+    '/admin/subscriptions/bulk-adjust',
     request
   )
   return data
@@ -186,6 +203,7 @@ export const subscriptionsAPI = {
   getProgress,
   assign,
   bulkAssign,
+  bulkAdjust,
   extend,
   revoke,
   resetQuota,

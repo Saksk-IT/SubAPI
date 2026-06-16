@@ -153,6 +153,14 @@
               </div>
             </div>
             <button
+              @click="openBulkAdjustModal"
+              :disabled="selectedCount === 0 || bulkAdjusting"
+              class="btn btn-secondary"
+            >
+              <Icon name="edit" size="md" class="mr-2" />
+              {{ t('admin.subscriptions.bulkAdjust') }}
+            </button>
+            <button
               @click="showGuideModal = true"
               class="btn btn-secondary"
               :title="t('admin.subscriptions.guide.showGuide')"
@@ -178,6 +186,26 @@
           default-sort-order="desc"
           @sort="handleSort"
         >
+          <template #header-select>
+            <input
+              type="checkbox"
+              class="h-4 w-4 cursor-pointer rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+              :checked="allVisibleSelected"
+              @click.stop
+              @change="toggleSelectAllVisible($event)"
+            />
+          </template>
+
+          <template #cell-select="{ row }">
+            <input
+              type="checkbox"
+              class="h-4 w-4 cursor-pointer rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+              :checked="selectedSubscriptionIds.has(row.id)"
+              @click.stop
+              @change="toggleSelectRow(row.id, $event)"
+            />
+          </template>
+
           <template #cell-user="{ row }">
             <div class="flex items-center gap-2">
               <div
@@ -633,6 +661,55 @@
       </template>
     </BaseDialog>
 
+    <!-- Bulk Adjust Subscription Modal -->
+    <BaseDialog
+      :show="showBulkAdjustModal"
+      :title="t('admin.subscriptions.bulkAdjustSubscription')"
+      width="narrow"
+      @close="closeBulkAdjustModal"
+    >
+      <form
+        id="bulk-adjust-subscription-form"
+        @submit.prevent="handleBulkAdjustSubscriptions"
+        class="space-y-5"
+      >
+        <div class="rounded-lg bg-gray-50 p-4 dark:bg-dark-700">
+          <p class="text-sm font-medium text-gray-900 dark:text-white">
+            {{ t('admin.subscriptions.selectedCount', { count: selectedCount }) }}
+          </p>
+          <p class="mt-1 text-sm text-gray-600 dark:text-gray-400">
+            {{ t('admin.subscriptions.bulkAdjustHint') }}
+          </p>
+        </div>
+        <div>
+          <label class="input-label">{{ t('admin.subscriptions.form.adjustDays') }}</label>
+          <input
+            v-model.number="bulkAdjustForm.days"
+            type="number"
+            required
+            class="input text-center"
+            :placeholder="t('admin.subscriptions.adjustDaysPlaceholder')"
+          />
+          <p class="input-hint">{{ t('admin.subscriptions.adjustHint') }}</p>
+        </div>
+      </form>
+      <template #footer>
+        <div class="flex justify-end gap-3">
+          <button @click="closeBulkAdjustModal" type="button" class="btn btn-secondary">
+            {{ t('common.cancel') }}
+          </button>
+          <button
+            type="submit"
+            form="bulk-adjust-subscription-form"
+            :disabled="bulkAdjusting"
+            class="btn btn-primary"
+          >
+            {{ bulkAdjusting ? t('admin.subscriptions.adjusting') : t('admin.subscriptions.adjust') }}
+          </button>
+        </div>
+      </template>
+    </BaseDialog>
+
     <!-- Revoke Confirmation Dialog -->
     <ConfirmDialog
       :show="showRevokeDialog"
@@ -747,6 +824,7 @@ import type { SimpleUser } from '@/api/admin/usage'
 import type { Column } from '@/components/common/types'
 import { formatDateOnly } from '@/utils/format'
 import { getPersistedPageSize } from '@/composables/usePersistedPageSize'
+import { useTableSelection } from '@/composables/useTableSelection'
 import AppLayout from '@/components/layout/AppLayout.vue'
 import TablePageLayout from '@/components/layout/TablePageLayout.vue'
 import DataTable from '@/components/common/DataTable.vue'
@@ -812,6 +890,12 @@ const setUserColumnMode = (mode: 'email' | 'username') => {
 // All available columns
 const allColumns = computed<Column[]>(() => [
   {
+    key: 'select',
+    label: '',
+    sortable: false,
+    class: 'w-12'
+  },
+  {
     key: 'user',
     label: userColumnMode.value === 'email'
       ? t('admin.subscriptions.columns.user')
@@ -827,7 +911,7 @@ const allColumns = computed<Column[]>(() => [
 
 // Columns that can be toggled (exclude user and actions which are always visible)
 const toggleableColumns = computed(() =>
-  allColumns.value.filter(col => col.key !== 'user' && col.key !== 'actions')
+  allColumns.value.filter(col => !['select', 'user', 'actions'].includes(col.key))
 )
 
 // Hidden columns set
@@ -880,7 +964,7 @@ const isColumnVisible = (key: string) => !hiddenColumns.has(key)
 // Filtered columns for display
 const columns = computed<Column[]>(() =>
   allColumns.value.filter(col =>
-    col.key === 'user' || col.key === 'actions' || !hiddenColumns.has(col.key)
+    ['select', 'user', 'actions'].includes(col.key) || !hiddenColumns.has(col.key)
   )
 )
 
@@ -939,9 +1023,11 @@ const pagination = reactive({
 
 const showAssignModal = ref(false)
 const showExtendModal = ref(false)
+const showBulkAdjustModal = ref(false)
 const showRevokeDialog = ref(false)
 const showResetQuotaConfirm = ref(false)
 const submitting = ref(false)
+const bulkAdjusting = ref(false)
 const resettingSubscription = ref<UserSubscription | null>(null)
 const resettingQuota = ref(false)
 const extendingSubscription = ref<UserSubscription | null>(null)
@@ -955,6 +1041,23 @@ const assignForm = reactive({
 
 const extendForm = reactive({
   days: 30
+})
+
+const bulkAdjustForm = reactive({
+  days: 30
+})
+
+const {
+  selectedSet: selectedSubscriptionIds,
+  selectedCount,
+  allVisibleSelected,
+  select,
+  deselect,
+  clear: clearSelectedSubscriptions,
+  toggleVisible
+} = useTableSelection<UserSubscription>({
+  rows: subscriptions,
+  getId: (subscription) => subscription.id
 })
 
 // Group options for filter (all groups)
@@ -1157,6 +1260,20 @@ const handleSort = (key: string, order: 'asc' | 'desc') => {
   loadSubscriptions()
 }
 
+const toggleSelectRow = (id: number, event: Event) => {
+  const target = event.target as HTMLInputElement
+  if (target.checked) {
+    select(id)
+    return
+  }
+  deselect(id)
+}
+
+const toggleSelectAllVisible = (event: Event) => {
+  const target = event.target as HTMLInputElement
+  toggleVisible(target.checked)
+}
+
 const closeAssignModal = () => {
   showAssignModal.value = false
   assignForm.user_id = null
@@ -1212,8 +1329,28 @@ const closeExtendModal = () => {
   extendingSubscription.value = null
 }
 
+const isAdjustDaysInvalid = (days: number) =>
+  !Number.isFinite(days) || days === 0 || days < -36500 || days > 36500
+
+const openBulkAdjustModal = () => {
+  if (selectedCount.value === 0) {
+    appStore.showInfo(t('admin.subscriptions.selectSubscriptionsFirst'))
+    return
+  }
+  bulkAdjustForm.days = 30
+  showBulkAdjustModal.value = true
+}
+
+const closeBulkAdjustModal = () => {
+  showBulkAdjustModal.value = false
+}
+
 const handleExtendSubscription = async () => {
   if (!extendingSubscription.value) return
+  if (isAdjustDaysInvalid(extendForm.days)) {
+    appStore.showError(t('admin.subscriptions.adjustDaysRequired'))
+    return
+  }
 
   // 前端验证：调整后的过期时间必须在未来
   if (extendingSubscription.value.expires_at) {
@@ -1238,6 +1375,44 @@ const handleExtendSubscription = async () => {
     console.error('Error adjusting subscription:', error)
   } finally {
     submitting.value = false
+  }
+}
+
+const handleBulkAdjustSubscriptions = async () => {
+  const ids = Array.from(selectedSubscriptionIds.value)
+  if (ids.length === 0) {
+    appStore.showInfo(t('admin.subscriptions.selectSubscriptionsFirst'))
+    return
+  }
+  if (isAdjustDaysInvalid(bulkAdjustForm.days)) {
+    appStore.showError(t('admin.subscriptions.adjustDaysRequired'))
+    return
+  }
+
+  bulkAdjusting.value = true
+  try {
+    const result = await adminAPI.subscriptions.bulkAdjust({
+      subscription_ids: ids,
+      days: bulkAdjustForm.days
+    })
+    if (result.failed_count > 0) {
+      appStore.showError(
+        t('admin.subscriptions.bulkAdjustPartial', {
+          success: result.success_count,
+          failed: result.failed_count
+        })
+      )
+    } else {
+      appStore.showSuccess(t('admin.subscriptions.bulkAdjusted', { count: result.success_count }))
+    }
+    closeBulkAdjustModal()
+    clearSelectedSubscriptions()
+    await loadSubscriptions()
+  } catch (error: any) {
+    appStore.showError(error.response?.data?.detail || t('admin.subscriptions.failedToBulkAdjust'))
+    console.error('Error bulk adjusting subscriptions:', error)
+  } finally {
+    bulkAdjusting.value = false
   }
 }
 

@@ -220,6 +220,30 @@ func (s *subscriptionUserSubRepoStub) Update(_ context.Context, sub *UserSubscri
 	return nil
 }
 
+func (s *subscriptionUserSubRepoStub) ExtendExpiry(_ context.Context, subscriptionID int64, newExpiresAt time.Time) error {
+	existing := s.byID[subscriptionID]
+	if existing == nil {
+		return ErrSubscriptionNotFound
+	}
+	cp := *existing
+	cp.ExpiresAt = newExpiresAt
+	s.byID[cp.ID] = &cp
+	s.byUserGroup[s.key(cp.UserID, cp.GroupID)] = &cp
+	return nil
+}
+
+func (s *subscriptionUserSubRepoStub) UpdateStatus(_ context.Context, subscriptionID int64, status string) error {
+	existing := s.byID[subscriptionID]
+	if existing == nil {
+		return ErrSubscriptionNotFound
+	}
+	cp := *existing
+	cp.Status = status
+	s.byID[cp.ID] = &cp
+	s.byUserGroup[s.key(cp.UserID, cp.GroupID)] = &cp
+	return nil
+}
+
 func TestAssignSubscriptionReuseWhenSemanticsMatch(t *testing.T) {
 	start := time.Date(2026, 2, 20, 10, 0, 0, 0, time.UTC)
 	groupRepo := &subscriptionGroupRepoStub{
@@ -316,6 +340,65 @@ func TestBulkAssignSubscriptionCreatedReusedAndConflict(t *testing.T) {
 	require.Equal(t, "created", result.Statuses[2])
 	require.Equal(t, "failed", result.Statuses[3])
 	require.Equal(t, 1, subRepo.createCalls)
+}
+
+func TestBulkAdjustSubscriptionAdjustsEachSubscription(t *testing.T) {
+	expiresAt := time.Now().AddDate(0, 0, 30)
+	subRepo := newSubscriptionUserSubRepoStub()
+	subRepo.seed(&UserSubscription{
+		ID:        31,
+		UserID:    1001,
+		GroupID:   1,
+		ExpiresAt: expiresAt,
+		Status:    SubscriptionStatusActive,
+	})
+	subRepo.seed(&UserSubscription{
+		ID:        32,
+		UserID:    1002,
+		GroupID:   1,
+		ExpiresAt: expiresAt,
+		Status:    SubscriptionStatusActive,
+	})
+
+	svc := NewSubscriptionService(&subscriptionGroupRepoStub{}, subRepo, nil, nil, nil)
+	result, err := svc.BulkAdjustSubscription(context.Background(), &BulkAdjustSubscriptionInput{
+		SubscriptionIDs: []int64{31, 32},
+		Days:            7,
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, 2, result.SuccessCount)
+	require.Equal(t, 0, result.FailedCount)
+	require.Equal(t, "adjusted", result.Statuses[31])
+	require.Equal(t, "adjusted", result.Statuses[32])
+	updated, err := subRepo.GetByID(context.Background(), 31)
+	require.NoError(t, err)
+	require.WithinDuration(t, expiresAt.AddDate(0, 0, 7), updated.ExpiresAt, time.Second)
+}
+
+func TestBulkAdjustSubscriptionReportsPartialFailure(t *testing.T) {
+	expiresAt := time.Now().AddDate(0, 0, 30)
+	subRepo := newSubscriptionUserSubRepoStub()
+	subRepo.seed(&UserSubscription{
+		ID:        41,
+		UserID:    1001,
+		GroupID:   1,
+		ExpiresAt: expiresAt,
+		Status:    SubscriptionStatusActive,
+	})
+
+	svc := NewSubscriptionService(&subscriptionGroupRepoStub{}, subRepo, nil, nil, nil)
+	result, err := svc.BulkAdjustSubscription(context.Background(), &BulkAdjustSubscriptionInput{
+		SubscriptionIDs: []int64{41, 404},
+		Days:            3,
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, 1, result.SuccessCount)
+	require.Equal(t, 1, result.FailedCount)
+	require.Equal(t, "adjusted", result.Statuses[41])
+	require.Equal(t, "failed", result.Statuses[404])
+	require.Len(t, result.Errors, 1)
 }
 
 func TestAssignSubscriptionKeepsWorkingWhenIdempotencyStoreUnavailable(t *testing.T) {

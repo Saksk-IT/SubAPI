@@ -779,6 +779,27 @@ func BulkAssignResultFromService(r *service.BulkAssignResult) *BulkAssignResult 
 	}
 }
 
+func BulkAdjustResultFromService(r *service.BulkAdjustResult) *BulkAdjustResult {
+	if r == nil {
+		return nil
+	}
+	subs := make([]AdminUserSubscription, 0, len(r.Subscriptions))
+	for i := range r.Subscriptions {
+		subs = append(subs, *UserSubscriptionFromServiceAdmin(&r.Subscriptions[i]))
+	}
+	statuses := make(map[string]string, len(r.Statuses))
+	for subscriptionID, status := range r.Statuses {
+		statuses[strconv.FormatInt(subscriptionID, 10)] = status
+	}
+	return &BulkAdjustResult{
+		SuccessCount:  r.SuccessCount,
+		FailedCount:   r.FailedCount,
+		Subscriptions: subs,
+		Errors:        r.Errors,
+		Statuses:      statuses,
+	}
+}
+
 func PromoCodeFromService(pc *service.PromoCode) *PromoCode {
 	if pc == nil {
 		return nil

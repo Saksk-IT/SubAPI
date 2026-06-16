@@ -398,6 +398,21 @@ type BulkAssignResult struct {
 	Statuses      map[int64]string
 }
 
+// BulkAdjustSubscriptionInput 批量调整订阅输入
+type BulkAdjustSubscriptionInput struct {
+	SubscriptionIDs []int64
+	Days            int
+}
+
+// BulkAdjustResult 批量调整结果
+type BulkAdjustResult struct {
+	SuccessCount  int
+	FailedCount   int
+	Subscriptions []UserSubscription
+	Errors        []string
+	Statuses      map[int64]string
+}
+
 // BulkAssignSubscription 批量分配订阅
 func (s *SubscriptionService) BulkAssignSubscription(ctx context.Context, input *BulkAssignSubscriptionInput) (*BulkAssignResult, error) {
 	result := &BulkAssignResult{
@@ -429,6 +444,34 @@ func (s *SubscriptionService) BulkAssignSubscription(ctx context.Context, input 
 				result.Statuses[userID] = "created"
 			}
 		}
+	}
+
+	return result, nil
+}
+
+// BulkAdjustSubscription 批量调整订阅时长
+func (s *SubscriptionService) BulkAdjustSubscription(ctx context.Context, input *BulkAdjustSubscriptionInput) (*BulkAdjustResult, error) {
+	result := &BulkAdjustResult{
+		Subscriptions: make([]UserSubscription, 0),
+		Errors:        make([]string, 0),
+		Statuses:      make(map[int64]string),
+	}
+	if input == nil {
+		return result, ErrSubscriptionNilInput
+	}
+
+	for _, subscriptionID := range input.SubscriptionIDs {
+		sub, err := s.ExtendSubscription(ctx, subscriptionID, input.Days)
+		if err != nil {
+			result.FailedCount++
+			result.Errors = append(result.Errors, fmt.Sprintf("subscription %d: %v", subscriptionID, err))
+			result.Statuses[subscriptionID] = "failed"
+			continue
+		}
+
+		result.SuccessCount++
+		result.Subscriptions = append(result.Subscriptions, *sub)
+		result.Statuses[subscriptionID] = "adjusted"
 	}
 
 	return result, nil
