@@ -5,15 +5,15 @@ import { Icon } from '@/components/icons'
 <template>
   <h1>Open Claw 完整接入流程</h1>
   <section id="openClawStart" class="codex-callout codex-callout--important">
-    <p><strong>开始前请先完成 API Key 准备：</strong>Open Claw 的 OpenAI-compatible 地址通常填写 <code>https://api.sakms.top/v1</code>。如果“使用密钥”弹窗给出的地址不同，请以弹窗为准。</p>
+    <p><strong>开始前请先完成 API Key 准备：</strong>Open Claw 的 OpenAI-compatible 地址通常填写 <code>https://sakai.my/v1</code>。如果“使用密钥”弹窗给出的地址不同，请以弹窗为准。</p>
   </section>
 
   <h2>1. 从第一步开始：注册、兑换、创建 Key</h2>
   <ol class="codex-steps-list">
-    <li>打开 <a href="https://api.sakms.top/register" target="_blank" rel="noopener noreferrer">中转注册页</a>，填写邮箱、验证码和密码，完成账户注册。</li>
+    <li>打开 <a href="https://sakai.my/register" target="_blank" rel="noopener noreferrer">中转注册页</a>，填写邮箱、验证码和密码，完成账户注册。</li>
     <li>使用质保补发兑换码、站内兑换码，或通过 <a href="https://pay.ldxp.cn/shop/LSSZLMUY" target="_blank" rel="noopener noreferrer">链动小铺卡密地址</a> 购买额度包并兑换。</li>
-    <li>兑换后打开 <a href="https://api.sakms.top/profile" target="_blank" rel="noopener noreferrer">额度查询页</a>，确认余额或订阅权益到账。</li>
-    <li>进入 <a href="https://api.sakms.top/keys" target="_blank" rel="noopener noreferrer">API 密钥页面</a>，点击“创建密钥”，按兑换码来源选择“质保补偿”或 GPT / GPT-Plus 分组。</li>
+    <li>兑换后打开 <a href="https://sakai.my/profile" target="_blank" rel="noopener noreferrer">额度查询页</a>，确认余额或订阅权益到账。</li>
+    <li>进入 <a href="https://sakai.my/keys" target="_blank" rel="noopener noreferrer">API 密钥页面</a>，点击“创建密钥”，按兑换码来源选择“质保补偿”或 GPT / GPT-Plus 分组。</li>
     <li>创建后点击“使用密钥”，复制 Open Claw 或 OpenAI-compatible 配置中的 <code>base_url</code> 和 <code>api_key</code>。</li>
   </ol>
 
@@ -28,7 +28,7 @@ import { Icon } from '@/components/icons'
   </ol>
   <pre class="codex-code-block"><code>{
   "provider": "openai",
-  "base_url": "https://api.sakms.top/v1",
+  "base_url": "https://sakai.my/v1",
   "api": "openai-completions",
   "api_key": "填写你的 API 密钥",
   "model": {
@@ -58,7 +58,7 @@ import { Icon } from '@/components/icons'
     "providers": {
       "sakms": {
         "apiKey": "填写你的 API 密钥",
-        "baseURL": "https://api.sakms.top/v1",
+        "baseURL": "https://sakai.my/v1",
         "api": "openai-responses",
         "models": [
           {
@@ -76,9 +76,9 @@ import { Icon } from '@/components/icons'
 
   <h2 id="openClawCheck">4. 验证与快速检查</h2>
   <ul class="codex-checklist">
-    <li><Icon name="checkCircle" class="codex-icon" /><span><code>base_url</code> / <code>baseURL</code> 是否为 <code>https://api.sakms.top/v1</code>，或是否与“使用密钥”弹窗一致。</span></li>
+    <li><Icon name="checkCircle" class="codex-icon" /><span><code>base_url</code> / <code>baseURL</code> 是否为 <code>https://sakai.my/v1</code>，或是否与“使用密钥”弹窗一致。</span></li>
     <li><Icon name="checkCircle" class="codex-icon" /><span><code>api_key</code> / <code>apiKey</code> 是否已替换成自己的真实 API Key，没有保留“填写你的 API 密钥”。</span></li>
     <li><Icon name="checkCircle" class="codex-icon" /><span>云端配置使用 <code>openai-completions</code>，本地配置使用 <code>openai-responses</code>，除非客户端版本另有提示。</span></li>
-    <li><Icon name="checkCircle" class="codex-icon" /><span>出现 <code>401</code> 时重新复制 Key；出现 <code>404</code> 时检查 <code>/v1</code>；出现额度不足时打开 <a href="https://api.sakms.top/profile" target="_blank" rel="noopener noreferrer">额度查询页</a>。</span></li>
+    <li><Icon name="checkCircle" class="codex-icon" /><span>出现 <code>401</code> 时重新复制 Key；出现 <code>404</code> 时检查 <code>/v1</code>；出现额度不足时打开 <a href="https://sakai.my/profile" target="_blank" rel="noopener noreferrer">额度查询页</a>。</span></li>
   </ul>
 </template>

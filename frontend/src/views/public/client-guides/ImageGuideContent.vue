@@ -20,7 +20,7 @@ import { Icon } from '@/components/icons'
   <ol class="codex-steps-list">
     <li>打开 Cherry Studio，点击右上角设置按钮。</li>
     <li>在“模型服务”中找到并选择 <strong>New API</strong>。</li>
-    <li>填写 API 地址和密钥。API 地址填写 <code>https://api.sakms.top/</code>，API 密钥填写你自己的中转 API Key。</li>
+    <li>填写 API 地址和密钥。API 地址填写 <code>https://sakai.my/</code>，API 密钥填写你自己的中转 API Key。</li>
   </ol>
   <div class="codex-image-grid">
     <figure class="codex-figure">
@@ -37,7 +37,7 @@ import { Icon } from '@/components/icons'
     </figure>
   </div>
   <section class="codex-callout">
-    <p><strong>填写提醒：</strong>API 地址固定填写 <code>https://api.sakms.top/</code>。API 密钥请从 <a href="https://api.sakms.top/keys" target="_blank" rel="noopener noreferrer">中转后台 API 密钥页面</a> 复制自己的 Key，不要复制教程截图。</p>
+    <p><strong>填写提醒：</strong>API 地址固定填写 <code>https://sakai.my/</code>。API 密钥请从 <a href="https://sakai.my/keys" target="_blank" rel="noopener noreferrer">中转后台 API 密钥页面</a> 复制自己的 Key，不要复制教程截图。</p>
   </section>
 
   <h2 id="imageModel">3. 配置图像生成模型</h2>
@@ -94,7 +94,7 @@ import { Icon } from '@/components/icons'
 
   <h2 id="imageCheck">5. 完成检查</h2>
   <ul class="codex-checklist">
-    <li><Icon name="checkCircle" class="codex-icon" /><span>模型服务 API 地址已填写 <code>https://api.sakms.top/</code>。</span></li>
+    <li><Icon name="checkCircle" class="codex-icon" /><span>模型服务 API 地址已填写 <code>https://sakai.my/</code>。</span></li>
     <li><Icon name="checkCircle" class="codex-icon" /><span>API 密钥来自你自己的中转后台账号，没有复制教程截图或他人密钥。</span></li>
     <li><Icon name="checkCircle" class="codex-icon" /><span><code>gpt-image-2</code> 已添加，并且端点类型为“图像生成”。</span></li>
     <li><Icon name="checkCircle" class="codex-icon" /><span>生图入口选择“绘画”，并在发送前确认模型提供商和模型都已切换到刚配置的服务。</span></li>

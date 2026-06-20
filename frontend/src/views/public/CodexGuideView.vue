@@ -77,7 +77,7 @@ const tocSections: TocSection[] = [
           <a href="#quickChecklist" class="codex-doc-link">
             <Icon name="checkCircle" class="codex-icon" /> 快速检查
           </a>
-          <a href="https://api.sakms.top/register" target="_blank" rel="noopener noreferrer" class="codex-doc-cta">
+          <a href="https://sakai.my/register" target="_blank" rel="noopener noreferrer" class="codex-doc-cta">
             <Icon name="externalLink" class="codex-icon" /> 打开中转注册
           </a>
         </div>
@@ -111,7 +111,7 @@ const tocSections: TocSection[] = [
 
       <main class="codex-doc-shell">
         <section class="codex-doc-hero" aria-labelledby="guideTitle">
-          <p class="codex-doc-base">API base_url: https://api.sakms.top/</p>
+          <p class="codex-doc-base">API base_url: https://sakai.my/</p>
           <h1 id="guideTitle">兑换中转 API Key，并接入 Codex</h1>
           <p class="codex-doc-lead">从注册中转账户、兑换中转码、创建 API 密钥，到手动接入 Codex 和常见排错；Claude Code、Open Code、Open Claw、移动端和图像生成请打开对应独立教程页。</p>
           <div class="codex-doc-badges" aria-label="教程要点">
@@ -187,11 +187,11 @@ const tocSections: TocSection[] = [
               <tbody>
                 <tr>
                   <th>中转注册页</th>
-                  <td><a href="https://api.sakms.top/register" target="_blank" rel="noopener noreferrer">https://api.sakms.top/register</a></td>
+                  <td><a href="https://sakai.my/register" target="_blank" rel="noopener noreferrer">https://sakai.my/register</a></td>
                 </tr>
                 <tr>
                   <th>个人资料额度查询页</th>
-                  <td><a href="https://api.sakms.top/profile" target="_blank" rel="noopener noreferrer">https://api.sakms.top/profile</a></td>
+                  <td><a href="https://sakai.my/profile" target="_blank" rel="noopener noreferrer">https://sakai.my/profile</a></td>
                 </tr>
                 <tr>
                   <th>卡密自助购买地址</th>
@@ -244,7 +244,7 @@ const tocSections: TocSection[] = [
         <section class="codex-callout codex-term-callout" aria-label="名词速懂">
           <p><strong>提示｜名词速懂</strong></p>
           <ul class="codex-term-list">
-            <li><strong>base_url：</strong>中转站的前台地址，告诉客户端去哪请求 AI；本教程默认使用 <code>https://api.sakms.top/</code>，部分 OpenAI-compatible 客户端需要按弹窗填写 <code>/v1</code> 后缀。</li>
+            <li><strong>base_url：</strong>中转站的前台地址，告诉客户端去哪请求 AI；本教程默认使用 <code>https://sakai.my/</code>，部分 OpenAI-compatible 客户端需要按弹窗填写 <code>/v1</code> 后缀。</li>
             <li><strong>api_key：</strong>你的“门票”，形如 <code>sk-xxxx</code>，用于区分用户与记录消费；不能泄露，不要发给他人，泄露等于钱包给别人。</li>
             <li><strong>sub2api：</strong>把订阅式服务转换为可被代码或客户端调用的 API，本教程中的中转兑换码和订阅权益都可理解为这个接入链路的一部分。</li>
           </ul>
@@ -323,9 +323,9 @@ const tocSections: TocSection[] = [
 
         <h2 id="register">1.2 注册中转账户</h2>
         <p><strong>操作步骤：</strong>浏览器打开中转注册链接，填写邮箱、获取验证码、设置密码后完成注册；也就是填写验证码后完成创建中转账户。</p>
-        <a class="codex-link-card" href="https://api.sakms.top/register" target="_blank" rel="noopener noreferrer">
+        <a class="codex-link-card" href="https://sakai.my/register" target="_blank" rel="noopener noreferrer">
           <Icon name="externalLink" class="codex-icon" />
-          <span>https://api.sakms.top/register</span>
+          <span>https://sakai.my/register</span>
         </a>
         <figure class="codex-figure">
           <img src="/img/codex-guide/image.png" alt="中转服务注册页面截图" loading="lazy">
@@ -344,7 +344,7 @@ const tocSections: TocSection[] = [
         </section>
 
         <h2 id="redeem">1.4 兑换中转码</h2>
-        <p>登录后进入兑换页面 <a href="https://api.sakms.top/redeem" target="_blank" rel="noopener noreferrer">https://api.sakms.top/redeem</a>，输入提供给你的中转兑换码或额度包兑换码，点击“兑换”。</p>
+        <p>登录后进入兑换页面 <a href="https://sakai.my/redeem" target="_blank" rel="noopener noreferrer">https://sakai.my/redeem</a>，输入提供给你的中转兑换码或额度包兑换码，点击“兑换”。</p>
         <figure class="codex-figure">
           <img src="/img/codex-guide/image-1.png" alt="兑换成功后的页面截图" loading="lazy">
           <figcaption>图 2：兑换成功后，账户会获得对应余额或权益。</figcaption>
@@ -362,7 +362,7 @@ const tocSections: TocSection[] = [
         </section>
 
         <h2 id="createKey">2.1 创建新密钥并选择正确分组</h2>
-        <p>登录后进入 <a href="https://api.sakms.top/keys" target="_blank" rel="noopener noreferrer">API 密钥页面</a>，点击“创建密钥”。名称可按自己需要随便填写，也建议按用途命名，例如 <code>codex</code>、<code>claude-mac</code>、<code>opencode-win</code>，方便后续区分和单独吊销。</p>
+        <p>登录后进入 <a href="https://sakai.my/keys" target="_blank" rel="noopener noreferrer">API 密钥页面</a>，点击“创建密钥”。名称可按自己需要随便填写，也建议按用途命名，例如 <code>codex</code>、<code>claude-mac</code>、<code>opencode-win</code>，方便后续区分和单独吊销。</p>
         <div class="codex-group-grid" aria-label="创建密钥计费模式提醒">
           <article class="codex-group-card codex-group-card--warranty">
             <Icon name="infoCircle" class="codex-icon" />
@@ -549,7 +549,7 @@ const tocSections: TocSection[] = [
         </div>
 
         <h2 id="loginCodex">3.3 重新打开 Codex 并使用 API 登录</h2>
-        <p>完成文件配置后重新打开 Codex，选择“换种方式登录”，再选择 API 登录并粘贴自己的 API 密钥。API 密钥从 <a href="https://api.sakms.top/keys" target="_blank" rel="noopener noreferrer">https://api.sakms.top/keys</a> 获取。</p>
+        <p>完成文件配置后重新打开 Codex，选择“换种方式登录”，再选择 API 登录并粘贴自己的 API 密钥。API 密钥从 <a href="https://sakai.my/keys" target="_blank" rel="noopener noreferrer">https://sakai.my/keys</a> 获取。</p>
         <div class="codex-image-grid codex-image-grid--three">
           <figure class="codex-figure">
             <img src="/img/codex-guide/image-10.png" alt="Codex 选择换种方式登录" loading="lazy">
@@ -570,7 +570,7 @@ const tocSections: TocSection[] = [
 
         <h2 id="quickCheck">4.1 一行命令自检（推荐）</h2>
         <p>复制下方命令到终端，把 <code>sk-xxxx</code> 换成你的真实密钥。如果能返回模型清单，说明 Key 与 base_url 基本正常。</p>
-        <pre class="codex-code-block"><code>curl https://api.sakms.top/v1/models \
+        <pre class="codex-code-block"><code>curl https://sakai.my/v1/models \
   -H "Authorization: Bearer sk-xxxx"</code></pre>
         <ul class="codex-steps-list">
           <li><strong>Windows PowerShell</strong> 用户请把 <code>\</code> 续行符换成反引号 <code>`</code>，或直接写成单行。</li>
@@ -604,12 +604,12 @@ const tocSections: TocSection[] = [
               <tr>
                 <td><code>404 Not Found</code></td>
                 <td><code>base_url</code> 写错，或客户端需要 <code>/v1</code> 但未填写。</td>
-                <td>检查是否与“使用密钥”弹窗一致；OpenAI-compatible 客户端通常使用 <code>https://api.sakms.top/v1</code>。</td>
+                <td>检查是否与“使用密钥”弹窗一致；OpenAI-compatible 客户端通常使用 <code>https://sakai.my/v1</code>。</td>
               </tr>
               <tr>
                 <td><code>余额不足</code> / <code>quota exceeded</code> / <code>429 Too Many Requests</code></td>
                 <td>充值未到账、额度用完、订阅日额度耗尽或触发频率限制。</td>
-                <td><a href="https://api.sakms.top/profile" target="_blank" rel="noopener noreferrer">打开额度查询页面</a> 查看余额和额度；必要时等待刷新或补充额度。</td>
+                <td><a href="https://sakai.my/profile" target="_blank" rel="noopener noreferrer">打开额度查询页面</a> 查看余额和额度；必要时等待刷新或补充额度。</td>
               </tr>
               <tr>
                 <td><code>model not found</code></td>

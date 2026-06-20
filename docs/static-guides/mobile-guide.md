@@ -10,7 +10,7 @@
 
 ## 页面头部信息
 
-API base_url：`https://api.sakms.top/`
+API base_url：`https://sakai.my/`
 
 页面标题：移动端配置教程
 
@@ -87,7 +87,7 @@ API base_url：`https://api.sakms.top/`
 
 图 8：进入 API 配置页。
 
-填写规则：API 主机填写 `https://api.sakms.top/`；API 密钥请前往 <https://api.sakms.top/keys> 创建并复制你自己的 Key。
+填写规则：API 主机填写 `https://sakai.my/`；API 密钥请前往 <https://sakai.my/keys> 创建并复制你自己的 Key。
 
 ![从中转后台复制 API 密钥](../../frontend/public/img/codex-guide/image-40.png)
 
@@ -114,8 +114,8 @@ API base_url：`https://api.sakms.top/`
 ### 4. 完成检查
 
 - API 模式已选择 `OpenAI response API 兼容`。
-- API 主机已填写 `https://api.sakms.top/`。
-- API 密钥来自你自己的 [中转后台](https://api.sakms.top/keys)，不是教程示例。
+- API 主机已填写 `https://sakai.my/`。
+- API 密钥来自你自己的 [中转后台](https://sakai.my/keys)，不是教程示例。
 - 至少已添加一个可用模型，避免新建对话后没有模型可选。
 
 ### 5. 开始使用

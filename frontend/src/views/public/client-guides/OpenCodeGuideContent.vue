@@ -5,15 +5,15 @@ import { Icon } from '@/components/icons'
 <template>
   <h1>Open Code 完整接入流程</h1>
   <section id="openCodeStart" class="codex-callout codex-callout--important">
-    <p><strong>开始前请先拿到自己的 Key：</strong>Open Code 通常使用 OpenAI-compatible 地址 <code>https://api.sakms.top/v1</code>。如“使用密钥”弹窗给出的地址不同，请以弹窗为准。</p>
+    <p><strong>开始前请先拿到自己的 Key：</strong>Open Code 通常使用 OpenAI-compatible 地址 <code>https://sakai.my/v1</code>。如“使用密钥”弹窗给出的地址不同，请以弹窗为准。</p>
   </section>
 
   <h2>1. 从第一步开始：注册、兑换、创建 Key</h2>
   <ol class="codex-steps-list">
-    <li>打开 <a href="https://api.sakms.top/register" target="_blank" rel="noopener noreferrer">中转注册页</a>，用邮箱、验证码和密码注册账户。</li>
+    <li>打开 <a href="https://sakai.my/register" target="_blank" rel="noopener noreferrer">中转注册页</a>，用邮箱、验证码和密码注册账户。</li>
     <li>通过站内兑换、质保补发兑换码或链动小铺额度包获得权益；需要自助购买时打开 <a href="https://pay.ldxp.cn/shop/LSSZLMUY" target="_blank" rel="noopener noreferrer">卡密购买地址</a>。</li>
-    <li>兑换后进入 <a href="https://api.sakms.top/profile" target="_blank" rel="noopener noreferrer">额度查询页</a>，确认余额或订阅额度已经到账。</li>
-    <li>进入 <a href="https://api.sakms.top/keys" target="_blank" rel="noopener noreferrer">API 密钥页面</a>，点击“创建密钥”，按兑换码来源选择正确分组。</li>
+    <li>兑换后进入 <a href="https://sakai.my/profile" target="_blank" rel="noopener noreferrer">额度查询页</a>，确认余额或订阅额度已经到账。</li>
+    <li>进入 <a href="https://sakai.my/keys" target="_blank" rel="noopener noreferrer">API 密钥页面</a>，点击“创建密钥”，按兑换码来源选择正确分组。</li>
     <li>创建后点击“使用密钥”，复制 Open Code 或 OpenAI-compatible 配置中的 <code>baseURL</code> 和 <code>apiKey</code>。</li>
   </ol>
 
@@ -51,7 +51,7 @@ import { Icon } from '@/components/icons'
       "npm": "@ai-sdk/openai-compatible",
       "name": "SAKMS",
       "options": {
-        "baseURL": "https://api.sakms.top/v1",
+        "baseURL": "https://sakai.my/v1",
         "apiKey": "填写你的 API 密钥"
       },
       "models": {
@@ -71,7 +71,7 @@ import { Icon } from '@/components/icons'
   <ol class="codex-steps-list">
     <li>在终端输入 <code>opencode</code> 启动客户端。</li>
     <li>在交互界面输入 <code>/connect</code>。</li>
-    <li>按提示选择 OpenAI-compatible / custom provider，并填写 <code>baseURL</code>：<code>https://api.sakms.top/v1</code>。</li>
+    <li>按提示选择 OpenAI-compatible / custom provider，并填写 <code>baseURL</code>：<code>https://sakai.my/v1</code>。</li>
     <li>继续填写自己的 <code>apiKey</code>，选择模型后发起一次测试对话。</li>
   </ol>
   <pre class="codex-code-block"><code>/connect</code></pre>
@@ -82,6 +82,6 @@ import { Icon } from '@/components/icons'
     <li><Icon name="checkCircle" class="codex-icon" /><span>任意终端输入 <code>opencode</code>，选择 <code>sakms</code> provider 后发起一次对话，能正常返回即成功。</span></li>
     <li><Icon name="checkCircle" class="codex-icon" /><span>返回 <code>404</code> 时，优先检查 <code>baseURL</code> 是否包含 <code>/v1</code>。</span></li>
     <li><Icon name="checkCircle" class="codex-icon" /><span>返回 <code>401</code> 时，重新复制自己的 API Key，确认没有多余空格，也没有复制教程示例。</span></li>
-    <li><Icon name="checkCircle" class="codex-icon" /><span>返回额度不足或限流时，打开 <a href="https://api.sakms.top/profile" target="_blank" rel="noopener noreferrer">额度查询页</a> 检查余额、订阅日额度和密钥分组。</span></li>
+    <li><Icon name="checkCircle" class="codex-icon" /><span>返回额度不足或限流时，打开 <a href="https://sakai.my/profile" target="_blank" rel="noopener noreferrer">额度查询页</a> 检查余额、订阅日额度和密钥分组。</span></li>
   </ul>
 </template>

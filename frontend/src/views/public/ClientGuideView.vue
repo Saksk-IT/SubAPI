@@ -140,7 +140,7 @@ const guidePages: Record<Exclude<GuideKey, 'codex'>, GuidePage> = {
   image: {
     active: 'image',
     title: '图像生成教程',
-    lead: '使用 Cherry Studio 接入 https://api.sakms.top/，配置 gpt-image-2 图像生成端点，并通过绘画入口完成专业生图。',
+    lead: '使用 Cherry Studio 接入 https://sakai.my/，配置 gpt-image-2 图像生成端点，并通过绘画入口完成专业生图。',
     badges: [
       { icon: 'download', label: '下载 Cherry Studio' },
       { icon: 'key', label: '填写 API Key' },
@@ -197,7 +197,7 @@ const page = computed(() => {
           <a href="/codex-guide#chapterKey" class="codex-doc-link">
             <Icon name="key" class="codex-icon" /> 先创建 Key
           </a>
-          <a href="https://api.sakms.top/profile" target="_blank" rel="noopener noreferrer" class="codex-doc-cta">
+          <a href="https://sakai.my/profile" target="_blank" rel="noopener noreferrer" class="codex-doc-cta">
             <Icon name="externalLink" class="codex-icon" /> 打开额度查询
           </a>
         </div>
@@ -231,7 +231,7 @@ const page = computed(() => {
 
       <main class="codex-doc-shell">
         <section class="codex-doc-hero" aria-labelledby="guideTitle">
-          <p class="codex-doc-base">API base_url: https://api.sakms.top/</p>
+          <p class="codex-doc-base">API base_url: https://sakai.my/</p>
           <h1 id="guideTitle">{{ page.title }}</h1>
           <p class="codex-doc-lead">{{ page.lead }}</p>
           <div class="codex-doc-badges" aria-label="教程要点">

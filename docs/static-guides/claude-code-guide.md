@@ -10,7 +10,7 @@
 
 ## 页面头部信息
 
-API base_url：`https://api.sakms.top/`
+API base_url：`https://sakai.my/`
 
 页面标题：Claude Code 配置教程
 
@@ -39,10 +39,10 @@ API base_url：`https://api.sakms.top/`
 
 ### 1. 从第一步开始：注册、兑换、创建 Key
 
-1. 打开 [中转注册页](https://api.sakms.top/register)，填写邮箱、验证码和密码，完成中转账户注册。
+1. 打开 [中转注册页](https://sakai.my/register)，填写邮箱、验证码和密码，完成中转账户注册。
 2. 如果还没有权益，先通过卡密自助购买地址 <https://pay.ldxp.cn/shop/LSSZLMUY> 购买额度包，或使用已发放的质保补发兑换码。
-3. 登录后进入兑换页面，输入中转兑换码或额度包兑换码并兑换；随后打开 [额度查询页](https://api.sakms.top/profile) 确认权益到账。
-4. 进入 [API 密钥页面](https://api.sakms.top/keys)，点击“创建密钥”，按来源选择正确分组：质保补发码选“质保补偿”，链动小铺额度包选 GPT / GPT-Plus。
+3. 登录后进入兑换页面，输入中转兑换码或额度包兑换码并兑换；随后打开 [额度查询页](https://sakai.my/profile) 确认权益到账。
+4. 进入 [API 密钥页面](https://sakai.my/keys)，点击“创建密钥”，按来源选择正确分组：质保补发码选“质保补偿”，链动小铺额度包选 GPT / GPT-Plus。
 5. 创建成功后点击“使用密钥”，切到 Claude Code 配置区域，复制弹窗里的真实 `base_url` 和 `api_key`。
 
 ![Claude Code 配置弹窗示例，密钥已脱敏](../../frontend/public/img/codex-guide/image-22.png)
@@ -68,7 +68,7 @@ API base_url：`https://api.sakms.top/`
 ```json
 {
   "env": {
-    "ANTHROPIC_BASE_URL": "https://api.sakms.top",
+    "ANTHROPIC_BASE_URL": "https://sakai.my",
     "ANTHROPIC_AUTH_TOKEN": "填写你的 API 密钥",
     "ANTHROPIC_MODEL": "gpt-5.5"
   }
@@ -81,8 +81,8 @@ API base_url：`https://api.sakms.top/`
 
 | 系统 | 设置方法 |
 | --- | --- |
-| **Windows PowerShell** | `setx ANTHROPIC_BASE_URL "https://api.sakms.top"`<br>`setx ANTHROPIC_AUTH_TOKEN "填写你的 API 密钥"` |
-| **macOS / zsh** | 在 `~/.zshrc` 末尾追加 `export ANTHROPIC_BASE_URL="https://api.sakms.top"` 和 `export ANTHROPIC_AUTH_TOKEN="填写你的 API 密钥"`，保存后执行 `source ~/.zshrc`。 |
+| **Windows PowerShell** | `setx ANTHROPIC_BASE_URL "https://sakai.my"`<br>`setx ANTHROPIC_AUTH_TOKEN "填写你的 API 密钥"` |
+| **macOS / zsh** | 在 `~/.zshrc` 末尾追加 `export ANTHROPIC_BASE_URL="https://sakai.my"` 和 `export ANTHROPIC_AUTH_TOKEN="填写你的 API 密钥"`，保存后执行 `source ~/.zshrc`。 |
 | **Linux** | 在 `~/.bashrc` 或 `~/.zshrc` 追加同样的 `export` 语句，再重新打开终端。 |
 
 ### 3. 验证与排错
@@ -90,4 +90,4 @@ API base_url：`https://api.sakms.top/`
 - 打开新终端窗口，输入 `claude`，能进入交互并发起一次对话即配置成功。
 - 如果提示认证失败，回到中转站重新复制 Claude Code 配置，并确认没有复制教程截图里的脱敏密钥。
 - 如果配置后仍无效，先退出 Claude Code，再关闭旧终端，重新打开终端后再次输入 `claude`。
-- 如果提示额度或限流，打开 [额度查询页](https://api.sakms.top/profile) 检查余额、订阅日额度和分组是否正确。
+- 如果提示额度或限流，打开 [额度查询页](https://sakai.my/profile) 检查余额、订阅日额度和分组是否正确。

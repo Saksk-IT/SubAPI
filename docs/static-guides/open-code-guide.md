@@ -10,7 +10,7 @@
 
 ## 页面头部信息
 
-API base_url：`https://api.sakms.top/`
+API base_url：`https://sakai.my/`
 
 页面标题：Open Code 配置教程
 
@@ -36,14 +36,14 @@ API base_url：`https://api.sakms.top/`
 
 ### 开始前准备
 
-开始前请先拿到自己的 Key：Open Code 通常使用 OpenAI-compatible 地址 `https://api.sakms.top/v1`。如“使用密钥”弹窗给出的地址不同，请以弹窗为准。
+开始前请先拿到自己的 Key：Open Code 通常使用 OpenAI-compatible 地址 `https://sakai.my/v1`。如“使用密钥”弹窗给出的地址不同，请以弹窗为准。
 
 ### 1. 从第一步开始：注册、兑换、创建 Key
 
-1. 打开 [中转注册页](https://api.sakms.top/register)，用邮箱、验证码和密码注册账户。
+1. 打开 [中转注册页](https://sakai.my/register)，用邮箱、验证码和密码注册账户。
 2. 通过站内兑换、质保补发兑换码或链动小铺额度包获得权益；需要自助购买时打开 [卡密购买地址](https://pay.ldxp.cn/shop/LSSZLMUY)。
-3. 兑换后进入 [额度查询页](https://api.sakms.top/profile)，确认余额或订阅额度已经到账。
-4. 进入 [API 密钥页面](https://api.sakms.top/keys)，点击“创建密钥”，按兑换码来源选择正确分组。
+3. 兑换后进入 [额度查询页](https://sakai.my/profile)，确认余额或订阅额度已经到账。
+4. 进入 [API 密钥页面](https://sakai.my/keys)，点击“创建密钥”，按兑换码来源选择正确分组。
 5. 创建后点击“使用密钥”，复制 Open Code 或 OpenAI-compatible 配置中的 `baseURL` 和 `apiKey`。
 
 ### 2. 安装并首次启动 Open Code
@@ -76,7 +76,7 @@ API base_url：`https://api.sakms.top/`
       "npm": "@ai-sdk/openai-compatible",
       "name": "SAKMS",
       "options": {
-        "baseURL": "https://api.sakms.top/v1",
+        "baseURL": "https://sakai.my/v1",
         "apiKey": "填写你的 API 密钥"
       },
       "models": {
@@ -96,7 +96,7 @@ API base_url：`https://api.sakms.top/`
 
 1. 在终端输入 `opencode` 启动客户端。
 2. 在交互界面输入 `/connect`。
-3. 按提示选择 OpenAI-compatible / custom provider，并填写 `baseURL`：`https://api.sakms.top/v1`。
+3. 按提示选择 OpenAI-compatible / custom provider，并填写 `baseURL`：`https://sakai.my/v1`。
 4. 继续填写自己的 `apiKey`，选择模型后发起一次测试对话。
 
 ```text
@@ -110,4 +110,4 @@ API base_url：`https://api.sakms.top/`
 - 任意终端输入 `opencode`，选择 `sakms` provider 后发起一次对话，能正常返回即成功。
 - 返回 `404` 时，优先检查 `baseURL` 是否包含 `/v1`。
 - 返回 `401` 时，重新复制自己的 API Key，确认没有多余空格，也没有复制教程示例。
-- 返回额度不足或限流时，打开 [额度查询页](https://api.sakms.top/profile) 检查余额、订阅日额度和密钥分组。
+- 返回额度不足或限流时，打开 [额度查询页](https://sakai.my/profile) 检查余额、订阅日额度和密钥分组。

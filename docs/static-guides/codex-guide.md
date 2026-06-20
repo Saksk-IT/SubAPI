@@ -8,7 +8,7 @@
 
 ## 页面头部信息
 
-API base_url：`https://api.sakms.top/`
+API base_url：`https://sakai.my/`
 
 页面标题：兑换中转 API Key，并接入 Codex
 
@@ -44,8 +44,8 @@ API base_url：`https://api.sakms.top/`
 
 | 项目 | 内容 |
 | --- | --- |
-| 中转注册页 | <https://api.sakms.top/register> |
-| 个人资料额度查询页 | <https://api.sakms.top/profile> |
+| 中转注册页 | <https://sakai.my/register> |
+| 个人资料额度查询页 | <https://sakai.my/profile> |
 | 卡密自助购买地址 | <https://pay.ldxp.cn/shop/LSSZLMUY> |
 | 推荐客户端 | 可手动接入 Codex APP / Codex CLI / Codex VSCode 插件。Claude Code、Open Code、Open Claw 请打开对应独立教程页。 |
 | 订阅模式 | 每天有一定额度，每天 0 点后自动刷新。 |
@@ -63,7 +63,7 @@ API base_url：`https://api.sakms.top/`
 
 提示：名词速懂
 
-- **base_url：**中转站的前台地址，告诉客户端去哪请求 AI；本教程默认使用 `https://api.sakms.top/`，部分 OpenAI-compatible 客户端需要按弹窗填写 `/v1` 后缀。
+- **base_url：**中转站的前台地址，告诉客户端去哪请求 AI；本教程默认使用 `https://sakai.my/`，部分 OpenAI-compatible 客户端需要按弹窗填写 `/v1` 后缀。
 - **api_key：**你的“门票”，形如 `sk-xxxx`，用于区分用户与记录消费；不能泄露，不要发给他人，泄露等于钱包给别人。
 - **sub2api：**把订阅式服务转换为可被代码或客户端调用的 API，本教程中的中转兑换码和订阅权益都可理解为这个接入链路的一部分。
 
@@ -105,7 +105,7 @@ API Key 分组选择规则：
 
 **操作步骤：**浏览器打开中转注册链接，填写邮箱、获取验证码、设置密码后完成注册；也就是填写验证码后完成创建中转账户。
 
-注册链接：<https://api.sakms.top/register>
+注册链接：<https://sakai.my/register>
 
 ![中转服务注册页面截图](../../frontend/public/img/codex-guide/image.png)
 
@@ -123,7 +123,7 @@ API Key 分组选择规则：
 
 ### 1.4 兑换中转码
 
-登录后进入兑换页面 <https://api.sakms.top/redeem>，输入提供给你的中转兑换码或额度包兑换码，点击“兑换”。
+登录后进入兑换页面 <https://sakai.my/redeem>，输入提供给你的中转兑换码或额度包兑换码，点击“兑换”。
 
 ![兑换成功后的页面截图](../../frontend/public/img/codex-guide/image-1.png)
 
@@ -139,7 +139,7 @@ API Key 分组选择规则：
 
 ### 2.1 创建新密钥并选择正确分组
 
-登录后进入 [API 密钥页面](https://api.sakms.top/keys)，点击“创建密钥”。名称可按自己需要随便填写，也建议按用途命名，例如 `codex`、`claude-mac`、`opencode-win`，方便后续区分和单独吊销。
+登录后进入 [API 密钥页面](https://sakai.my/keys)，点击“创建密钥”。名称可按自己需要随便填写，也建议按用途命名，例如 `codex`、`claude-mac`、`opencode-win`，方便后续区分和单独吊销。
 
 创建密钥计费模式提醒：
 
@@ -250,7 +250,7 @@ Codex 下载页：<https://openai.com/zh-Hans-CN/codex/>
 
 ### 3.3 重新打开 Codex 并使用 API 登录
 
-完成文件配置后重新打开 Codex，选择“换种方式登录”，再选择 API 登录并粘贴自己的 API 密钥。API 密钥从 <https://api.sakms.top/keys> 获取。
+完成文件配置后重新打开 Codex，选择“换种方式登录”，再选择 API 登录并粘贴自己的 API 密钥。API 密钥从 <https://sakai.my/keys> 获取。
 
 ![Codex 选择换种方式登录](../../frontend/public/img/codex-guide/image-10.png)
 
@@ -271,7 +271,7 @@ Codex 下载页：<https://openai.com/zh-Hans-CN/codex/>
 复制下方命令到终端，把 `sk-xxxx` 换成你的真实密钥。如果能返回模型清单，说明 Key 与 base_url 基本正常。
 
 ```bash
-curl https://api.sakms.top/v1/models \
+curl https://sakai.my/v1/models \
   -H "Authorization: Bearer sk-xxxx"
 ```
 
@@ -290,8 +290,8 @@ curl https://api.sakms.top/v1/models \
 | 报错 / 现象 | 原因 | 处理方式 |
 | --- | --- | --- |
 | `401 Unauthorized` / Incorrect API key | 密钥错、被删，或配置时 Codex 已经在运行。 | 关闭 Codex，回第二章重新创建或复制密钥，再重新配置 `config.toml` 并登录。 |
-| `404 Not Found` | `base_url` 写错，或客户端需要 `/v1` 但未填写。 | 检查是否与“使用密钥”弹窗一致；OpenAI-compatible 客户端通常使用 `https://api.sakms.top/v1`。 |
-| `余额不足` / `quota exceeded` / `429 Too Many Requests` | 充值未到账、额度用完、订阅日额度耗尽或触发频率限制。 | [打开额度查询页面](https://api.sakms.top/profile) 查看余额和额度；必要时等待刷新或补充额度。 |
+| `404 Not Found` | `base_url` 写错，或客户端需要 `/v1` 但未填写。 | 检查是否与“使用密钥”弹窗一致；OpenAI-compatible 客户端通常使用 `https://sakai.my/v1`。 |
+| `余额不足` / `quota exceeded` / `429 Too Many Requests` | 充值未到账、额度用完、订阅日额度耗尽或触发频率限制。 | [打开额度查询页面](https://sakai.my/profile) 查看余额和额度；必要时等待刷新或补充额度。 |
 | `model not found` | 模型 ID 拼错，或当前分组不支持该模型。 | 用 4.1 的 curl 命令查看模型清单，或按中转后台可用模型重新填写。 |
 | 客户端启动后无反应 | 环境变量未生效，旧终端还在使用旧配置。 | 关闭并新开一个终端窗口，再启动 `codex` / `claude` / `opencode`。 |
 | `config.toml.txt` / `opencode.json.txt` | Windows 默认隐藏文件后缀，实际创建成了文本文件。 | 资源管理器 -> 查看 -> 勾选“文件扩展名”，再把文件名改正确。 |

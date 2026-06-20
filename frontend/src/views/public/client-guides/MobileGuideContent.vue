@@ -60,7 +60,7 @@ import { Icon } from '@/components/icons'
   </div>
 
   <section class="codex-callout">
-    <p><strong>填写规则：</strong>API 主机填写 <code>https://api.sakms.top/</code>；API 密钥请前往 <a href="https://api.sakms.top/keys" target="_blank" rel="noopener noreferrer">https://api.sakms.top/keys</a> 创建并复制你自己的 Key。</p>
+    <p><strong>填写规则：</strong>API 主机填写 <code>https://sakai.my/</code>；API 密钥请前往 <a href="https://sakai.my/keys" target="_blank" rel="noopener noreferrer">https://sakai.my/keys</a> 创建并复制你自己的 Key。</p>
   </section>
 
   <figure class="codex-figure codex-config-result">
@@ -93,8 +93,8 @@ import { Icon } from '@/components/icons'
   <h2 id="mobileCheck">4. 完成检查</h2>
   <ul class="codex-checklist">
     <li><Icon name="checkCircle" class="codex-icon" /><span>API 模式已选择 <code>OpenAI response API 兼容</code>。</span></li>
-    <li><Icon name="checkCircle" class="codex-icon" /><span>API 主机已填写 <code>https://api.sakms.top/</code>。</span></li>
-    <li><Icon name="checkCircle" class="codex-icon" /><span>API 密钥来自你自己的 <a href="https://api.sakms.top/keys" target="_blank" rel="noopener noreferrer">中转后台</a>，不是教程示例。</span></li>
+    <li><Icon name="checkCircle" class="codex-icon" /><span>API 主机已填写 <code>https://sakai.my/</code>。</span></li>
+    <li><Icon name="checkCircle" class="codex-icon" /><span>API 密钥来自你自己的 <a href="https://sakai.my/keys" target="_blank" rel="noopener noreferrer">中转后台</a>，不是教程示例。</span></li>
     <li><Icon name="checkCircle" class="codex-icon" /><span>至少已添加一个可用模型，避免新建对话后没有模型可选。</span></li>
   </ul>
 

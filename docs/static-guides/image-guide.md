@@ -10,13 +10,13 @@
 
 ## 页面头部信息
 
-API base_url：`https://api.sakms.top/`
+API base_url：`https://sakai.my/`
 
 页面标题：图像生成教程
 
 引导文案：
 
-使用 Cherry Studio 接入 <https://api.sakms.top/>，配置 `gpt-image-2` 图像生成端点，并通过绘画入口完成专业生图。
+使用 Cherry Studio 接入 <https://sakai.my/>，配置 `gpt-image-2` 图像生成端点，并通过绘画入口完成专业生图。
 
 教程要点：
 
@@ -52,7 +52,7 @@ API base_url：`https://api.sakms.top/`
 
 1. 打开 Cherry Studio，点击右上角设置按钮。
 2. 在“模型服务”中找到并选择 **New API**。
-3. 填写 API 地址和密钥。API 地址填写 `https://api.sakms.top/`，API 密钥填写你自己的中转 API Key。
+3. 填写 API 地址和密钥。API 地址填写 `https://sakai.my/`，API 密钥填写你自己的中转 API Key。
 
 ![Cherry Studio 右上角设置按钮](../../frontend/public/img/image-guide/image-3.png)
 
@@ -66,7 +66,7 @@ API base_url：`https://api.sakms.top/`
 
 图 4：填写 API 地址和自己的 API 密钥。
 
-填写提醒：API 地址固定填写 `https://api.sakms.top/`。API 密钥请从 [中转后台 API 密钥页面](https://api.sakms.top/keys) 复制自己的 Key，不要复制教程截图。
+填写提醒：API 地址固定填写 `https://sakai.my/`。API 密钥请从 [中转后台 API 密钥页面](https://sakai.my/keys) 复制自己的 Key，不要复制教程截图。
 
 ### 3. 配置图像生成模型
 
@@ -116,7 +116,7 @@ API base_url：`https://api.sakms.top/`
 
 ### 5. 完成检查
 
-- 模型服务 API 地址已填写 `https://api.sakms.top/`。
+- 模型服务 API 地址已填写 `https://sakai.my/`。
 - API 密钥来自你自己的中转后台账号，没有复制教程截图或他人密钥。
 - `gpt-image-2` 已添加，并且端点类型为“图像生成”。
 - 生图入口选择“绘画”，并在发送前确认模型提供商和模型都已切换到刚配置的服务。
