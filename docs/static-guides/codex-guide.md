@@ -46,7 +46,7 @@ API base_url：`https://sakai.my/`
 | --- | --- |
 | 中转注册页 | <https://sakai.my/register> |
 | 个人资料额度查询页 | <https://sakai.my/profile> |
-| 卡密自助购买地址 | <https://pay.ldxp.cn/shop/LSSZLMUY> |
+| 卡密自助购买地址 | <https://catfk.com/shop/92O8CR0C> |
 | 推荐客户端 | 可手动接入 Codex APP / Codex CLI / Codex VSCode 插件。Claude Code、Open Code、Open Claw 请打开对应独立教程页。 |
 | 订阅模式 | 每天有一定额度，每天 0 点后自动刷新。 |
 | 额度模式 | 使用时消耗网站账户里的额度，用完就没有了。 |
@@ -95,7 +95,7 @@ API Key 分组选择规则：
 
 可通过链动小铺自助购买额度包兑换码。
 
-卡密自助购买地址：<https://pay.ldxp.cn/shop/LSSZLMUY>
+卡密自助购买地址：<https://catfk.com/shop/92O8CR0C>
 
 ![问题交流群二维码](../../frontend/public/img/codex-guide/image-16.png)
 

@@ -41,7 +41,7 @@ API base_url：`https://sakai.my/`
 ### 1. 从第一步开始：注册、兑换、创建 Key
 
 1. 打开 [中转注册页](https://sakai.my/register)，用邮箱、验证码和密码注册账户。
-2. 通过站内兑换、质保补发兑换码或链动小铺额度包获得权益；需要自助购买时打开 [卡密购买地址](https://pay.ldxp.cn/shop/LSSZLMUY)。
+2. 通过站内兑换、质保补发兑换码或链动小铺额度包获得权益；需要自助购买时打开 [卡密购买地址](https://catfk.com/shop/92O8CR0C)。
 3. 兑换后进入 [额度查询页](https://sakai.my/profile)，确认余额或订阅额度已经到账。
 4. 进入 [API 密钥页面](https://sakai.my/keys)，点击“创建密钥”，按兑换码来源选择正确分组。
 5. 创建后点击“使用密钥”，复制 Open Code 或 OpenAI-compatible 配置中的 `baseURL` 和 `apiKey`。

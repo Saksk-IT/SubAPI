@@ -11,7 +11,7 @@ import { Icon } from '@/components/icons'
   <h2>1. 从第一步开始：注册、兑换、创建 Key</h2>
   <ol class="codex-steps-list">
     <li>打开 <a href="https://sakai.my/register" target="_blank" rel="noopener noreferrer">中转注册页</a>，填写邮箱、验证码和密码，完成账户注册。</li>
-    <li>使用质保补发兑换码、站内兑换码，或通过 <a href="https://pay.ldxp.cn/shop/LSSZLMUY" target="_blank" rel="noopener noreferrer">链动小铺卡密地址</a> 购买额度包并兑换。</li>
+    <li>使用质保补发兑换码、站内兑换码，或通过 <a href="https://catfk.com/shop/92O8CR0C" target="_blank" rel="noopener noreferrer">链动小铺卡密地址</a> 购买额度包并兑换。</li>
     <li>兑换后打开 <a href="https://sakai.my/profile" target="_blank" rel="noopener noreferrer">额度查询页</a>，确认余额或订阅权益到账。</li>
     <li>进入 <a href="https://sakai.my/keys" target="_blank" rel="noopener noreferrer">API 密钥页面</a>，点击“创建密钥”，按兑换码来源选择“质保补偿”或 GPT / GPT-Plus 分组。</li>
     <li>创建后点击“使用密钥”，复制 Open Claw 或 OpenAI-compatible 配置中的 <code>base_url</code> 和 <code>api_key</code>。</li>

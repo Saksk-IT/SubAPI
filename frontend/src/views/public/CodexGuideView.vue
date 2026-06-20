@@ -195,7 +195,7 @@ const tocSections: TocSection[] = [
                 </tr>
                 <tr>
                   <th>卡密自助购买地址</th>
-                  <td><a href="https://pay.ldxp.cn/shop/LSSZLMUY" target="_blank" rel="noopener noreferrer">https://pay.ldxp.cn/shop/LSSZLMUY</a></td>
+                  <td><a href="https://catfk.com/shop/92O8CR0C" target="_blank" rel="noopener noreferrer">https://catfk.com/shop/92O8CR0C</a></td>
                 </tr>
                 <tr>
                   <th>推荐客户端</th>
@@ -310,7 +310,7 @@ const tocSections: TocSection[] = [
           <article class="codex-support-card">
             <strong>需要额外购买卡密？</strong>
             <span>可通过链动小铺自助购买额度包兑换码。</span>
-            <a class="codex-link-card" href="https://pay.ldxp.cn/shop/LSSZLMUY" target="_blank" rel="noopener noreferrer">
+            <a class="codex-link-card" href="https://catfk.com/shop/92O8CR0C" target="_blank" rel="noopener noreferrer">
               <Icon name="creditCard" class="codex-icon" />
               <span>打开卡密自助购买地址</span>
             </a>

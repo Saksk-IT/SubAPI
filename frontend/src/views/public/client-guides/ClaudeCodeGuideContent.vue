@@ -11,7 +11,7 @@ import { Icon } from '@/components/icons'
   <h2>1. 从第一步开始：注册、兑换、创建 Key</h2>
   <ol class="codex-steps-list">
     <li>打开 <a href="https://sakai.my/register" target="_blank" rel="noopener noreferrer">中转注册页</a>，填写邮箱、验证码和密码，完成中转账户注册。</li>
-    <li>如果还没有权益，先通过卡密自助购买地址 <a href="https://pay.ldxp.cn/shop/LSSZLMUY" target="_blank" rel="noopener noreferrer">https://pay.ldxp.cn/shop/LSSZLMUY</a> 购买额度包，或使用已发放的质保补发兑换码。</li>
+    <li>如果还没有权益，先通过卡密自助购买地址 <a href="https://catfk.com/shop/92O8CR0C" target="_blank" rel="noopener noreferrer">https://catfk.com/shop/92O8CR0C</a> 购买额度包，或使用已发放的质保补发兑换码。</li>
     <li>登录后进入兑换页面，输入中转兑换码或额度包兑换码并兑换；随后打开 <a href="https://sakai.my/profile" target="_blank" rel="noopener noreferrer">额度查询页</a> 确认权益到账。</li>
     <li>进入 <a href="https://sakai.my/keys" target="_blank" rel="noopener noreferrer">API 密钥页面</a>，点击“创建密钥”，按来源选择正确分组：质保补发码选“质保补偿”，链动小铺额度包选 GPT / GPT-Plus。</li>
     <li>创建成功后点击“使用密钥”，切到 Claude Code 配置区域，复制弹窗里的真实 <code>base_url</code> 和 <code>api_key</code>。</li>

@@ -11,7 +11,7 @@ import { Icon } from '@/components/icons'
   <h2>1. 从第一步开始：注册、兑换、创建 Key</h2>
   <ol class="codex-steps-list">
     <li>打开 <a href="https://sakai.my/register" target="_blank" rel="noopener noreferrer">中转注册页</a>，用邮箱、验证码和密码注册账户。</li>
-    <li>通过站内兑换、质保补发兑换码或链动小铺额度包获得权益；需要自助购买时打开 <a href="https://pay.ldxp.cn/shop/LSSZLMUY" target="_blank" rel="noopener noreferrer">卡密购买地址</a>。</li>
+    <li>通过站内兑换、质保补发兑换码或链动小铺额度包获得权益；需要自助购买时打开 <a href="https://catfk.com/shop/92O8CR0C" target="_blank" rel="noopener noreferrer">卡密购买地址</a>。</li>
     <li>兑换后进入 <a href="https://sakai.my/profile" target="_blank" rel="noopener noreferrer">额度查询页</a>，确认余额或订阅额度已经到账。</li>
     <li>进入 <a href="https://sakai.my/keys" target="_blank" rel="noopener noreferrer">API 密钥页面</a>，点击“创建密钥”，按兑换码来源选择正确分组。</li>
     <li>创建后点击“使用密钥”，复制 Open Code 或 OpenAI-compatible 配置中的 <code>baseURL</code> 和 <code>apiKey</code>。</li>
