@@ -247,28 +247,17 @@ curl -sSL https://raw.githubusercontent.com/Wei-Shaw/sub2api/main/deploy/install
 
 #### 快速开始（一键部署）
 
-使用自动化部署脚本快速搭建：
+在 Cloudflare 先添加 A 记录指向服务器公网 IP，然后在服务器执行一键脚本。脚本会自动更新系统软件包、安装 Docker、生成部署配置、创建 Caddy HTTPS 配置并启动服务；运行时按提示输入域名，留空则使用 `IP:8080` 模式。
 
 ```bash
-# 创建部署目录
-mkdir -p sub2api-deploy && cd sub2api-deploy
-
-# 下载并运行部署准备脚本
-curl -sSL https://raw.githubusercontent.com/Saksk-IT/SubAPI/main/deploy/docker-deploy.sh | bash
-
-# 启动服务
-docker compose up -d
-
-# 查看日志
-docker compose logs -f sub2api
+curl -fsSL https://raw.githubusercontent.com/Saksk-IT/SubAPI/main/deploy/docker-deploy.sh | sudo bash
 ```
 
-如果需要直接配置 Cloudflare 域名和 HTTPS，先在 Cloudflare 添加 A 记录指向服务器公网 IP，然后传入域名运行：
+如果不想交互输入域名，也可以直接传入：
 
 ```bash
-curl -sSL https://raw.githubusercontent.com/Saksk-IT/SubAPI/main/deploy/docker-deploy.sh \
-  | SUB2API_DOMAIN=api.example.com \
-    bash
+curl -fsSL https://raw.githubusercontent.com/Saksk-IT/SubAPI/main/deploy/docker-deploy.sh \
+  | sudo env SUB2API_DOMAIN=api.example.com bash
 ```
 
 脚本默认拉取你的最新镜像：
@@ -280,12 +269,15 @@ ghcr.io/saksk-it/subapi:latest
 Cloudflare SSL/TLS 模式请选择 `Full (strict)`，不要使用 `Flexible`。
 
 **脚本功能：**
+- 自动执行 `apt-get update && apt-get upgrade -y`，并在 Ubuntu/Debian 上安装 Docker Engine 与 Docker Compose v2
 - 下载 `docker-compose.local.yml`（本地保存为 `docker-compose.yml`）和 `.env.example`
 - 默认使用 `ghcr.io/saksk-it/subapi:latest`，并支持通过 `SUBAPI_IMAGE` 做高级覆盖
 - 自动生成安全凭证（JWT_SECRET、TOTP_ENCRYPTION_KEY、POSTGRES_PASSWORD、REDIS_PASSWORD、ADMIN_PASSWORD）
 - 创建 `.env` 文件并填充自动生成的密钥
-- 创建数据目录（使用本地目录，便于备份和迁移）
-- 传入 `SUB2API_DOMAIN` 时自动生成 Caddy HTTPS 配置和 Compose 覆盖文件
+- 默认部署到 `/opt/sub2api`，并创建本地数据目录（便于备份和迁移）
+- 输入或传入 `SUB2API_DOMAIN` 时自动生成 Caddy HTTPS 配置和 Compose 覆盖文件
+- 默认自动执行 `docker compose pull && docker compose up -d`
+- 默认验证本机 `/health`，配置域名时还会验证 HTTPS `/health`
 - 显示生成的凭证供你记录
 
 #### 手动部署

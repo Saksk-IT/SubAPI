@@ -3,14 +3,16 @@
 # Sub2API Docker Deployment Preparation Script
 # =============================================================================
 # This script prepares deployment files for Sub2API:
+#   - Updates server packages and installs Docker Engine when needed
 #   - Downloads docker-compose.local.yml and .env.example
 #   - Uses the Saksk-IT SubAPI image by default, with SUBAPI_IMAGE override support
 #   - Generates secure secrets (JWT_SECRET, TOTP_ENCRYPTION_KEY, POSTGRES_PASSWORD, etc.)
 #   - Creates necessary data directories
 #   - Optionally configures Caddy HTTPS for a user-provided Cloudflare-backed domain
+#   - Starts Docker Compose services by default
 #
-# After running this script, you can start services with:
-#   docker compose up -d
+# Typical usage:
+#   curl -fsSL https://raw.githubusercontent.com/Saksk-IT/SubAPI/main/deploy/docker-deploy.sh | sudo bash
 # =============================================================================
 
 set -e
@@ -23,12 +25,18 @@ BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
 # GitHub raw content base URL
-GITHUB_RAW_URL="https://raw.githubusercontent.com/Saksk-IT/SubAPI/main/deploy"
+GITHUB_RAW_URL="${GITHUB_RAW_URL:-https://raw.githubusercontent.com/Saksk-IT/SubAPI/main/deploy}"
 DEFAULT_SUBAPI_IMAGE="ghcr.io/saksk-it/subapi:latest"
 SUBAPI_IMAGE="${SUBAPI_IMAGE:-$DEFAULT_SUBAPI_IMAGE}"
 SUB2API_DOMAIN="${SUB2API_DOMAIN:-${DOMAIN:-}}"
 ACME_EMAIL="${ACME_EMAIL:-}"
-AUTO_START="${AUTO_START:-false}"
+DEPLOY_DIR="${DEPLOY_DIR:-/opt/sub2api}"
+INSTALL_DOCKER="${INSTALL_DOCKER:-auto}"
+SYSTEM_UPGRADE="${SYSTEM_UPGRADE:-true}"
+AUTO_START="${AUTO_START:-true}"
+CONFIGURE_UFW="${CONFIGURE_UFW:-true}"
+REQUIRE_HEALTHCHECK="${REQUIRE_HEALTHCHECK:-true}"
+ALLOW_NON_ROOT="${ALLOW_NON_ROOT:-false}"
 
 # Print colored message
 print_info() {
@@ -99,6 +107,131 @@ is_truthy() {
     esac
 }
 
+is_falsey() {
+    case "${1:-}" in
+        0|false|FALSE|no|NO|n|N) return 0 ;;
+        *) return 1 ;;
+    esac
+}
+
+require_root() {
+    if is_truthy "$ALLOW_NON_ROOT"; then
+        return 0
+    fi
+
+    if [ "$(id -u)" -ne 0 ]; then
+        print_error "This full deployment script must run as root."
+        print_error "Use: curl -fsSL ${GITHUB_RAW_URL}/docker-deploy.sh | sudo bash"
+        print_error "Or set ALLOW_NON_ROOT=true INSTALL_DOCKER=false DEPLOY_DIR=/path for local generation tests."
+        exit 1
+    fi
+}
+
+ensure_ubuntu_or_debian() {
+    if [ ! -r /etc/os-release ]; then
+        print_error "/etc/os-release not found. Automatic Docker installation is only supported on Ubuntu/Debian."
+        exit 1
+    fi
+
+    # shellcheck disable=SC1091
+    . /etc/os-release
+
+    case "${ID:-}" in
+        ubuntu|debian) ;;
+        *)
+            print_error "Unsupported OS for automatic Docker installation: ${ID:-unknown}"
+            print_error "Install Docker manually, then rerun with INSTALL_DOCKER=false."
+            exit 1
+            ;;
+    esac
+
+    if [ -z "${VERSION_CODENAME:-}" ]; then
+        print_error "VERSION_CODENAME is empty in /etc/os-release. Cannot configure Docker apt repository."
+        exit 1
+    fi
+}
+
+docker_compose_available() {
+    command_exists docker && docker compose version >/dev/null 2>&1
+}
+
+install_docker_if_needed() {
+    if is_falsey "$INSTALL_DOCKER"; then
+        print_info "INSTALL_DOCKER=false, skipping Docker installation."
+        return 0
+    fi
+
+    if ! command_exists apt-get; then
+        if docker_compose_available; then
+            print_success "Docker Compose is already available."
+            return 0
+        fi
+
+        print_error "apt-get is unavailable and Docker Compose is not installed."
+        print_error "Install Docker manually, then rerun with INSTALL_DOCKER=false."
+        exit 1
+    fi
+
+    ensure_ubuntu_or_debian
+
+    export DEBIAN_FRONTEND="${DEBIAN_FRONTEND:-noninteractive}"
+    export NEEDRESTART_MODE="${NEEDRESTART_MODE:-a}"
+
+    print_info "Updating apt package index..."
+    apt-get update
+
+    if is_truthy "$SYSTEM_UPGRADE"; then
+        print_info "Upgrading installed packages..."
+        apt-get upgrade -y
+    else
+        print_info "SYSTEM_UPGRADE=false, skipping package upgrade."
+    fi
+
+    print_info "Installing base packages..."
+    apt-get install -y ca-certificates curl openssl
+
+    if docker_compose_available; then
+        print_success "Docker Compose is already available."
+        if command_exists systemctl; then
+            systemctl enable --now docker >/dev/null 2>&1 || true
+        fi
+        return 0
+    fi
+
+    print_info "Installing Docker Engine and Docker Compose plugin..."
+    for pkg in docker.io docker-doc docker-compose docker-compose-v2 podman-docker containerd runc; do
+        apt-get remove -y "$pkg" >/dev/null 2>&1 || true
+    done
+
+    install -m 0755 -d /etc/apt/keyrings
+    curl --connect-timeout 10 --max-time 30 --retry 3 --retry-delay 2 -fsSL "https://download.docker.com/linux/${ID}/gpg" -o /etc/apt/keyrings/docker.asc
+    chmod a+r /etc/apt/keyrings/docker.asc
+
+    cat > /etc/apt/sources.list.d/docker.list <<EOF
+deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/${ID} ${VERSION_CODENAME} stable
+EOF
+
+    apt-get update
+    apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+
+    if command_exists systemctl; then
+        systemctl enable --now docker
+    fi
+
+    if ! docker_compose_available; then
+        print_error "Docker Compose installation did not complete successfully."
+        exit 1
+    fi
+
+    print_success "Docker Engine and Docker Compose plugin are ready."
+}
+
+prepare_deploy_dir() {
+    print_info "Preparing deployment directory: ${DEPLOY_DIR}"
+    mkdir -p "$DEPLOY_DIR"
+    cd "$DEPLOY_DIR"
+}
+
 normalize_domain() {
     local domain="$1"
 
@@ -149,7 +282,7 @@ set_env_var_if_empty() {
 
 get_public_ipv4() {
     if command_exists curl; then
-        curl -4fsS https://api.ipify.org 2>/dev/null || curl -4fsS https://ifconfig.me 2>/dev/null || true
+        curl --max-time 5 -4fsS https://api.ipify.org 2>/dev/null || curl --max-time 5 -4fsS https://ifconfig.me 2>/dev/null || true
     fi
 }
 
@@ -293,6 +426,103 @@ maybe_start_services() {
     print_info "Starting services..."
     docker compose up -d
     docker compose ps
+    verify_deployment
+}
+
+configure_firewall() {
+    local enable_https="$1"
+
+    if ! is_truthy "$CONFIGURE_UFW"; then
+        print_info "CONFIGURE_UFW=false, skipping UFW configuration."
+        return 0
+    fi
+
+    if ! command_exists ufw; then
+        if command_exists apt-get; then
+            apt-get install -y ufw || {
+                print_warning "Failed to install ufw. Please open ports manually."
+                return 0
+            }
+        else
+            print_warning "ufw is not installed. Please open ports manually."
+            return 0
+        fi
+    fi
+
+    print_info "Configuring UFW firewall rules..."
+    ufw allow OpenSSH >/dev/null 2>&1 || true
+
+    if [ "$enable_https" = "true" ]; then
+        ufw allow 80/tcp >/dev/null 2>&1 || true
+        ufw allow 443/tcp >/dev/null 2>&1 || true
+        ufw delete allow 8080/tcp >/dev/null 2>&1 || true
+    else
+        ufw allow 8080/tcp >/dev/null 2>&1 || true
+    fi
+
+    ufw --force enable >/dev/null 2>&1 || {
+        print_warning "Failed to enable ufw. Please open ports manually."
+        return 0
+    }
+
+    ufw status verbose || true
+}
+
+verify_deployment() {
+    print_info "Checking local SubAPI health..."
+    local i
+    local local_ok="false"
+    local failed="false"
+
+    for i in $(seq 1 30); do
+        if curl --max-time 5 -fsS http://127.0.0.1:8080/health >/dev/null 2>&1; then
+            local_ok="true"
+            break
+        fi
+        sleep 2
+    done
+
+    if [ "$local_ok" = "true" ]; then
+        print_success "Local health check passed: http://127.0.0.1:8080/health"
+    else
+        failed="true"
+        print_warning "Local health check did not pass yet. Inspect logs with: docker compose logs -f sub2api"
+    fi
+
+    if [ -z "$SUB2API_DOMAIN" ]; then
+        if [ "$failed" = "true" ] && is_truthy "$REQUIRE_HEALTHCHECK"; then
+            print_error "Deployment started, but health verification did not complete."
+            return 1
+        fi
+        return 0
+    fi
+
+    print_info "Checking HTTPS health for https://${SUB2API_DOMAIN}/health ..."
+    local https_ok="false"
+
+    for i in $(seq 1 36); do
+        if curl --max-time 10 -fsS "https://${SUB2API_DOMAIN}/health" >/dev/null 2>&1; then
+            https_ok="true"
+            break
+        fi
+        sleep 5
+    done
+
+    if [ "$https_ok" = "true" ]; then
+        print_success "HTTPS health check passed: https://${SUB2API_DOMAIN}/health"
+    else
+        failed="true"
+        print_warning "HTTPS health check did not pass within the wait window."
+        print_warning "Confirm Cloudflare A record points to this server, SSL/TLS mode is Full (strict), and ports 80/443 are open."
+        print_warning "Recent Caddy logs:"
+        docker compose logs --tail=120 caddy || true
+    fi
+
+    if [ "$failed" = "true" ] && is_truthy "$REQUIRE_HEALTHCHECK"; then
+        print_error "Deployment started, but health verification did not complete."
+        print_error "Set REQUIRE_HEALTHCHECK=false only if you intentionally want to skip this completion gate."
+        return 1
+    fi
 }
 
 # Main installation function
@@ -302,6 +532,9 @@ main() {
     echo "  Sub2API Deployment Preparation"
     echo "=========================================="
     echo ""
+
+    require_root
+    install_docker_if_needed
 
     # Check if openssl is available
     if ! command_exists openssl; then
@@ -324,6 +557,8 @@ main() {
         ACME_EMAIL="admin@${SUB2API_DOMAIN}"
     fi
 
+    prepare_deploy_dir
+
     # Check if deployment already exists
     if [ -f "docker-compose.yml" ] && [ -f ".env" ]; then
         print_warning "Deployment files already exist in current directory."
@@ -336,7 +571,7 @@ main() {
     # Download docker-compose.local.yml and save as docker-compose.yml
     print_info "Downloading docker-compose.yml..."
     if command_exists curl; then
-        curl -sSL "${GITHUB_RAW_URL}/docker-compose.local.yml" -o docker-compose.yml
+        curl --connect-timeout 10 --max-time 30 --retry 3 --retry-delay 2 -fsSL "${GITHUB_RAW_URL}/docker-compose.local.yml" -o docker-compose.yml
     elif command_exists wget; then
         wget -q "${GITHUB_RAW_URL}/docker-compose.local.yml" -O docker-compose.yml
     else
@@ -349,7 +584,7 @@ main() {
     # Download .env.example
     print_info "Downloading .env.example..."
     if command_exists curl; then
-        curl -sSL "${GITHUB_RAW_URL}/.env.example" -o .env.example
+        curl --connect-timeout 10 --max-time 30 --retry 3 --retry-delay 2 -fsSL "${GITHUB_RAW_URL}/.env.example" -o .env.example
     else
         wget -q "${GITHUB_RAW_URL}/.env.example" -O .env.example
     fi
@@ -433,6 +668,7 @@ main() {
     fi
     echo ""
     if [ -n "$SUB2API_DOMAIN" ]; then
+        configure_firewall "true"
         PUBLIC_IPV4=$(get_public_ipv4)
         echo "Cloudflare DNS:"
         if [ -n "$PUBLIC_IPV4" ]; then
@@ -444,10 +680,20 @@ main() {
         echo "  Do NOT use: Flexible"
         echo ""
     fi
+    if [ -z "$SUB2API_DOMAIN" ]; then
+        configure_firewall "false"
+    fi
     echo "Next steps:"
-    echo "  1. (Optional) Edit .env to customize configuration"
-    echo "  2. Start services:"
-    echo "     docker compose up -d"
+    echo "  1. Deployment directory:"
+    echo "     ${DEPLOY_DIR}"
+    echo ""
+    if is_truthy "$AUTO_START"; then
+        echo "  2. Services are starting automatically."
+        echo "     To restart manually: docker compose up -d"
+    else
+        echo "  2. Start services manually:"
+        echo "     docker compose up -d"
+    fi
     echo ""
     echo "  3. View logs:"
     echo "     docker compose logs -f sub2api"

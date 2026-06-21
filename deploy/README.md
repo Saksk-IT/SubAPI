@@ -31,36 +31,38 @@ This directory contains files for deploying Sub2API on Linux servers.
 
 ### Method 1: One-Click Deployment (Recommended)
 
-Use the automated preparation script for the easiest setup:
+Point your Cloudflare DNS A record to the server public IP first, then run the script on the server. The script updates and upgrades system packages, installs Docker when needed, generates deployment files, creates optional Caddy HTTPS configuration, and starts services by default.
 
 ```bash
 # Download and run the preparation script
-curl -sSL https://raw.githubusercontent.com/Saksk-IT/SubAPI/main/deploy/docker-deploy.sh | bash
+curl -fsSL https://raw.githubusercontent.com/Saksk-IT/SubAPI/main/deploy/docker-deploy.sh | sudo bash
 
 # Or download first, then run
-curl -sSL https://raw.githubusercontent.com/Saksk-IT/SubAPI/main/deploy/docker-deploy.sh -o docker-deploy.sh
+curl -fsSL https://raw.githubusercontent.com/Saksk-IT/SubAPI/main/deploy/docker-deploy.sh -o docker-deploy.sh
 chmod +x docker-deploy.sh
-./docker-deploy.sh
+sudo ./docker-deploy.sh
 ```
 
 **What the script does:**
+- Runs `apt-get update && apt-get upgrade -y` and installs Docker Engine + Docker Compose v2 on Ubuntu/Debian when needed
 - Downloads `docker-compose.local.yml` and `.env.example`
 - Uses the Saksk-IT latest image by default: `ghcr.io/saksk-it/subapi:latest`
 - Supports `SUBAPI_IMAGE=...` only for advanced manual overrides
 - Automatically generates secure secrets (JWT_SECRET, TOTP_ENCRYPTION_KEY, POSTGRES_PASSWORD, REDIS_PASSWORD, ADMIN_PASSWORD)
 - Creates `.env` file with generated secrets
-- Creates necessary data directories (data/, postgres_data/, redis_data/)
+- Deploys to `/opt/sub2api` by default and creates necessary data directories
 - Optionally creates Caddy HTTPS files for a Cloudflare-backed domain
+- Runs `docker compose pull && docker compose up -d` by default
+- Verifies local `/health`, and HTTPS `/health` when a domain is configured
 - **Displays generated credentials** (POSTGRES_PASSWORD, JWT_SECRET, etc.)
 
 **Cloudflare + HTTPS setup:**
 
-Point your domain to the server public IP in Cloudflare first, then run:
+Run interactively and enter the domain when prompted, or pass the domain non-interactively:
 
 ```bash
-curl -sSL https://raw.githubusercontent.com/Saksk-IT/SubAPI/main/deploy/docker-deploy.sh \
-  | SUB2API_DOMAIN=api.example.com \
-    bash
+curl -fsSL https://raw.githubusercontent.com/Saksk-IT/SubAPI/main/deploy/docker-deploy.sh \
+  | sudo env SUB2API_DOMAIN=api.example.com bash
 ```
 
 The script defaults to your latest image:
@@ -73,8 +75,8 @@ Cloudflare should use SSL/TLS mode **Full (strict)**. Do not use **Flexible**.
 
 **After running the script:**
 ```bash
-# Start services
-docker compose up -d
+# Deployment directory
+cd /opt/sub2api
 
 # View logs
 docker compose logs -f sub2api
