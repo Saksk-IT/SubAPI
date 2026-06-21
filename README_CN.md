@@ -263,11 +263,29 @@ docker compose up -d
 docker compose logs -f sub2api
 ```
 
+如果需要直接配置 Cloudflare 域名和 HTTPS，先在 Cloudflare 添加 A 记录指向服务器公网 IP，然后传入域名运行：
+
+```bash
+curl -sSL https://raw.githubusercontent.com/Saksk-IT/SubAPI/main/deploy/docker-deploy.sh \
+  | SUB2API_DOMAIN=api.example.com \
+    bash
+```
+
+脚本默认拉取你的最新镜像：
+
+```bash
+ghcr.io/saksk-it/subapi:latest
+```
+
+Cloudflare SSL/TLS 模式请选择 `Full (strict)`，不要使用 `Flexible`。
+
 **脚本功能：**
 - 下载 `docker-compose.local.yml`（本地保存为 `docker-compose.yml`）和 `.env.example`
-- 自动生成安全凭证（JWT_SECRET、TOTP_ENCRYPTION_KEY、POSTGRES_PASSWORD）
+- 默认使用 `ghcr.io/saksk-it/subapi:latest`，并支持通过 `SUBAPI_IMAGE` 做高级覆盖
+- 自动生成安全凭证（JWT_SECRET、TOTP_ENCRYPTION_KEY、POSTGRES_PASSWORD、REDIS_PASSWORD、ADMIN_PASSWORD）
 - 创建 `.env` 文件并填充自动生成的密钥
 - 创建数据目录（使用本地目录，便于备份和迁移）
+- 传入 `SUB2API_DOMAIN` 时自动生成 Caddy HTTPS 配置和 Compose 覆盖文件
 - 显示生成的凭证供你记录
 
 #### 手动部署
@@ -359,19 +377,21 @@ docker compose -f docker-compose.local.yml logs -f sub2api
 
 #### 访问
 
-在浏览器中打开 `http://你的服务器IP:8080`
+如果未配置域名，在浏览器中打开 `http://你的服务器IP:8080`。
 
-如果管理员密码是自动生成的，在日志中查找：
+如果配置了 `SUB2API_DOMAIN`，在浏览器中打开 `https://你的域名`。
+
+脚本会把管理员密码写入 `.env` 并在完成时输出，也可以查看：
 ```bash
-docker compose -f docker-compose.local.yml logs sub2api | grep "admin password"
+grep -E '^(ADMIN_EMAIL|ADMIN_PASSWORD)=' .env
 ```
 
 #### 升级
 
 ```bash
 # 拉取最新镜像并重建容器
-docker compose -f docker-compose.local.yml pull
-docker compose -f docker-compose.local.yml up -d
+docker compose pull
+docker compose up -d
 ```
 
 #### 轻松迁移（本地目录版）
@@ -584,7 +604,7 @@ Invalid base URL: invalid url scheme: http
 
 ```caddyfile
 transport http {
-	versions h2c h1
+	versions h2c 1.1
 }
 ```
 

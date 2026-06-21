@@ -45,24 +45,48 @@ chmod +x docker-deploy.sh
 
 **What the script does:**
 - Downloads `docker-compose.local.yml` and `.env.example`
-- Automatically generates secure secrets (JWT_SECRET, TOTP_ENCRYPTION_KEY, POSTGRES_PASSWORD)
+- Uses the Saksk-IT latest image by default: `ghcr.io/saksk-it/subapi:latest`
+- Supports `SUBAPI_IMAGE=...` only for advanced manual overrides
+- Automatically generates secure secrets (JWT_SECRET, TOTP_ENCRYPTION_KEY, POSTGRES_PASSWORD, REDIS_PASSWORD, ADMIN_PASSWORD)
 - Creates `.env` file with generated secrets
 - Creates necessary data directories (data/, postgres_data/, redis_data/)
+- Optionally creates Caddy HTTPS files for a Cloudflare-backed domain
 - **Displays generated credentials** (POSTGRES_PASSWORD, JWT_SECRET, etc.)
+
+**Cloudflare + HTTPS setup:**
+
+Point your domain to the server public IP in Cloudflare first, then run:
+
+```bash
+curl -sSL https://raw.githubusercontent.com/Saksk-IT/SubAPI/main/deploy/docker-deploy.sh \
+  | SUB2API_DOMAIN=api.example.com \
+    bash
+```
+
+The script defaults to your latest image:
+
+```bash
+ghcr.io/saksk-it/subapi:latest
+```
+
+Cloudflare should use SSL/TLS mode **Full (strict)**. Do not use **Flexible**.
 
 **After running the script:**
 ```bash
 # Start services
-docker compose -f docker-compose.local.yml up -d
+docker compose up -d
 
 # View logs
-docker compose -f docker-compose.local.yml logs -f sub2api
+docker compose logs -f sub2api
 
-# If admin password was auto-generated, find it in logs:
-docker compose -f docker-compose.local.yml logs sub2api | grep "admin password"
+# If HTTPS was configured, view Caddy logs:
+docker compose logs -f caddy
+
+# If HTTPS was configured, verify:
+curl -fsS https://api.example.com/health
 
 # Access Web UI
-# http://localhost:8080
+# https://api.example.com
 ```
 
 ### Method 2: Manual Deployment
