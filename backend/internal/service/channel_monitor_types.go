@@ -39,6 +39,7 @@ type ChannelMonitor struct {
 	GroupName       string
 	Enabled         bool
 	UserVisible     bool
+	SortOrder       int
 	IntervalSeconds int
 	JitterSeconds   int // 每次调度 ± [0, jitter] 的随机偏移（秒），0 = 固定间隔
 	LastCheckedAt   *time.Time
@@ -64,6 +65,12 @@ type ChannelMonitorListParams struct {
 	Provider string
 	Enabled  *bool
 	Search   string
+}
+
+// ChannelMonitorSortOrderUpdate 渠道监控排序更新。
+type ChannelMonitorSortOrderUpdate struct {
+	ID        int64 `json:"id"`
+	SortOrder int   `json:"sort_order"`
 }
 
 // ChannelMonitorCreateParams 创建参数。

@@ -34,6 +34,14 @@ func NewChannelMonitorRepository(client *dbent.Client, db *sql.DB) service.Chann
 
 func (r *channelMonitorRepository) Create(ctx context.Context, m *service.ChannelMonitor) error {
 	client := clientFromContext(ctx, r.client)
+	sortOrder := m.SortOrder
+	if sortOrder == 0 {
+		nextSortOrder, err := r.nextSortOrder(ctx)
+		if err != nil {
+			return err
+		}
+		sortOrder = nextSortOrder
+	}
 	builder := client.ChannelMonitor.Create().
 		SetName(m.Name).
 		SetProvider(channelmonitor.Provider(m.Provider)).
@@ -45,6 +53,7 @@ func (r *channelMonitorRepository) Create(ctx context.Context, m *service.Channe
 		SetGroupName(m.GroupName).
 		SetEnabled(m.Enabled).
 		SetUserVisible(m.UserVisible).
+		SetSortOrder(sortOrder).
 		SetIntervalSeconds(m.IntervalSeconds).
 		SetJitterSeconds(m.JitterSeconds).
 		SetCreatedBy(m.CreatedBy).
@@ -62,9 +71,21 @@ func (r *channelMonitorRepository) Create(ctx context.Context, m *service.Channe
 		return translatePersistenceError(err, service.ErrChannelMonitorNotFound, nil)
 	}
 	m.ID = created.ID
+	m.SortOrder = created.SortOrder
 	m.CreatedAt = created.CreatedAt
 	m.UpdatedAt = created.UpdatedAt
 	return nil
+}
+
+func (r *channelMonitorRepository) nextSortOrder(ctx context.Context) (int, error) {
+	var maxSort sql.NullInt64
+	if err := r.db.QueryRowContext(ctx, `SELECT MAX(sort_order) FROM channel_monitors`).Scan(&maxSort); err != nil {
+		return 0, fmt.Errorf("load next channel monitor sort order: %w", err)
+	}
+	if !maxSort.Valid {
+		return 10, nil
+	}
+	return int(maxSort.Int64) + 10, nil
 }
 
 func (r *channelMonitorRepository) GetByID(ctx context.Context, id int64) (*service.ChannelMonitor, error) {
@@ -90,6 +111,7 @@ func (r *channelMonitorRepository) Update(ctx context.Context, m *service.Channe
 		SetGroupName(m.GroupName).
 		SetEnabled(m.Enabled).
 		SetUserVisible(m.UserVisible).
+		SetSortOrder(m.SortOrder).
 		SetIntervalSeconds(m.IntervalSeconds).
 		SetJitterSeconds(m.JitterSeconds).
 		SetExtraHeaders(emptyHeadersIfNilRepo(m.ExtraHeaders)).
@@ -152,7 +174,7 @@ func (r *channelMonitorRepository) List(ctx context.Context, params service.Chan
 	}
 
 	rows, err := q.
-		Order(dbent.Desc(channelmonitor.FieldID)).
+		Order(dbent.Asc(channelmonitor.FieldSortOrder), dbent.Asc(channelmonitor.FieldID)).
 		Offset((page - 1) * pageSize).
 		Limit(pageSize).
 		All(ctx)
@@ -172,6 +194,7 @@ func (r *channelMonitorRepository) List(ctx context.Context, params service.Chan
 func (r *channelMonitorRepository) ListEnabled(ctx context.Context) ([]*service.ChannelMonitor, error) {
 	rows, err := r.client.ChannelMonitor.Query().
 		Where(channelmonitor.EnabledEQ(true)).
+		Order(dbent.Asc(channelmonitor.FieldSortOrder), dbent.Asc(channelmonitor.FieldID)).
 		All(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("list enabled monitors: %w", err)
@@ -181,6 +204,70 @@ func (r *channelMonitorRepository) ListEnabled(ctx context.Context) ([]*service.
 		out = append(out, entToServiceMonitor(row))
 	}
 	return out, nil
+}
+
+func (r *channelMonitorRepository) UpdateSortOrders(ctx context.Context, updates []service.ChannelMonitorSortOrderUpdate) error {
+	if len(updates) == 0 {
+		return nil
+	}
+	sortOrderByID := make(map[int64]int, len(updates))
+	monitorIDs := make([]int64, 0, len(updates))
+	for _, update := range updates {
+		if update.ID <= 0 {
+			continue
+		}
+		if _, exists := sortOrderByID[update.ID]; !exists {
+			monitorIDs = append(monitorIDs, update.ID)
+		}
+		sortOrderByID[update.ID] = update.SortOrder
+	}
+	if len(monitorIDs) == 0 {
+		return nil
+	}
+
+	var existingCount int
+	if err := r.db.QueryRowContext(
+		ctx,
+		`SELECT COUNT(*) FROM channel_monitors WHERE id = ANY($1)`,
+		pq.Array(monitorIDs),
+	).Scan(&existingCount); err != nil {
+		return fmt.Errorf("count channel monitors for sort update: %w", err)
+	}
+	if existingCount != len(monitorIDs) {
+		return service.ErrChannelMonitorNotFound
+	}
+
+	args := make([]any, 0, len(monitorIDs)*2+1)
+	caseClauses := make([]string, 0, len(monitorIDs))
+	placeholder := 1
+	for _, id := range monitorIDs {
+		caseClauses = append(caseClauses, fmt.Sprintf("WHEN $%d THEN $%d", placeholder, placeholder+1))
+		args = append(args, id, sortOrderByID[id])
+		placeholder += 2
+	}
+	args = append(args, pq.Array(monitorIDs))
+
+	query := fmt.Sprintf(`
+		UPDATE channel_monitors
+		SET sort_order = CASE id
+			%s
+			ELSE sort_order
+		END
+		WHERE id = ANY($%d)
+	`, strings.Join(caseClauses, "\n\t\t\t"), placeholder)
+
+	result, err := r.db.ExecContext(ctx, query, args...)
+	if err != nil {
+		return fmt.Errorf("update channel monitor sort orders: %w", err)
+	}
+	affected, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("channel monitor sort rows affected: %w", err)
+	}
+	if affected != int64(len(monitorIDs)) {
+		return service.ErrChannelMonitorNotFound
+	}
+	return nil
 }
 
 func (r *channelMonitorRepository) MarkChecked(ctx context.Context, id int64, checkedAt time.Time) error {
@@ -722,6 +809,7 @@ func entToServiceMonitor(row *dbent.ChannelMonitor) *service.ChannelMonitor {
 		GroupName:        row.GroupName,
 		Enabled:          row.Enabled,
 		UserVisible:      row.UserVisible,
+		SortOrder:        row.SortOrder,
 		IntervalSeconds:  row.IntervalSeconds,
 		JitterSeconds:    row.JitterSeconds,
 		LastCheckedAt:    row.LastCheckedAt,

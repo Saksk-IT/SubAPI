@@ -10,9 +10,12 @@ type visibilityMonitorRepo struct {
 	monitors []*ChannelMonitor
 }
 
-func (r *visibilityMonitorRepo) Create(context.Context, *ChannelMonitor) error       { return nil }
-func (r *visibilityMonitorRepo) Update(context.Context, *ChannelMonitor) error       { return nil }
-func (r *visibilityMonitorRepo) Delete(context.Context, int64) error                 { return nil }
+func (r *visibilityMonitorRepo) Create(context.Context, *ChannelMonitor) error { return nil }
+func (r *visibilityMonitorRepo) Update(context.Context, *ChannelMonitor) error { return nil }
+func (r *visibilityMonitorRepo) Delete(context.Context, int64) error           { return nil }
+func (r *visibilityMonitorRepo) UpdateSortOrders(context.Context, []ChannelMonitorSortOrderUpdate) error {
+	return nil
+}
 func (r *visibilityMonitorRepo) MarkChecked(context.Context, int64, time.Time) error { return nil }
 func (r *visibilityMonitorRepo) InsertHistoryBatch(context.Context, []*ChannelMonitorHistoryRow) error {
 	return nil

@@ -145,6 +145,20 @@ func (_c *ChannelMonitorCreate) SetNillableUserVisible(v *bool) *ChannelMonitorC
 	return _c
 }
 
+// SetSortOrder sets the "sort_order" field.
+func (_c *ChannelMonitorCreate) SetSortOrder(v int) *ChannelMonitorCreate {
+	_c.mutation.SetSortOrder(v)
+	return _c
+}
+
+// SetNillableSortOrder sets the "sort_order" field if the given value is not nil.
+func (_c *ChannelMonitorCreate) SetNillableSortOrder(v *int) *ChannelMonitorCreate {
+	if v != nil {
+		_c.SetSortOrder(*v)
+	}
+	return _c
+}
+
 // SetIntervalSeconds sets the "interval_seconds" field.
 func (_c *ChannelMonitorCreate) SetIntervalSeconds(v int) *ChannelMonitorCreate {
 	_c.mutation.SetIntervalSeconds(v)
@@ -337,6 +351,10 @@ func (_c *ChannelMonitorCreate) defaults() {
 		v := channelmonitor.DefaultUserVisible
 		_c.mutation.SetUserVisible(v)
 	}
+	if _, ok := _c.mutation.SortOrder(); !ok {
+		v := channelmonitor.DefaultSortOrder
+		_c.mutation.SetSortOrder(v)
+	}
 	if _, ok := _c.mutation.JitterSeconds(); !ok {
 		v := channelmonitor.DefaultJitterSeconds
 		_c.mutation.SetJitterSeconds(v)
@@ -420,6 +438,9 @@ func (_c *ChannelMonitorCreate) check() error {
 	}
 	if _, ok := _c.mutation.UserVisible(); !ok {
 		return &ValidationError{Name: "user_visible", err: errors.New(`ent: missing required field "ChannelMonitor.user_visible"`)}
+	}
+	if _, ok := _c.mutation.SortOrder(); !ok {
+		return &ValidationError{Name: "sort_order", err: errors.New(`ent: missing required field "ChannelMonitor.sort_order"`)}
 	}
 	if _, ok := _c.mutation.IntervalSeconds(); !ok {
 		return &ValidationError{Name: "interval_seconds", err: errors.New(`ent: missing required field "ChannelMonitor.interval_seconds"`)}
@@ -525,6 +546,10 @@ func (_c *ChannelMonitorCreate) createSpec() (*ChannelMonitor, *sqlgraph.CreateS
 	if value, ok := _c.mutation.UserVisible(); ok {
 		_spec.SetField(channelmonitor.FieldUserVisible, field.TypeBool, value)
 		_node.UserVisible = value
+	}
+	if value, ok := _c.mutation.SortOrder(); ok {
+		_spec.SetField(channelmonitor.FieldSortOrder, field.TypeInt, value)
+		_node.SortOrder = value
 	}
 	if value, ok := _c.mutation.IntervalSeconds(); ok {
 		_spec.SetField(channelmonitor.FieldIntervalSeconds, field.TypeInt, value)
@@ -790,6 +815,24 @@ func (u *ChannelMonitorUpsert) SetUserVisible(v bool) *ChannelMonitorUpsert {
 // UpdateUserVisible sets the "user_visible" field to the value that was provided on create.
 func (u *ChannelMonitorUpsert) UpdateUserVisible() *ChannelMonitorUpsert {
 	u.SetExcluded(channelmonitor.FieldUserVisible)
+	return u
+}
+
+// SetSortOrder sets the "sort_order" field.
+func (u *ChannelMonitorUpsert) SetSortOrder(v int) *ChannelMonitorUpsert {
+	u.Set(channelmonitor.FieldSortOrder, v)
+	return u
+}
+
+// UpdateSortOrder sets the "sort_order" field to the value that was provided on create.
+func (u *ChannelMonitorUpsert) UpdateSortOrder() *ChannelMonitorUpsert {
+	u.SetExcluded(channelmonitor.FieldSortOrder)
+	return u
+}
+
+// AddSortOrder adds v to the "sort_order" field.
+func (u *ChannelMonitorUpsert) AddSortOrder(v int) *ChannelMonitorUpsert {
+	u.Add(channelmonitor.FieldSortOrder, v)
 	return u
 }
 
@@ -1128,6 +1171,27 @@ func (u *ChannelMonitorUpsertOne) SetUserVisible(v bool) *ChannelMonitorUpsertOn
 func (u *ChannelMonitorUpsertOne) UpdateUserVisible() *ChannelMonitorUpsertOne {
 	return u.Update(func(s *ChannelMonitorUpsert) {
 		s.UpdateUserVisible()
+	})
+}
+
+// SetSortOrder sets the "sort_order" field.
+func (u *ChannelMonitorUpsertOne) SetSortOrder(v int) *ChannelMonitorUpsertOne {
+	return u.Update(func(s *ChannelMonitorUpsert) {
+		s.SetSortOrder(v)
+	})
+}
+
+// AddSortOrder adds v to the "sort_order" field.
+func (u *ChannelMonitorUpsertOne) AddSortOrder(v int) *ChannelMonitorUpsertOne {
+	return u.Update(func(s *ChannelMonitorUpsert) {
+		s.AddSortOrder(v)
+	})
+}
+
+// UpdateSortOrder sets the "sort_order" field to the value that was provided on create.
+func (u *ChannelMonitorUpsertOne) UpdateSortOrder() *ChannelMonitorUpsertOne {
+	return u.Update(func(s *ChannelMonitorUpsert) {
+		s.UpdateSortOrder()
 	})
 }
 
@@ -1654,6 +1718,27 @@ func (u *ChannelMonitorUpsertBulk) SetUserVisible(v bool) *ChannelMonitorUpsertB
 func (u *ChannelMonitorUpsertBulk) UpdateUserVisible() *ChannelMonitorUpsertBulk {
 	return u.Update(func(s *ChannelMonitorUpsert) {
 		s.UpdateUserVisible()
+	})
+}
+
+// SetSortOrder sets the "sort_order" field.
+func (u *ChannelMonitorUpsertBulk) SetSortOrder(v int) *ChannelMonitorUpsertBulk {
+	return u.Update(func(s *ChannelMonitorUpsert) {
+		s.SetSortOrder(v)
+	})
+}
+
+// AddSortOrder adds v to the "sort_order" field.
+func (u *ChannelMonitorUpsertBulk) AddSortOrder(v int) *ChannelMonitorUpsertBulk {
+	return u.Update(func(s *ChannelMonitorUpsert) {
+		s.AddSortOrder(v)
+	})
+}
+
+// UpdateSortOrder sets the "sort_order" field to the value that was provided on create.
+func (u *ChannelMonitorUpsertBulk) UpdateSortOrder() *ChannelMonitorUpsertBulk {
+	return u.Update(func(s *ChannelMonitorUpsert) {
+		s.UpdateSortOrder()
 	})
 }
 

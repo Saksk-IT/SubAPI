@@ -39,6 +39,8 @@ const (
 	FieldEnabled = "enabled"
 	// FieldUserVisible holds the string denoting the user_visible field in the database.
 	FieldUserVisible = "user_visible"
+	// FieldSortOrder holds the string denoting the sort_order field in the database.
+	FieldSortOrder = "sort_order"
 	// FieldIntervalSeconds holds the string denoting the interval_seconds field in the database.
 	FieldIntervalSeconds = "interval_seconds"
 	// FieldJitterSeconds holds the string denoting the jitter_seconds field in the database.
@@ -101,6 +103,7 @@ var Columns = []string{
 	FieldGroupName,
 	FieldEnabled,
 	FieldUserVisible,
+	FieldSortOrder,
 	FieldIntervalSeconds,
 	FieldJitterSeconds,
 	FieldLastCheckedAt,
@@ -150,6 +153,8 @@ var (
 	DefaultEnabled bool
 	// DefaultUserVisible holds the default value on creation for the "user_visible" field.
 	DefaultUserVisible bool
+	// DefaultSortOrder holds the default value on creation for the "sort_order" field.
+	DefaultSortOrder int
 	// IntervalSecondsValidator is a validator for the "interval_seconds" field. It is called by the builders before save.
 	IntervalSecondsValidator func(int) error
 	// DefaultJitterSeconds holds the default value on creation for the "jitter_seconds" field.
@@ -249,6 +254,11 @@ func ByEnabled(opts ...sql.OrderTermOption) OrderOption {
 // ByUserVisible orders the results by the user_visible field.
 func ByUserVisible(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldUserVisible, opts...).ToFunc()
+}
+
+// BySortOrder orders the results by the sort_order field.
+func BySortOrder(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldSortOrder, opts...).ToFunc()
 }
 
 // ByIntervalSeconds orders the results by the interval_seconds field.

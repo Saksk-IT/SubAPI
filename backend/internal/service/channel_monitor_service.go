@@ -21,6 +21,7 @@ type ChannelMonitorRepository interface {
 	Update(ctx context.Context, m *ChannelMonitor) error
 	Delete(ctx context.Context, id int64) error
 	List(ctx context.Context, params ChannelMonitorListParams) ([]*ChannelMonitor, int64, error)
+	UpdateSortOrders(ctx context.Context, updates []ChannelMonitorSortOrderUpdate) error
 
 	// 调度器辅助
 	ListEnabled(ctx context.Context) ([]*ChannelMonitor, error)
@@ -240,6 +241,35 @@ func (s *ChannelMonitorService) Delete(ctx context.Context, id int64) error {
 		s.scheduler.Unschedule(id)
 	}
 	return nil
+}
+
+// UpdateSortOrders 批量更新监控显示顺序。
+func (s *ChannelMonitorService) UpdateSortOrders(ctx context.Context, updates []ChannelMonitorSortOrderUpdate) error {
+	if err := s.repo.UpdateSortOrders(ctx, compactChannelMonitorSortUpdates(updates)); err != nil {
+		return fmt.Errorf("update channel monitor sort orders: %w", err)
+	}
+	return nil
+}
+
+// compactChannelMonitorSortUpdates 过滤无效 ID，并保留重复 ID 的最后一次排序值。
+func compactChannelMonitorSortUpdates(updates []ChannelMonitorSortOrderUpdate) []ChannelMonitorSortOrderUpdate {
+	if len(updates) == 0 {
+		return nil
+	}
+	positions := make(map[int64]int, len(updates))
+	out := make([]ChannelMonitorSortOrderUpdate, 0, len(updates))
+	for _, update := range updates {
+		if update.ID <= 0 {
+			continue
+		}
+		if idx, ok := positions[update.ID]; ok {
+			out[idx].SortOrder = update.SortOrder
+			continue
+		}
+		positions[update.ID] = len(out)
+		out = append(out, update)
+	}
+	return out
 }
 
 // ListHistory 列出某个监控最近的检测历史。

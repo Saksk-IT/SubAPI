@@ -2994,6 +2994,10 @@ export default {
       deleteSuccess: '监控删除成功',
       loadError: '加载监控列表失败',
       deleteConfirm: '确定要删除监控「{name}」吗？此操作不可撤销。',
+      sortOrder: '排序',
+      sortOrderHint: '拖拽渠道监控调整显示顺序，渠道状态监控卡片会严格按该顺序显示。',
+      sortOrderUpdated: '排序已更新',
+      failedToUpdateSortOrder: '更新排序失败',
       nameRequired: '请输入监控名称',
       primaryModelRequired: '请输入主模型',
       columns: {

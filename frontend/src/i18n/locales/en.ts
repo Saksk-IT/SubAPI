@@ -2919,6 +2919,10 @@ export default {
       deleteSuccess: 'Monitor deleted',
       loadError: 'Failed to load monitors',
       deleteConfirm: 'Are you sure you want to delete monitor "{name}"? This action cannot be undone.',
+      sortOrder: 'Sort',
+      sortOrderHint: 'Drag channel monitors to adjust display order. Channel status cards follow this order exactly.',
+      sortOrderUpdated: 'Sort order updated',
+      failedToUpdateSortOrder: 'Failed to update sort order',
       nameRequired: 'Please enter a monitor name',
       primaryModelRequired: 'Please enter a primary model',
       columns: {

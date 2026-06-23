@@ -43,6 +43,8 @@ type ChannelMonitor struct {
 	Enabled bool `json:"enabled,omitempty"`
 	// Whether this monitor is visible in user-facing channel status pages
 	UserVisible bool `json:"user_visible,omitempty"`
+	// Channel monitor display ordering, lower values first
+	SortOrder int `json:"sort_order,omitempty"`
 	// IntervalSeconds holds the value of the "interval_seconds" field.
 	IntervalSeconds int `json:"interval_seconds,omitempty"`
 	// 每次调度在 interval 基础上 ± [0, jitter] 的均匀随机偏移（秒）；0 表示固定间隔。service 层另保证 interval - jitter >= 15
@@ -116,7 +118,7 @@ func (*ChannelMonitor) scanValues(columns []string) ([]any, error) {
 			values[i] = new([]byte)
 		case channelmonitor.FieldEnabled, channelmonitor.FieldUserVisible:
 			values[i] = new(sql.NullBool)
-		case channelmonitor.FieldID, channelmonitor.FieldIntervalSeconds, channelmonitor.FieldJitterSeconds, channelmonitor.FieldCreatedBy, channelmonitor.FieldTemplateID:
+		case channelmonitor.FieldID, channelmonitor.FieldSortOrder, channelmonitor.FieldIntervalSeconds, channelmonitor.FieldJitterSeconds, channelmonitor.FieldCreatedBy, channelmonitor.FieldTemplateID:
 			values[i] = new(sql.NullInt64)
 		case channelmonitor.FieldName, channelmonitor.FieldProvider, channelmonitor.FieldAPIMode, channelmonitor.FieldEndpoint, channelmonitor.FieldAPIKeyEncrypted, channelmonitor.FieldPrimaryModel, channelmonitor.FieldGroupName, channelmonitor.FieldBodyOverrideMode:
 			values[i] = new(sql.NullString)
@@ -216,6 +218,12 @@ func (_m *ChannelMonitor) assignValues(columns []string, values []any) error {
 				return fmt.Errorf("unexpected type %T for field user_visible", values[i])
 			} else if value.Valid {
 				_m.UserVisible = value.Bool
+			}
+		case channelmonitor.FieldSortOrder:
+			if value, ok := values[i].(*sql.NullInt64); !ok {
+				return fmt.Errorf("unexpected type %T for field sort_order", values[i])
+			} else if value.Valid {
+				_m.SortOrder = int(value.Int64)
 			}
 		case channelmonitor.FieldIntervalSeconds:
 			if value, ok := values[i].(*sql.NullInt64); !ok {
@@ -356,6 +364,9 @@ func (_m *ChannelMonitor) String() string {
 	builder.WriteString(", ")
 	builder.WriteString("user_visible=")
 	builder.WriteString(fmt.Sprintf("%v", _m.UserVisible))
+	builder.WriteString(", ")
+	builder.WriteString("sort_order=")
+	builder.WriteString(fmt.Sprintf("%v", _m.SortOrder))
 	builder.WriteString(", ")
 	builder.WriteString("interval_seconds=")
 	builder.WriteString(fmt.Sprintf("%v", _m.IntervalSeconds))

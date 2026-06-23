@@ -87,6 +87,7 @@ type channelMonitorResponse struct {
 	GroupName           string                               `json:"group_name"`
 	Enabled             bool                                 `json:"enabled"`
 	UserVisible         bool                                 `json:"user_visible"`
+	SortOrder           int                                  `json:"sort_order"`
 	IntervalSeconds     int                                  `json:"interval_seconds"`
 	JitterSeconds       int                                  `json:"jitter_seconds"`
 	LastCheckedAt       *string                              `json:"last_checked_at"`
@@ -102,6 +103,13 @@ type channelMonitorResponse struct {
 	ExtraHeaders     map[string]string `json:"extra_headers"`
 	BodyOverrideMode string            `json:"body_override_mode"`
 	BodyOverride     map[string]any    `json:"body_override"`
+}
+
+type channelMonitorSortOrderRequest struct {
+	Updates []struct {
+		ID        int64 `json:"id"`
+		SortOrder int   `json:"sort_order"`
+	} `json:"updates" binding:"required"`
 }
 
 type channelMonitorCheckResultResponse struct {
@@ -156,6 +164,7 @@ func channelMonitorToResponse(m *service.ChannelMonitor) *channelMonitorResponse
 		GroupName:           m.GroupName,
 		Enabled:             m.Enabled,
 		UserVisible:         m.UserVisible,
+		SortOrder:           m.SortOrder,
 		IntervalSeconds:     m.IntervalSeconds,
 		JitterSeconds:       m.JitterSeconds,
 		CreatedBy:           m.CreatedBy,
@@ -386,6 +395,28 @@ func (h *ChannelMonitorHandler) Delete(c *gin.Context) {
 		return
 	}
 	response.Success(c, nil)
+}
+
+// UpdateSortOrder PUT /api/v1/admin/channel-monitors/sort-order
+func (h *ChannelMonitorHandler) UpdateSortOrder(c *gin.Context) {
+	var req channelMonitorSortOrderRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.ErrorFrom(c, infraerrors.BadRequest("VALIDATION_ERROR", err.Error()))
+		return
+	}
+
+	updates := make([]service.ChannelMonitorSortOrderUpdate, 0, len(req.Updates))
+	for _, item := range req.Updates {
+		updates = append(updates, service.ChannelMonitorSortOrderUpdate{
+			ID:        item.ID,
+			SortOrder: item.SortOrder,
+		})
+	}
+	if err := h.monitorService.UpdateSortOrders(c.Request.Context(), updates); err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	response.Success(c, gin.H{"message": "Sort order updated successfully"})
 }
 
 // Run POST /api/v1/admin/channel-monitors/:id/run

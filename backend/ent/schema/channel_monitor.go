@@ -63,6 +63,9 @@ func (ChannelMonitor) Fields() []ent.Field {
 		field.Bool("user_visible").
 			Default(true).
 			Comment("Whether this monitor is visible in user-facing channel status pages"),
+		field.Int("sort_order").
+			Default(0).
+			Comment("Channel monitor display ordering, lower values first"),
 		field.Int("interval_seconds").
 			Range(15, 3600),
 		field.Int("jitter_seconds").
@@ -114,6 +117,8 @@ func (ChannelMonitor) Edges() []ent.Edge {
 func (ChannelMonitor) Indexes() []ent.Index {
 	return []ent.Index{
 		index.Fields("enabled", "last_checked_at"),
+		index.Fields("sort_order", "id"),
+		index.Fields("enabled", "sort_order", "id"),
 		index.Fields("provider"),
 		index.Fields("provider", "api_mode"),
 		index.Fields("group_name"),
