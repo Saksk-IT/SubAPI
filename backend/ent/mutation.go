@@ -10039,6 +10039,8 @@ type ChannelMonitorMutation struct {
 	user_visible            *bool
 	interval_seconds        *int
 	addinterval_seconds     *int
+	jitter_seconds          *int
+	addjitter_seconds       *int
 	last_checked_at         *time.Time
 	created_by              *int64
 	addcreated_by           *int64
@@ -10673,6 +10675,62 @@ func (m *ChannelMonitorMutation) ResetIntervalSeconds() {
 	m.addinterval_seconds = nil
 }
 
+// SetJitterSeconds sets the "jitter_seconds" field.
+func (m *ChannelMonitorMutation) SetJitterSeconds(i int) {
+	m.jitter_seconds = &i
+	m.addjitter_seconds = nil
+}
+
+// JitterSeconds returns the value of the "jitter_seconds" field in the mutation.
+func (m *ChannelMonitorMutation) JitterSeconds() (r int, exists bool) {
+	v := m.jitter_seconds
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldJitterSeconds returns the old "jitter_seconds" field's value of the ChannelMonitor entity.
+// If the ChannelMonitor object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *ChannelMonitorMutation) OldJitterSeconds(ctx context.Context) (v int, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldJitterSeconds is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldJitterSeconds requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldJitterSeconds: %w", err)
+	}
+	return oldValue.JitterSeconds, nil
+}
+
+// AddJitterSeconds adds i to the "jitter_seconds" field.
+func (m *ChannelMonitorMutation) AddJitterSeconds(i int) {
+	if m.addjitter_seconds != nil {
+		*m.addjitter_seconds += i
+	} else {
+		m.addjitter_seconds = &i
+	}
+}
+
+// AddedJitterSeconds returns the value that was added to the "jitter_seconds" field in this mutation.
+func (m *ChannelMonitorMutation) AddedJitterSeconds() (r int, exists bool) {
+	v := m.addjitter_seconds
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetJitterSeconds resets all changes to the "jitter_seconds" field.
+func (m *ChannelMonitorMutation) ResetJitterSeconds() {
+	m.jitter_seconds = nil
+	m.addjitter_seconds = nil
+}
+
 // SetLastCheckedAt sets the "last_checked_at" field.
 func (m *ChannelMonitorMutation) SetLastCheckedAt(t time.Time) {
 	m.last_checked_at = &t
@@ -11170,6 +11228,9 @@ func (m *ChannelMonitorMutation) Fields() []string {
 	if m.interval_seconds != nil {
 		fields = append(fields, channelmonitor.FieldIntervalSeconds)
 	}
+	if m.jitter_seconds != nil {
+		fields = append(fields, channelmonitor.FieldJitterSeconds)
+	}
 	if m.last_checked_at != nil {
 		fields = append(fields, channelmonitor.FieldLastCheckedAt)
 	}
@@ -11222,6 +11283,8 @@ func (m *ChannelMonitorMutation) Field(name string) (ent.Value, bool) {
 		return m.UserVisible()
 	case channelmonitor.FieldIntervalSeconds:
 		return m.IntervalSeconds()
+	case channelmonitor.FieldJitterSeconds:
+		return m.JitterSeconds()
 	case channelmonitor.FieldLastCheckedAt:
 		return m.LastCheckedAt()
 	case channelmonitor.FieldCreatedBy:
@@ -11269,6 +11332,8 @@ func (m *ChannelMonitorMutation) OldField(ctx context.Context, name string) (ent
 		return m.OldUserVisible(ctx)
 	case channelmonitor.FieldIntervalSeconds:
 		return m.OldIntervalSeconds(ctx)
+	case channelmonitor.FieldJitterSeconds:
+		return m.OldJitterSeconds(ctx)
 	case channelmonitor.FieldLastCheckedAt:
 		return m.OldLastCheckedAt(ctx)
 	case channelmonitor.FieldCreatedBy:
@@ -11381,6 +11446,13 @@ func (m *ChannelMonitorMutation) SetField(name string, value ent.Value) error {
 		}
 		m.SetIntervalSeconds(v)
 		return nil
+	case channelmonitor.FieldJitterSeconds:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetJitterSeconds(v)
+		return nil
 	case channelmonitor.FieldLastCheckedAt:
 		v, ok := value.(time.Time)
 		if !ok {
@@ -11434,6 +11506,9 @@ func (m *ChannelMonitorMutation) AddedFields() []string {
 	if m.addinterval_seconds != nil {
 		fields = append(fields, channelmonitor.FieldIntervalSeconds)
 	}
+	if m.addjitter_seconds != nil {
+		fields = append(fields, channelmonitor.FieldJitterSeconds)
+	}
 	if m.addcreated_by != nil {
 		fields = append(fields, channelmonitor.FieldCreatedBy)
 	}
@@ -11447,6 +11522,8 @@ func (m *ChannelMonitorMutation) AddedField(name string) (ent.Value, bool) {
 	switch name {
 	case channelmonitor.FieldIntervalSeconds:
 		return m.AddedIntervalSeconds()
+	case channelmonitor.FieldJitterSeconds:
+		return m.AddedJitterSeconds()
 	case channelmonitor.FieldCreatedBy:
 		return m.AddedCreatedBy()
 	}
@@ -11464,6 +11541,13 @@ func (m *ChannelMonitorMutation) AddField(name string, value ent.Value) error {
 			return fmt.Errorf("unexpected type %T for field %s", value, name)
 		}
 		m.AddIntervalSeconds(v)
+		return nil
+	case channelmonitor.FieldJitterSeconds:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddJitterSeconds(v)
 		return nil
 	case channelmonitor.FieldCreatedBy:
 		v, ok := value.(int64)
@@ -11564,6 +11648,9 @@ func (m *ChannelMonitorMutation) ResetField(name string) error {
 		return nil
 	case channelmonitor.FieldIntervalSeconds:
 		m.ResetIntervalSeconds()
+		return nil
+	case channelmonitor.FieldJitterSeconds:
+		m.ResetJitterSeconds()
 		return nil
 	case channelmonitor.FieldLastCheckedAt:
 		m.ResetLastCheckedAt()

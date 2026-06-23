@@ -287,6 +287,7 @@ onMounted(async () => {
     pendingAuthTokenField.value = activePendingSession.token_field
     pendingProvider.value = activePendingSession.provider
     pendingRedirect.value = activePendingSession.redirect || ''
+    affCode.value = loadAffiliateReferralCode()
   }
 
   // Load public settings

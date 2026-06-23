@@ -48,6 +48,15 @@ const (
 	monitorEndpointSchemeHTTPS = "https"
 )
 
+// validateJitter 校验 jitter_seconds（调度 ± 随机抖动）：
+// 非负，且 interval - jitter 不得低于最小检测间隔，防止随机偏移后实际间隔过短打爆上游。
+func validateJitter(jitterSec, intervalSec int) error {
+	if jitterSec < 0 || intervalSec-jitterSec < monitorMinIntervalSeconds {
+		return ErrChannelMonitorInvalidJitter
+	}
+	return nil
+}
+
 // validateEndpoint 校验 endpoint：
 //   - scheme 允许 http / https（http 仅适合可信内网或自管公网上游，会明文传输凭证）
 //   - 必须为 origin（无 path/query/fragment），防止用户填 https://api.openai.com/v1

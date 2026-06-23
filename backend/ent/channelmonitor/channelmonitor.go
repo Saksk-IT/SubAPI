@@ -41,6 +41,8 @@ const (
 	FieldUserVisible = "user_visible"
 	// FieldIntervalSeconds holds the string denoting the interval_seconds field in the database.
 	FieldIntervalSeconds = "interval_seconds"
+	// FieldJitterSeconds holds the string denoting the jitter_seconds field in the database.
+	FieldJitterSeconds = "jitter_seconds"
 	// FieldLastCheckedAt holds the string denoting the last_checked_at field in the database.
 	FieldLastCheckedAt = "last_checked_at"
 	// FieldCreatedBy holds the string denoting the created_by field in the database.
@@ -100,6 +102,7 @@ var Columns = []string{
 	FieldEnabled,
 	FieldUserVisible,
 	FieldIntervalSeconds,
+	FieldJitterSeconds,
 	FieldLastCheckedAt,
 	FieldCreatedBy,
 	FieldTemplateID,
@@ -149,6 +152,10 @@ var (
 	DefaultUserVisible bool
 	// IntervalSecondsValidator is a validator for the "interval_seconds" field. It is called by the builders before save.
 	IntervalSecondsValidator func(int) error
+	// DefaultJitterSeconds holds the default value on creation for the "jitter_seconds" field.
+	DefaultJitterSeconds int
+	// JitterSecondsValidator is a validator for the "jitter_seconds" field. It is called by the builders before save.
+	JitterSecondsValidator func(int) error
 	// DefaultExtraHeaders holds the default value on creation for the "extra_headers" field.
 	DefaultExtraHeaders map[string]string
 	// DefaultBodyOverrideMode holds the default value on creation for the "body_override_mode" field.
@@ -247,6 +254,11 @@ func ByUserVisible(opts ...sql.OrderTermOption) OrderOption {
 // ByIntervalSeconds orders the results by the interval_seconds field.
 func ByIntervalSeconds(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldIntervalSeconds, opts...).ToFunc()
+}
+
+// ByJitterSeconds orders the results by the jitter_seconds field.
+func ByJitterSeconds(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldJitterSeconds, opts...).ToFunc()
 }
 
 // ByLastCheckedAt orders the results by the last_checked_at field.

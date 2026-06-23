@@ -46,6 +46,7 @@ func (r *channelMonitorRepository) Create(ctx context.Context, m *service.Channe
 		SetEnabled(m.Enabled).
 		SetUserVisible(m.UserVisible).
 		SetIntervalSeconds(m.IntervalSeconds).
+		SetJitterSeconds(m.JitterSeconds).
 		SetCreatedBy(m.CreatedBy).
 		SetExtraHeaders(emptyHeadersIfNilRepo(m.ExtraHeaders)).
 		SetBodyOverrideMode(defaultBodyModeRepo(m.BodyOverrideMode))
@@ -90,6 +91,7 @@ func (r *channelMonitorRepository) Update(ctx context.Context, m *service.Channe
 		SetEnabled(m.Enabled).
 		SetUserVisible(m.UserVisible).
 		SetIntervalSeconds(m.IntervalSeconds).
+		SetJitterSeconds(m.JitterSeconds).
 		SetExtraHeaders(emptyHeadersIfNilRepo(m.ExtraHeaders)).
 		SetBodyOverrideMode(defaultBodyModeRepo(m.BodyOverrideMode))
 	if m.TemplateID != nil {
@@ -721,6 +723,7 @@ func entToServiceMonitor(row *dbent.ChannelMonitor) *service.ChannelMonitor {
 		Enabled:          row.Enabled,
 		UserVisible:      row.UserVisible,
 		IntervalSeconds:  row.IntervalSeconds,
+		JitterSeconds:    row.JitterSeconds,
 		LastCheckedAt:    row.LastCheckedAt,
 		CreatedBy:        row.CreatedBy,
 		CreatedAt:        row.CreatedAt,

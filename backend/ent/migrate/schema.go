@@ -473,6 +473,7 @@ var (
 		{Name: "enabled", Type: field.TypeBool, Default: true},
 		{Name: "user_visible", Type: field.TypeBool, Default: true},
 		{Name: "interval_seconds", Type: field.TypeInt},
+		{Name: "jitter_seconds", Type: field.TypeInt, Default: 0},
 		{Name: "last_checked_at", Type: field.TypeTime, Nullable: true},
 		{Name: "created_by", Type: field.TypeInt64},
 		{Name: "extra_headers", Type: field.TypeJSON},
