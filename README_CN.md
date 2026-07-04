@@ -17,6 +17,16 @@
 </div>
 
 > **Sub2API 官方仅使用  `sub2api.org` 与 `pincc.ai` 两个域名。其他使用 Sub2API 名义的网站可能为第三方部署或服务，与本项目无关，请自行甄别。**
+
+## ⚠️ 重要提醒
+
+使用本项目前，请务必仔细阅读以下内容：
+
+- **服务条款风险**：使用本项目可能违反 Anthropic 等上游服务商的服务条款。请在使用前仔细阅读相关服务商的用户协议，由此产生的一切风险由用户自行承担。
+- **合规使用**：请在符合您所在国家或地区法律法规的前提下使用本项目，严禁将其用于任何违法违规用途。
+- **免责声明**：本项目仅供技术学习与研究使用，作者不对因使用本项目导致的账户封禁、服务中断、数据丢失或其他任何直接或间接损失承担责任。
+- **无商业授权**：本项目从未授权任何个人或组织基于本项目开展任何形式的商业化运营。任何以本项目名义或基于本项目从事的商业行为均与本项目及其开发者无关，由此产生的一切纠纷、损失和法律责任由行为主体自行承担。
+
 ---
 
 ## 在线体验
@@ -247,17 +257,28 @@ curl -sSL https://raw.githubusercontent.com/Wei-Shaw/sub2api/main/deploy/install
 
 #### 快速开始（一键部署）
 
-在 Cloudflare 先添加 A 记录指向服务器公网 IP，然后在服务器执行一键脚本。脚本会自动更新系统软件包、安装 Docker、生成部署配置、创建 Caddy HTTPS 配置并启动服务；运行时按提示输入域名，留空则使用 `IP:8080` 模式。
+使用自动化部署脚本快速搭建：
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/Saksk-IT/SubAPI/main/deploy/docker-deploy.sh | sudo bash
+# 创建部署目录
+mkdir -p sub2api-deploy && cd sub2api-deploy
+
+# 下载并运行部署准备脚本
+curl -sSL https://raw.githubusercontent.com/Saksk-IT/SubAPI/main/deploy/docker-deploy.sh | bash
+
+# 启动服务
+docker compose up -d
+
+# 查看日志
+docker compose logs -f sub2api
 ```
 
-如果不想交互输入域名，也可以直接传入：
+如果需要直接配置 Cloudflare 域名和 HTTPS，先在 Cloudflare 添加 A 记录指向服务器公网 IP，然后传入域名运行：
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/Saksk-IT/SubAPI/main/deploy/docker-deploy.sh \
-  | sudo env SUB2API_DOMAIN=api.example.com bash
+curl -sSL https://raw.githubusercontent.com/Saksk-IT/SubAPI/main/deploy/docker-deploy.sh \
+  | SUB2API_DOMAIN=api.example.com \
+    bash
 ```
 
 脚本默认拉取你的最新镜像：
@@ -269,15 +290,12 @@ ghcr.io/saksk-it/subapi:latest
 Cloudflare SSL/TLS 模式请选择 `Full (strict)`，不要使用 `Flexible`。
 
 **脚本功能：**
-- 自动执行 `apt-get update && apt-get upgrade -y`，并在 Ubuntu/Debian 上安装 Docker Engine 与 Docker Compose v2
 - 下载 `docker-compose.local.yml`（本地保存为 `docker-compose.yml`）和 `.env.example`
 - 默认使用 `ghcr.io/saksk-it/subapi:latest`，并支持通过 `SUBAPI_IMAGE` 做高级覆盖
 - 自动生成安全凭证（JWT_SECRET、TOTP_ENCRYPTION_KEY、POSTGRES_PASSWORD、REDIS_PASSWORD、ADMIN_PASSWORD）
 - 创建 `.env` 文件并填充自动生成的密钥
-- 默认部署到 `/opt/sub2api`，并创建本地数据目录（便于备份和迁移）
-- 输入或传入 `SUB2API_DOMAIN` 时自动生成 Caddy HTTPS 配置和 Compose 覆盖文件
-- 默认自动执行 `docker compose pull && docker compose up -d`
-- 默认验证本机 `/health`，配置域名时还会验证 HTTPS `/health`
+- 创建数据目录（使用本地目录，便于备份和迁移）
+- 传入 `SUB2API_DOMAIN` 时自动生成 Caddy HTTPS 配置和 Compose 覆盖文件
 - 显示生成的凭证供你记录
 
 #### 手动部署
@@ -596,7 +614,7 @@ Invalid base URL: invalid url scheme: http
 
 ```caddyfile
 transport http {
-	versions h2c 1.1
+	versions h2c h1
 }
 ```
 

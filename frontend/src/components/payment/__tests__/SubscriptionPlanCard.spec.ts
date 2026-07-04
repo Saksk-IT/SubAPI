@@ -1,22 +1,32 @@
 import { mount } from "@vue/test-utils";
 import { describe, expect, it, vi } from "vitest";
+import { createPinia } from "pinia";
 import SubscriptionPlanCard from "../SubscriptionPlanCard.vue";
 
-const messages: Record<string, string> = {
-  "payment.days": "days",
-  "payment.months": "months",
-  "payment.admin.weeks": "weeks",
-  "payment.planCard.quota": "Quota",
-  "payment.planCard.rate": "Rate",
-  "payment.planCard.unlimited": "Unlimited",
-  "payment.subscribeNow": "Subscribe now",
-};
-
-vi.mock("vue-i18n", () => ({
-  useI18n: () => ({
-    t: (key: string) => messages[key] ?? key,
-  }),
-}));
+vi.mock("vue-i18n", async () => {
+  const actual = await vi.importActual<typeof import("vue-i18n")>("vue-i18n");
+  return {
+    ...actual,
+    useI18n: () => ({
+      t: (key: string) =>
+        ({
+          "payment.days": "days",
+          "payment.months": "months",
+          "payment.admin.weeks": "weeks",
+          "payment.planCard.quota": "Quota",
+          "payment.planCard.rate": "Rate",
+          "payment.planCard.dailyLimit": "Daily limit",
+          "payment.planCard.weeklyLimit": "Weekly limit",
+          "payment.planCard.monthlyLimit": "Monthly limit",
+          "payment.planCard.peakRate": "Peak rate",
+          "payment.planCard.unlimited": "Unlimited",
+          "payment.planCard.models": "Models",
+          "payment.subscribeNow": "Subscribe now",
+          "payment.renewNow": "Renew now",
+        })[key] ?? key,
+    }),
+  };
+});
 
 const mountPlanCard = (groupPlatform: string, validityUnit = "day") =>
   mount(SubscriptionPlanCard, {
@@ -36,6 +46,7 @@ const mountPlanCard = (groupPlatform: string, validityUnit = "day") =>
         is_active: true,
       },
     },
+    global: { plugins: [createPinia()] },
   });
 
 describe("SubscriptionPlanCard", () => {
