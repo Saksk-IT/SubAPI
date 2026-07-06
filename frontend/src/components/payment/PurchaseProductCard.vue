@@ -122,7 +122,7 @@
           <span v-else data-testid="payment-method-icon-shell" class="flex h-7 w-7 items-center justify-center rounded-full bg-white shadow-sm">
             <img :src="methodIcon(method.type)" alt="" class="h-5 w-5 object-contain" />
           </span>
-          <span>{{ t(`payment.methods.${method.type}`, method.type) }}</span>
+          <span>{{ method.display_name || t(`payment.methods.${method.type}`, method.type) }}</span>
         </button>
       </div>
       <p v-else class="rounded-xl bg-gray-50 px-3 py-3 text-center text-sm text-gray-500 dark:bg-dark-700 dark:text-gray-400">
