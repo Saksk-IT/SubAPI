@@ -7734,6 +7734,8 @@ export default {
       priceAutoUnavailable: 'Unable to calculate',
       planPriceMultiplier: 'Plan Multiplier',
       planPriceMultiplierRequired: 'Plan multiplier must be greater than 0',
+      subscriptionCnyPayPreview: 'CNY channel charge preview: {amount}',
+      subscriptionCnyPayPreviewWithFee: '({feeRate}% fee included: {total})',
       bulkEditPlans: 'Bulk Edit',
       bulkEditPlansTitle: 'Bulk Edit Subscription Plans',
       bulkEditPlansSelected: '{count} subscription plans selected. Only checked fields will be updated in bulk.',

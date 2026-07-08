@@ -195,7 +195,7 @@
     </div>
 
     <!-- Plan Edit Dialog -->
-    <PlanEditDialog :show="showPlanDialog" :plan="editingPlan" :groups="groups" @close="showPlanDialog = false" @saved="loadPlans" />
+    <PlanEditDialog :show="showPlanDialog" :plan="editingPlan" :groups="groups" :payment-config="paymentConfig" @close="showPlanDialog = false" @saved="loadPlans" />
     <BalanceProductEditDialog :show="showBalanceProductDialog" :product="editingBalanceProduct" @close="showBalanceProductDialog = false" @saved="loadBalanceProducts" />
     <BalanceProductBulkEditDialog :show="showBulkBalanceProductDialog" :product-ids="selectedBalanceProductIds" @close="showBulkBalanceProductDialog = false" @updated="handleBulkBalanceProductUpdated" />
     <PlanBulkEditDialog :show="showBulkPlanDialog" :plan-ids="selectedPlanIds" @close="showBulkPlanDialog = false" @updated="handleBulkPlanUpdated" />
@@ -338,6 +338,7 @@ import { useI18n } from 'vue-i18n'
 import { VueDraggable } from 'vue-draggable-plus'
 import { useAppStore } from '@/stores/app'
 import { adminPaymentAPI } from '@/api/admin/payment'
+import type { AdminPaymentConfig } from '@/api/admin/payment'
 import { extractI18nErrorMessage } from '@/utils/apiError'
 import adminAPI from '@/api/admin'
 import type { BalanceProduct, SubscriptionPlan } from '@/types/payment'
@@ -370,11 +371,19 @@ const activeLoading = computed(() => activeProductTab.value === 'balance' ? bala
 // ==================== Groups ====================
 
 const groups = ref<AdminGroup[]>([])
+const paymentConfig = ref<AdminPaymentConfig | null>(null)
 
 async function loadGroups() {
   try {
     groups.value = await adminAPI.groups.getAll()
   } catch { /* ignore */ }
+}
+
+async function loadPaymentConfig() {
+  try {
+    const res = await adminPaymentAPI.getConfig()
+    paymentConfig.value = res.data
+  } catch { /* preview only */ }
 }
 
 function getGroup(id: number): AdminGroup | undefined {
@@ -684,6 +693,7 @@ async function handleDeleteBalanceProduct() {
 
 onMounted(() => {
   loadGroups()
+  loadPaymentConfig()
   loadBalanceProducts()
   loadPlans()
 })

@@ -7909,6 +7909,8 @@ export default {
       priceAutoUnavailable: '无法计算',
       planPriceMultiplier: '套餐倍率',
       planPriceMultiplierRequired: '套餐倍率必须大于 0',
+      subscriptionCnyPayPreview: 'CNY 通道实扣预览：{amount}',
+      subscriptionCnyPayPreviewWithFee: '（含 {feeRate}% 手续费：{total}）',
       bulkEditPlans: '批量修改',
       bulkEditPlansTitle: '批量修改订阅商品',
       bulkEditPlansSelected: '已选择 {count} 个订阅商品。仅勾选的字段会被批量修改。',

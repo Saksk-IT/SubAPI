@@ -35,7 +35,11 @@ vi.mock('vue-i18n', async () => {
   return {
     ...actual,
     useI18n: () => ({
-      t: (key: string) => key,
+      t: (key: string, params?: Record<string, unknown>) => {
+        if (key === 'payment.admin.subscriptionCnyPayPreview') return `preview ${params?.amount}`
+        if (key === 'payment.admin.subscriptionCnyPayPreviewWithFee') return `fee ${params?.feeRate} ${params?.total}`
+        return key
+      },
     }),
   }
 })
@@ -73,12 +77,13 @@ const subscriptionGroup: AdminGroup = {
   mcp_xml_inject: false,
 }
 
-function mountDialog() {
+function mountDialog(paymentConfig: Record<string, unknown> | null = null) {
   return mount(PlanEditDialog, {
     props: {
       show: false,
       plan: null,
       groups: [subscriptionGroup],
+      paymentConfig,
     },
     global: {
       stubs: {
@@ -112,7 +117,7 @@ function mountDialog() {
   })
 }
 
-function mountEditDialog(plan: Record<string, unknown>) {
+function mountEditDialog(plan: Record<string, unknown>, paymentConfig: Record<string, unknown> | null = null) {
   return mount(PlanEditDialog, {
     props: {
       show: false,
@@ -133,6 +138,7 @@ function mountEditDialog(plan: Record<string, unknown>) {
         ...plan,
       },
       groups: [subscriptionGroup],
+      paymentConfig,
     },
     global: {
       stubs: {
@@ -247,6 +253,50 @@ describe('PlanEditDialog', () => {
       price_multiplier: 0.123,
       validity_days: 7,
     }))
+  })
+
+  it('基于自动计算价格展示订阅人民币实扣预览', async () => {
+    const wrapper = mountDialog({
+      subscription_usd_to_cny_rate: 7.15,
+      recharge_fee_rate: 2.5,
+    })
+    await wrapper.setProps({ show: true })
+    await flushPromises()
+
+    await wrapper.find('select').setValue('12')
+    await flushPromises()
+
+    const inputs = wrapper.findAll('input')
+    await inputs[0].setValue('周卡')
+    await inputs[1].setValue('7')
+    await inputs[2].setValue('0.14')
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('preview')
+    expect(wrapper.text()).toContain('336.34')
+    expect(wrapper.text()).toContain('fee 2.5')
+    expect(wrapper.text()).toContain('344.75')
+  })
+
+  it('未配置订阅人民币汇率时隐藏实扣预览', async () => {
+    const wrapper = mountDialog({
+      subscription_usd_to_cny_rate: 0,
+      recharge_fee_rate: 2.5,
+    })
+    await wrapper.setProps({ show: true })
+    await flushPromises()
+
+    await wrapper.find('select').setValue('12')
+    await flushPromises()
+
+    const inputs = wrapper.findAll('input')
+    await inputs[0].setValue('周卡')
+    await inputs[1].setValue('7')
+    await inputs[2].setValue('0.14')
+    await flushPromises()
+
+    expect(wrapper.text()).not.toContain('preview')
+    expect(wrapper.text()).not.toContain('336.34')
   })
 
   it('编辑时优先使用持久化套餐倍率而不是从价格反推', async () => {
