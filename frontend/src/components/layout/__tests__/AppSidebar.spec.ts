@@ -19,6 +19,49 @@ describe('AppSidebar custom SVG styles', () => {
   })
 })
 
+describe('AppSidebar scroll position persistence', () => {
+  it('binds a template ref to the sidebar nav element', () => {
+    expect(componentSource).toContain('ref="sidebarNavRef"')
+    expect(componentSource).toContain('sidebar-nav')
+  })
+
+  it('declares sidebarNavRef in script setup', () => {
+    expect(componentSource).toContain("const sidebarNavRef = ref<HTMLElement | null>(null)")
+  })
+
+  it('saves scroll position on beforeUnmount', () => {
+    expect(componentSource).toContain('onBeforeUnmount')
+    expect(componentSource).toContain('appStore.sidebarScrollTop')
+    expect(componentSource).toContain('sidebarNavRef.value.scrollTop')
+  })
+
+  it('restores scroll position on mount', () => {
+    expect(componentSource).toContain('onMounted')
+    expect(componentSource).toContain('appStore.sidebarScrollTop')
+    expect(componentSource).toContain('nextTick')
+  })
+})
+
+describe('AppSidebar v0.1.149 merge', () => {
+  it('contains no unresolved merge markers', () => {
+    expect(componentSource).not.toMatch(/^(<<<<<<<|=======|>>>>>>>)/m)
+  })
+
+  it('adds the upstream batch image entry behind its access gate', () => {
+    expect(componentSource).toContain("import { useBatchImageAccess } from '@/composables/useBatchImageAccess'")
+    expect(componentSource).toContain('const { canUseBatchImage, refreshBatchImageAccess } = useBatchImageAccess()')
+    expect(componentSource).toContain("{ path: '/batch-image', label: t('nav.batchImage'), icon: BatchImageIcon")
+    expect(componentSource).toContain('featureFlag: flagBatchImageAccess')
+  })
+
+  it('keeps the locally added admin data, activity, and channel pages', () => {
+    expect(componentSource).toContain("{ path: '/admin/data-dashboard', label: t('nav.dataDashboard')")
+    expect(componentSource).toContain("{ path: '/admin/channels/status', label: t('nav.channelStatus')")
+    expect(componentSource).toContain("path: '/admin/activities'")
+    expect(componentSource).toContain("{ path: '/admin/activities/first-recharge', label: t('nav.firstRechargeManagement')")
+  })
+})
+
 describe('AppSidebar header styles', () => {
   it('does not clip the version badge dropdown', () => {
     const sidebarHeaderBlockMatch = styleSource.match(/\.sidebar-header\s*\{[\s\S]*?\n {2}\}/)

@@ -1,6 +1,6 @@
 package main
 
-//go:generate go run github.com/google/wire/cmd/wire
+//go:generate go run -mod=mod github.com/google/wire/cmd/wire
 
 import (
 	"context"
@@ -34,7 +34,7 @@ var (
 	Version   = ""
 	Commit    = "unknown"
 	Date      = "unknown"
-	BuildType = "source" // "source" for manual builds, "release" for CI builds (set by ldflags)
+	BuildType = "source" // "source" for manual builds, "release" for upstream CI, "fork" for customized artifacts
 )
 
 func init() {

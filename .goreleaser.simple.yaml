@@ -24,7 +24,8 @@ builds:
       - -s -w
       - -X main.Commit={{.Commit}}
       - -X main.Date={{.Date}}
-      - -X main.BuildType=release
+      # Fork artifacts must not use the upstream binary updater/rollback source.
+      - -X main.BuildType=fork
 
 # 跳过 archives
 archives: []

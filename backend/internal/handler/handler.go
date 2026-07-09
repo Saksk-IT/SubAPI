@@ -60,10 +60,11 @@ type Handlers struct {
 	PaymentWebhook   *PaymentWebhookHandler
 	AvailableChannel *AvailableChannelHandler
 	Activity         *ActivityHandler
+	BatchImage       *BatchImageHandler
 }
 
 // BuildInfo contains build-time information
 type BuildInfo struct {
 	Version   string
-	BuildType string // "source" for manual builds, "release" for CI builds
+	BuildType string // "source" for manual builds, "release" for upstream CI, "fork" for customized artifacts
 }
