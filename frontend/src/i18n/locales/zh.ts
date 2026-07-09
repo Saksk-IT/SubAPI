@@ -2004,6 +2004,21 @@ export default {
       failedToToggle: '更新用户状态失败',
       failedToLoadApiKeys: '加载用户 API 密钥失败',
       deleteConfirm: "确定要删除用户 '{email}' 吗？此操作无法撤销。",
+      batchDelete: {
+        enable: '批量删除',
+        exit: '退出批量删除',
+        selectColumn: '选择',
+        selectUser: '选择用户',
+        selectAll: '选择本页可删除用户',
+        adminNotAllowed: '管理员用户不能批量删除',
+        deleteSelected: '删除已选({count})',
+        confirmTitle: '批量删除用户',
+        confirmMessage: '确定要删除已选择的 {count} 个用户吗？此操作无法撤销。',
+        confirmButton: '确认删除',
+        success: '已删除 {count} 个用户',
+        partialFailed: '批量删除完成：成功 {success} 个，失败 {failed} 个',
+        failed: '批量删除用户失败'
+      },
       roles: {
         admin: '管理员',
         user: '用户'

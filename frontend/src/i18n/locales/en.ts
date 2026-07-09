@@ -1989,6 +1989,21 @@ export default {
       amountRequired: 'Please enter a valid amount',
       insufficientBalance: 'Insufficient balance',
       deleteConfirm: "Are you sure you want to delete '{email}'? This action cannot be undone.",
+      batchDelete: {
+        enable: 'Batch Delete',
+        exit: 'Exit Batch Delete',
+        selectColumn: 'Select',
+        selectUser: 'Select user',
+        selectAll: 'Select deletable users on this page',
+        adminNotAllowed: 'Admin users cannot be batch deleted',
+        deleteSelected: 'Delete Selected ({count})',
+        confirmTitle: 'Batch Delete Users',
+        confirmMessage: 'Are you sure you want to delete the selected {count} users? This action cannot be undone.',
+        confirmButton: 'Delete Users',
+        success: 'Deleted {count} users',
+        partialFailed: 'Batch delete finished: {success} succeeded, {failed} failed',
+        failed: 'Failed to batch delete users'
+      },
       setAllowedGroups: 'Set Allowed Groups',
       allowedGroupsHint:
         'Select which standard groups this user can use. Subscription groups are managed separately.',
