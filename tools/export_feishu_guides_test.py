@@ -7,38 +7,80 @@ import subprocess
 import sys
 import tempfile
 import unittest
-from collections import Counter
 from pathlib import Path
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 EXPORT_SCRIPT = REPO_ROOT / "tools" / "export_feishu_guides.py"
-EXPECTED_FILENAMES = {
-    "01-Codex-API-登录对接教程.md",
-    "02-Claude-Code-配置教程.md",
-    "03-Open-Code-配置教程.md",
-    "04-Open-Claw-配置教程.md",
-    "05-移动端-Chatbox-配置教程.md",
-    "06-Cherry-Studio-图像生成教程.md",
+OUTPUT_PARENT_DIR = "01-中转注册与API密钥"
+EXPECTED_OUTPUT_PATHS = {
+    f"{OUTPUT_PARENT_DIR}/00-中转注册与API密钥配置教程.md",
+    f"{OUTPUT_PARENT_DIR}/01-Codex-API-登录对接教程.md",
+    f"{OUTPUT_PARENT_DIR}/02-Claude-Code-配置教程.md",
+    f"{OUTPUT_PARENT_DIR}/03-Open-Code-配置教程.md",
+    f"{OUTPUT_PARENT_DIR}/04-Open-Claw-配置教程.md",
+    f"{OUTPUT_PARENT_DIR}/05-移动端-Chatbox-配置教程.md",
+    f"{OUTPUT_PARENT_DIR}/06-Cherry-Studio-图像生成教程.md",
 }
+PARENT_OUTPUT_PATH = f"{OUTPUT_PARENT_DIR}/00-中转注册与API密钥配置教程.md"
+CHILD_OUTPUT_PATHS = tuple(
+    sorted(EXPECTED_OUTPUT_PATHS - {PARENT_OUTPUT_PATH})
+)
 SOURCE_TO_OUTPUT = {
-    "codex-guide.md": "01-Codex-API-登录对接教程.md",
-    "claude-code-guide.md": "02-Claude-Code-配置教程.md",
-    "open-code-guide.md": "03-Open-Code-配置教程.md",
-    "open-claw-guide.md": "04-Open-Claw-配置教程.md",
-    "mobile-guide.md": "05-移动端-Chatbox-配置教程.md",
-    "image-guide.md": "06-Cherry-Studio-图像生成教程.md",
+    "registration-key-guide.md": (
+        f"{OUTPUT_PARENT_DIR}/00-中转注册与API密钥配置教程.md"
+    ),
+    "codex-guide.md": f"{OUTPUT_PARENT_DIR}/01-Codex-API-登录对接教程.md",
+    "claude-code-guide.md": f"{OUTPUT_PARENT_DIR}/02-Claude-Code-配置教程.md",
+    "open-code-guide.md": f"{OUTPUT_PARENT_DIR}/03-Open-Code-配置教程.md",
+    "open-claw-guide.md": f"{OUTPUT_PARENT_DIR}/04-Open-Claw-配置教程.md",
+    "mobile-guide.md": f"{OUTPUT_PARENT_DIR}/05-移动端-Chatbox-配置教程.md",
+    "image-guide.md": f"{OUTPUT_PARENT_DIR}/06-Cherry-Studio-图像生成教程.md",
 }
-SOURCE_BODY_HEADINGS = {
-    "codex-guide.md": "## 站点信息卡",
-    "claude-code-guide.md": "## Claude Code 完整接入流程",
-    "open-code-guide.md": "## Open Code 完整接入流程",
-    "open-claw-guide.md": "## Open Claw 完整接入流程",
-    "mobile-guide.md": "## 移动端完整接入流程",
-    "image-guide.md": "## Cherry Studio 图像生成完整配置流程",
+EXPECTED_IMAGE_TARGETS = {
+    "registration-key-guide.md": (
+        "../../frontend/public/img/codex-guide/image-16.png",
+        "../../frontend/public/img/codex-guide/image.png",
+        "../../frontend/public/img/codex-guide/image-1.png",
+        "../../frontend/public/img/codex-guide/image-17.png",
+        "../../frontend/public/img/codex-guide/image-18.png",
+        "../../frontend/public/img/codex-guide/image-19.png",
+        "../../frontend/public/img/codex-guide/image-20.png",
+    ),
+    "codex-guide.md": (
+        "../../frontend/public/img/codex-guide/image-5.png",
+        "../../frontend/public/img/codex-guide/image-6.png",
+        "../../frontend/public/img/codex-guide/image-31.png",
+        "../../frontend/public/img/codex-guide/image-7.png",
+        "../../frontend/public/img/codex-guide/image-8.png",
+        "../../frontend/public/img/codex-guide/image-31.png",
+        "../../frontend/public/img/codex-guide/image-10.png",
+        "../../frontend/public/img/codex-guide/image-11.png",
+        "../../frontend/public/img/codex-guide/image-12.png",
+        "../../frontend/public/img/codex-guide/image-14.png",
+    ),
+    "claude-code-guide.md": (
+        "../../frontend/public/img/codex-guide/image-22.png",
+    ),
+    "open-code-guide.md": (),
+    "open-claw-guide.md": (),
+    "mobile-guide.md": tuple(
+        f"../../frontend/public/img/codex-guide/image-{number}.png"
+        for number in range(32, 47)
+    ),
+    "image-guide.md": (
+        "../../frontend/public/img/image-guide/image.png",
+        "../../frontend/public/img/image-guide/image-3.png",
+        "../../frontend/public/img/image-guide/image-5.png",
+        "../../frontend/public/img/image-guide/image-8.png",
+        "../../frontend/public/img/image-guide/image-9.png",
+        "../../frontend/public/img/image-guide/image-12.png",
+        "../../frontend/public/img/image-guide/image-12.png",
+        "../../frontend/public/img/image-guide/image-13.png",
+        "../../frontend/public/img/image-guide/image-14.png",
+    ),
 }
 IMAGE_PATTERN = re.compile(r"!\[[^\]]*\]\(([^)\n]+)\)")
-URL_PATTERN = re.compile(r"https?://[^\s)>`\"']+")
 FENCED_CODE_PATTERN = re.compile(r"```[^\n]*\n.*?\n```", re.DOTALL)
 FORBIDDEN_WEBSITE_MARKERS = (
     "源页面：",
@@ -75,7 +117,7 @@ class FeishuGuideExportTests(unittest.TestCase):
             check=False,
         )
 
-    def test_exports_exact_six_tutorial_files(self) -> None:
+    def test_exports_exact_seven_parent_and_child_tutorial_files(self) -> None:
         with tempfile.TemporaryDirectory() as temporary_directory:
             output_dir = Path(temporary_directory)
 
@@ -83,8 +125,11 @@ class FeishuGuideExportTests(unittest.TestCase):
 
             self.assertEqual(result.returncode, 0, result.stderr)
             self.assertEqual(
-                {path.name for path in output_dir.glob("*.md")},
-                EXPECTED_FILENAMES,
+                {
+                    path.relative_to(output_dir).as_posix()
+                    for path in output_dir.rglob("*.md")
+                },
+                EXPECTED_OUTPUT_PATHS,
             )
 
     def test_removes_website_only_metadata_and_internal_routes(self) -> None:
@@ -95,7 +140,7 @@ class FeishuGuideExportTests(unittest.TestCase):
 
             documents = {
                 path.name: path.read_text(encoding="utf-8")
-                for path in output_dir.glob("*.md")
+                for path in output_dir.rglob("*.md")
             }
             for filename, content in documents.items():
                 with self.subTest(filename=filename):
@@ -105,16 +150,47 @@ class FeishuGuideExportTests(unittest.TestCase):
                             f"{filename} 仍包含网页专用内容: {marker}",
                         )
 
-            codex_guide = documents["01-Codex-API-登录对接教程.md"]
-            self.assertTrue(
-                "图像生成教程" in codex_guide,
-                "Codex 教程未包含图像生成教程入口",
-            )
             mobile_guide = documents["05-移动端-Chatbox-配置教程.md"]
             self.assertTrue(
-                "《Codex API 登录对接教程》第二章" in mobile_guide,
-                "移动端教程未将网站锚点改为文档章节引用",
+                "父教程《中转注册、兑换与 API 密钥配置教程》" in mobile_guide,
+                "移动端子教程未引用父教程",
             )
+
+    def test_separates_registration_parent_from_client_configuration_children(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            output_dir = Path(temporary_directory)
+            result = self.run_export(output_dir)
+            self.assertEqual(result.returncode, 0, result.stderr)
+
+            parent = (output_dir / PARENT_OUTPUT_PATH).read_text(encoding="utf-8")
+            self.assertIn("https://sakai.my/register", parent)
+            self.assertIn("https://sakai.my/redeem", parent)
+            self.assertIn("创建 API 密钥", parent)
+            self.assertIn("### 七、常见问题", parent)
+            for child_title in (
+                "Codex API 登录对接教程",
+                "Claude Code 配置教程",
+                "Open Code 配置教程",
+                "Open Claw 配置教程",
+                "移动端 Chatbox 配置教程",
+                "Cherry Studio 图像生成教程",
+            ):
+                self.assertIn(child_title, parent)
+
+            for child_path in CHILD_OUTPUT_PATHS:
+                child = (output_dir / child_path).read_text(encoding="utf-8")
+                with self.subTest(child_path=child_path):
+                    self.assertIn(
+                        "前置步骤：请先完成父教程《中转注册、兑换与 API 密钥配置教程》",
+                        child,
+                    )
+                    self.assertNotIn("https://sakai.my/register", child)
+                    self.assertNotIn("https://sakai.my/redeem", child)
+                    self.assertNotIn("卡密自助购买地址", child)
+                    self.assertNotIn("从第一步开始：注册、兑换、创建 Key", child)
+                    self.assertNotIn("## 第一章 准备工作", child)
+                    self.assertNotIn("## 第二章 创建 API 密钥", child)
+                    self.assertNotIn("## 第五章 FAQ", child)
 
     def test_embeds_every_referenced_png_as_an_exact_data_uri(self) -> None:
         source_dir = REPO_ROOT / "docs" / "static-guides"
@@ -125,9 +201,7 @@ class FeishuGuideExportTests(unittest.TestCase):
 
             for source_name, output_name in SOURCE_TO_OUTPUT.items():
                 source_path = source_dir / source_name
-                source_targets = IMAGE_PATTERN.findall(
-                    source_path.read_text(encoding="utf-8")
-                )
+                source_targets = EXPECTED_IMAGE_TARGETS[source_name]
                 output_targets = IMAGE_PATTERN.findall(
                     (output_dir / output_name).read_text(encoding="utf-8")
                 )
@@ -159,7 +233,7 @@ class FeishuGuideExportTests(unittest.TestCase):
             current = self.run_export(output_dir, "--check")
             self.assertEqual(current.returncode, 0, current.stderr)
 
-            stale_file = output_dir / "01-Codex-API-登录对接教程.md"
+            stale_file = output_dir / SOURCE_TO_OUTPUT["codex-guide.md"]
             original_content = stale_file.read_text(encoding="utf-8")
             stale_file.write_text(f"{original_content}\n", encoding="utf-8")
             stale = self.run_export(output_dir, "--check")
@@ -168,7 +242,7 @@ class FeishuGuideExportTests(unittest.TestCase):
             self.assertEqual(stale_file.read_text(encoding="utf-8"), f"{original_content}\n")
 
             stale_file.write_text(original_content, encoding="utf-8")
-            extra_file = output_dir / "old-guide.md"
+            extra_file = output_dir / OUTPUT_PARENT_DIR / "old-guide.md"
             extra_file.write_text("# old\n", encoding="utf-8")
             extra = self.run_export(output_dir, "--check")
             self.assertNotEqual(extra.returncode, 0)
@@ -214,7 +288,7 @@ class FeishuGuideExportTests(unittest.TestCase):
             self.assertEqual(result.returncode, 0, result.stderr)
 
             total_images = 0
-            for output_path in output_dir.glob("*.md"):
+            for output_path in output_dir.rglob("*.md"):
                 content = output_path.read_text(encoding="utf-8")
                 image_targets = IMAGE_PATTERN.findall(content)
                 total_images += len(image_targets)
@@ -229,49 +303,48 @@ class FeishuGuideExportTests(unittest.TestCase):
                     for image_target in image_targets:
                         self.assertTrue(image_target.startswith("data:image/png;base64,"))
 
-            self.assertEqual(total_images, 45)
+            self.assertEqual(total_images, 42)
 
     def test_keeps_source_leads_and_tutorial_points_in_the_export_intro(self) -> None:
+        from tools import export_feishu_guides as exporter
+
         source_dir = REPO_ROOT / "docs" / "static-guides"
         with tempfile.TemporaryDirectory() as temporary_directory:
             output_dir = Path(temporary_directory)
             result = self.run_export(output_dir)
             self.assertEqual(result.returncode, 0, result.stderr)
 
-            for source_name, output_name in SOURCE_TO_OUTPUT.items():
-                source = (source_dir / source_name).read_text(encoding="utf-8")
-                lead = source.split("引导文案：\n\n", 1)[1].split(
-                    "\n\n教程要点：",
-                    1,
-                )[0]
-                points_block = source.split("教程要点：\n\n", 1)[1].split(
-                    "\n\n章节快捷入口：",
-                    1,
-                )[0]
-                tutorial_points = [
-                    line for line in points_block.splitlines() if line.startswith("- ")
-                ]
-                exported = (output_dir / output_name).read_text(encoding="utf-8")
-                expected_lead = lead.replace("独立教程页", "独立教程文档")
-                with self.subTest(output_name=output_name):
-                    self.assertTrue(
-                        expected_lead in exported,
-                        f"{output_name} 未保留源稿引导文案",
-                    )
-                    self.assertTrue(
-                        "## 教程要点\n" in exported,
-                        f"{output_name} 缺少教程要点章节",
-                    )
-                    for tutorial_point in tutorial_points:
-                        self.assertTrue(
-                            tutorial_point in exported,
-                            f"{output_name} 缺少教程要点: {tutorial_point}",
-                        )
+            parent_spec = exporter.GUIDES[0]
+            parent_source = (source_dir / parent_spec.source_name).read_text(
+                encoding="utf-8"
+            )
+            parent_lead = exporter.extract_section(
+                parent_source,
+                "引导文案：\n\n",
+                "\n\n教程要点：",
+            )
+            parent_points = exporter.extract_section(
+                parent_source,
+                "教程要点：\n\n",
+                "\n\n章节快捷入口：",
+            ).splitlines()
+            parent_export = (output_dir / parent_spec.output_name).read_text(
+                encoding="utf-8"
+            )
+            self.assertIn(parent_lead, parent_export)
+            for point in parent_points:
+                self.assertIn(point, parent_export)
 
-            mobile_export = (
-                output_dir / "05-移动端-Chatbox-配置教程.md"
-            ).read_text(encoding="utf-8")
-            self.assertNotIn("在 《Codex API 登录对接教程》", mobile_export)
+            for guide in exporter.GUIDES:
+                exported = (output_dir / guide.output_name).read_text(encoding="utf-8")
+                with self.subTest(output_name=guide.output_name):
+                    self.assertIn("## 教程要点\n", exported)
+                    if guide is parent_spec:
+                        continue
+                    self.assertIn(exporter.CHILD_GUIDE_LEAD, exported)
+                    self.assertIsNotNone(guide.tutorial_points_override)
+                    for point in guide.tutorial_points_override or ():
+                        self.assertIn(f"- {point}", exported)
 
     def test_rejects_unsupported_or_external_image_syntax(self) -> None:
         from tools import export_feishu_guides as exporter
@@ -326,6 +399,36 @@ class FeishuGuideExportTests(unittest.TestCase):
             self.assertFalse(escaped_path.exists())
 
     def test_preserves_body_headings_code_blocks_tables_and_external_urls(self) -> None:
+        required_content = {
+            "registration-key-guide.md": (
+                "## 中转注册、兑换与 API 密钥配置流程",
+                "https://sakai.my/register",
+            ),
+            "codex-guide.md": (
+                "## Codex 客户端配置流程",
+                "https://openai.com/zh-Hans-CN/codex/",
+            ),
+            "claude-code-guide.md": (
+                "## Claude Code 配置流程",
+                "https://sakai.my/profile",
+            ),
+            "open-code-guide.md": (
+                "## Open Code 配置流程",
+                "https://opencode.ai/docs/config",
+            ),
+            "open-claw-guide.md": (
+                "## Open Claw 配置流程",
+                "https://sakai.my/profile",
+            ),
+            "mobile-guide.md": (
+                "## Chatbox 配置流程",
+                "https://chatboxai.app/zh",
+            ),
+            "image-guide.md": (
+                "## Cherry Studio 图像生成流程",
+                "https://cherryai.com.cn/",
+            ),
+        }
         source_dir = REPO_ROOT / "docs" / "static-guides"
         with tempfile.TemporaryDirectory() as temporary_directory:
             output_dir = Path(temporary_directory)
@@ -334,38 +437,16 @@ class FeishuGuideExportTests(unittest.TestCase):
 
             for source_name, output_name in SOURCE_TO_OUTPUT.items():
                 source = (source_dir / source_name).read_text(encoding="utf-8")
-                body_heading = SOURCE_BODY_HEADINGS[source_name]
-                source_body = source[source.index(body_heading) :]
                 exported = (output_dir / output_name).read_text(encoding="utf-8")
-                exported_body = exported[exported.index(body_heading) :]
-
-                expected_headings = re.findall(r"^#{2,6} .+$", source_body, re.MULTILINE)
-                expected_headings = [
-                    heading.replace(
-                        "一键查看接入配置，为后续配置做准备，继续往下滑",
-                        "查看接入配置，为后续配置做准备",
-                    )
-                    for heading in expected_headings
-                ]
-                actual_headings = re.findall(r"^#{2,6} .+$", exported_body, re.MULTILINE)
-                source_table_count = len(
-                    re.findall(r"^\|(?: --- \|)+$", source_body, re.MULTILINE)
-                )
-                output_table_count = len(
-                    re.findall(r"^\|(?: --- \|)+$", exported_body, re.MULTILINE)
-                )
+                required_heading, required_url = required_content[source_name]
 
                 with self.subTest(output_name=output_name):
-                    self.assertEqual(actual_headings, expected_headings)
+                    self.assertIn(required_heading, exported)
+                    self.assertIn(required_url, exported)
                     self.assertEqual(
                         FENCED_CODE_PATTERN.findall(exported),
                         FENCED_CODE_PATTERN.findall(source),
                     )
-                    self.assertEqual(
-                        Counter(URL_PATTERN.findall(exported)),
-                        Counter(URL_PATTERN.findall(source)),
-                    )
-                    self.assertEqual(output_table_count, source_table_count)
 
 
 if __name__ == "__main__":

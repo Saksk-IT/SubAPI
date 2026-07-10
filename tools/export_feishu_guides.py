@@ -22,6 +22,7 @@ PNG_IHDR_PREFIX = PNG_SIGNATURE + b"\x00\x00\x00\rIHDR"
 MINIMUM_PNG_BYTES = 33
 MAX_IMAGE_BYTES = 20 * 1024 * 1024
 IMAGE_PATTERN = re.compile(r"!\[([^\]]*)\]\(([^)\n]+)\)")
+OUTPUT_PARENT_DIR = "01-中转注册与API密钥"
 
 
 @dataclass(frozen=True)
@@ -30,44 +31,174 @@ class GuideSpec:
     output_name: str
     body_heading: str
     output_title: str
+    lead_override: str | None = None
+    tutorial_points_override: tuple[str, ...] | None = None
+    preface: str = ""
+    body_end_heading: str | None = None
+    removed_sections: tuple[tuple[str, str], ...] = ()
+    replacements: tuple[tuple[str, str], ...] = ()
+
+
+CHILD_GUIDE_LEAD = (
+    "前置步骤：请先完成父教程《中转注册、兑换与 API 密钥配置教程》，"
+    "准备好自己的 `base_url` 和 API Key。本文只讲客户端配置，"
+    "不再重复注册、兑换和创建密钥。"
+)
 
 
 GUIDES = (
     GuideSpec(
+        "registration-key-guide.md",
+        f"{OUTPUT_PARENT_DIR}/00-中转注册与API密钥配置教程.md",
+        "## 中转注册、兑换与 API 密钥配置流程",
+        "中转注册、兑换与 API 密钥配置教程",
+    ),
+    GuideSpec(
         "codex-guide.md",
-        "01-Codex-API-登录对接教程.md",
-        "## 站点信息卡",
+        f"{OUTPUT_PARENT_DIR}/01-Codex-API-登录对接教程.md",
+        "## 第三章 Codex 客户端接入",
         "Codex API 登录对接教程",
+        lead_override=CHILD_GUIDE_LEAD,
+        tutorial_points_override=(
+            "下载并初始化 Codex",
+            "配置 `config.toml` 和 `auth.json`",
+            "使用 API Key 登录",
+            "验证配置并排查常见错误",
+        ),
+        preface="""## 开始前准备
+
+在父教程中创建密钥后，点击“使用密钥”，打开 Codex 配置区域。优先复制弹窗中已填好的 `base_url` 和 `api_key`，不要复制教程截图中的脱敏密钥。
+
+![使用 API 密钥弹窗中的 Codex 配置示例，密钥已脱敏](../../frontend/public/img/codex-guide/image-5.png)
+
+图：Codex 配置弹窗示例。请使用自己页面中生成的 API Key。
+""",
+        body_end_heading="## 第五章 FAQ",
+        removed_sections=((
+            "### 3.2 其他客户端独立教程",
+            "### 3.3 重新打开 Codex 并使用 API 登录",
+        ),),
+        replacements=(
+            ("## 第三章 Codex 客户端接入", "## Codex 客户端配置流程"),
+            ("### 3.1 手动配置 Codex 系列", "### 1. 手动配置 Codex 系列"),
+            ("### 3.3 重新打开 Codex 并使用 API 登录", "### 2. 重新打开 Codex 并使用 API 登录"),
+            ("## 第四章 验证与排错", "## 验证与排错"),
+            ("### 4.1 一行命令自检（推荐）", "### 1. 一行命令自检（推荐）"),
+            ("### 4.2 登录失败时快速检查", "### 2. 登录失败时快速检查"),
+            ("### 4.3 常见报错对照表", "### 3. 常见报错对照表"),
+            ("图 8：", "图 1："),
+            ("图 9：", "图 2："),
+            ("图 10：", "图 3："),
+            ("图 11：", "图 4："),
+            ("图 12：", "图 5："),
+            ("图 13：", "图 6："),
+            ("图 14：", "图 7："),
+            ("图 15：", "图 8："),
+            ("图 16：", "图 9："),
+            ("配置前仍需先完成第二章创建 API Key。", "配置前请先完成父教程。"),
+            ("按第二章“使用密钥”弹窗中的", "按父教程“使用密钥”弹窗中的"),
+            ("回第二章重新创建或复制密钥", "回到父教程重新创建或复制密钥"),
+        ),
     ),
     GuideSpec(
         "claude-code-guide.md",
-        "02-Claude-Code-配置教程.md",
-        "## Claude Code 完整接入流程",
+        f"{OUTPUT_PARENT_DIR}/02-Claude-Code-配置教程.md",
+        "### 2. 手动配置 Claude Code",
         "Claude Code 配置教程",
+        lead_override=CHILD_GUIDE_LEAD,
+        tutorial_points_override=(
+            "定位 Claude 配置目录",
+            "写入 `settings.json`",
+            "可选的系统环境变量配置",
+            "启动 Claude Code 验证",
+        ),
+        preface="""## 开始前准备
+
+在父教程中点击“使用密钥”，切换到 Claude Code 配置区域，复制弹窗里的真实 `base_url` 和 `api_key`。
+
+![Claude Code 配置弹窗示例，密钥已脱敏](../../frontend/public/img/codex-guide/image-22.png)
+
+图：Claude Code 配置示例。截图中的 API Key 已脱敏，请以自己的弹窗为准。
+""",
+        replacements=(
+            ("### 2. 手动配置 Claude Code", "## Claude Code 配置流程"),
+            ("#### 2.1 定位 Claude 配置目录", "### 1. 定位 Claude 配置目录"),
+            ("#### 2.2 方式 A：写入 `settings.json`（推荐）", "### 2. 方式 A：写入 `settings.json`（推荐）"),
+            ("#### 2.3 方式 B：配置系统环境变量", "### 3. 方式 B：配置系统环境变量"),
+            ("### 3. 验证与排错", "## 验证与排错"),
+        ),
     ),
     GuideSpec(
         "open-code-guide.md",
-        "03-Open-Code-配置教程.md",
-        "## Open Code 完整接入流程",
+        f"{OUTPUT_PARENT_DIR}/03-Open-Code-配置教程.md",
+        "### 2. 安装并首次启动 Open Code",
         "Open Code 配置教程",
+        lead_override=CHILD_GUIDE_LEAD,
+        tutorial_points_override=(
+            "安装并首次启动 Open Code",
+            "配置 `opencode.json`",
+            "使用 `/connect` 临时切换",
+            "验证 provider 和模型",
+        ),
+        replacements=(
+            ("### 2. 安装并首次启动 Open Code", "## Open Code 配置流程\n\n### 1. 安装并首次启动 Open Code"),
+            ("### 3. 定位 Open Code 配置目录", "### 2. 定位 Open Code 配置目录"),
+            ("### 4. 方式 A：写入 `opencode.json`（推荐，长期生效）", "### 3. 方式 A：写入 `opencode.json`（推荐，长期生效）"),
+            ("### 5. 方式 B：客户端内 `/connect` 临时切换", "### 4. 方式 B：客户端内 `/connect` 临时切换"),
+            ("### 6. 验证与排错", "## 验证与排错"),
+        ),
     ),
     GuideSpec(
         "open-claw-guide.md",
-        "04-Open-Claw-配置教程.md",
-        "## Open Claw 完整接入流程",
+        f"{OUTPUT_PARENT_DIR}/04-Open-Claw-配置教程.md",
+        "### 2. 方式 A：腾讯云在线配置（推荐新手）",
         "Open Claw 配置教程",
+        lead_override=CHILD_GUIDE_LEAD,
+        tutorial_points_override=(
+            "腾讯云在线配置",
+            "Windows / macOS / Linux 本地配置",
+            "区分 `openai-completions` 与 `openai-responses`",
+            "验证地址、密钥和模型",
+        ),
+        replacements=(
+            ("### 2. 方式 A：腾讯云在线配置（推荐新手）", "## Open Claw 配置流程\n\n### 1. 方式 A：腾讯云在线配置（推荐新手）"),
+            ("### 3. 方式 B：本地配置（Windows / macOS / Linux）", "### 2. 方式 B：本地配置（Windows / macOS / Linux）"),
+            ("### 4. 验证与快速检查", "## 验证与快速检查"),
+        ),
     ),
     GuideSpec(
         "mobile-guide.md",
-        "05-移动端-Chatbox-配置教程.md",
-        "## 移动端完整接入流程",
+        f"{OUTPUT_PARENT_DIR}/05-移动端-Chatbox-配置教程.md",
+        "### 1. 前往官网下载 Chatbox",
         "移动端 Chatbox 配置教程",
+        lead_override=CHILD_GUIDE_LEAD,
+        tutorial_points_override=(
+            "下载并安装 Chatbox",
+            "添加 OpenAI response API 兼容提供方",
+            "获取并选择模型",
+            "新建对话完成验证",
+        ),
+        replacements=((
+            "### 1. 前往官网下载 Chatbox",
+            "## Chatbox 配置流程\n\n### 1. 前往官网下载 Chatbox",
+        ),),
     ),
     GuideSpec(
         "image-guide.md",
-        "06-Cherry-Studio-图像生成教程.md",
-        "## Cherry Studio 图像生成完整配置流程",
+        f"{OUTPUT_PARENT_DIR}/06-Cherry-Studio-图像生成教程.md",
+        "### 当前图像生成路径说明",
         "Cherry Studio 图像生成教程",
+        lead_override=CHILD_GUIDE_LEAD,
+        tutorial_points_override=(
+            "安装 Cherry Studio",
+            "配置 New API 模型服务",
+            "添加 `gpt-image-2` 图像生成模型",
+            "使用绘画入口生成图片",
+        ),
+        replacements=((
+            "### 当前图像生成路径说明",
+            "## Cherry Studio 图像生成流程\n\n### 当前图像生成路径说明",
+        ),),
     ),
 )
 
@@ -108,6 +239,18 @@ def validated_markdown_name(filename: str) -> str:
     if path.name != filename or path.suffix.lower() != ".md":
         raise ValueError(f"Markdown 文件名无效: {filename}")
     return filename
+
+
+def validated_markdown_path(relative_path: str) -> Path:
+    path = Path(relative_path)
+    if (
+        path.is_absolute()
+        or path.suffix.lower() != ".md"
+        or not path.parts
+        or any(part in {"", ".", ".."} for part in path.parts)
+    ):
+        raise ValueError(f"Markdown 输出路径无效: {relative_path}")
+    return path
 
 
 def image_path_from_target(source_path: Path, target: str) -> Path:
@@ -186,12 +329,21 @@ def render_introduction(source: str, guide: GuideSpec) -> str:
     base_url_match = re.search(r"API base_url：`([^`]+)`", source)
     if base_url_match is None:
         raise ValueError(f"源稿缺少 API base_url: {guide.source_name}")
-    lead = extract_section(source, "引导文案：\n\n", "\n\n教程要点：")
-    tutorial_points = extract_section(
+    lead = guide.lead_override or extract_section(
         source,
-        "教程要点：\n\n",
-        "\n\n章节快捷入口：",
+        "引导文案：\n\n",
+        "\n\n教程要点：",
     )
+    if guide.tutorial_points_override is None:
+        tutorial_points = extract_section(
+            source,
+            "教程要点：\n\n",
+            "\n\n章节快捷入口：",
+        )
+    else:
+        tutorial_points = "\n".join(
+            f"- {point}" for point in guide.tutorial_points_override
+        )
     return (
         f"# {guide.output_title}\n\n"
         f"> API base_url：`{base_url_match.group(1)}`\n\n"
@@ -206,16 +358,88 @@ def rewrite_for_feishu(markdown: str) -> str:
     return rewritten
 
 
-def render_guide(guide: GuideSpec) -> str:
+def remove_sections(
+    markdown: str,
+    section_ranges: tuple[tuple[str, str], ...],
+) -> str:
+    rewritten = markdown
+    for start_heading, end_heading in section_ranges:
+        start_offset = rewritten.find(start_heading)
+        end_offset = rewritten.find(end_heading, start_offset + len(start_heading))
+        if start_offset < 0 or end_offset < 0:
+            raise ValueError(f"找不到待删除区段: {start_heading}")
+        rewritten = (
+            f"{rewritten[:start_offset].rstrip()}\n\n"
+            f"{rewritten[end_offset:]}"
+        )
+    return rewritten
+
+
+def remove_figure(markdown: str, image_line: str, caption: str) -> str:
+    figure = f"{image_line}\n\n{caption}\n\n"
+    if figure not in markdown:
+        raise ValueError(f"找不到待移除的教程截图: {caption}")
+    return markdown.replace(figure, "")
+
+
+def sanitize_upload_markdown(markdown: str, guide: GuideSpec) -> str:
+    if guide.source_name != "image-guide.md":
+        return markdown
+    safe_markdown = remove_figure(
+        markdown,
+        "![Cherry Studio 填写 API 地址和密钥]"
+        "(../../frontend/public/img/image-guide/image-6.png)",
+        "图 4：填写 API 地址和自己的 API 密钥。",
+    )
+    safe_markdown = remove_figure(
+        safe_markdown,
+        "![Cherry Studio 获取模型列表]"
+        "(../../frontend/public/img/image-guide/image-7.png)",
+        "图 5：点击获取模型列表。",
+    )
+    safe_markdown = remove_figure(
+        safe_markdown,
+        "![Cherry Studio 图像生成模型配置完成]"
+        "(../../frontend/public/img/image-guide/image-10.png)",
+        "图 8：配置完成后的模型服务状态。",
+    )
+    safe_markdown = safe_markdown.replace(
+        "../../frontend/public/img/image-guide/image-11.png",
+        "../../frontend/public/img/image-guide/image-12.png",
+    ).replace(
+        "图 9：点击上方加号。",
+        "图 9：点击上方加号后，选择“绘画”入口。",
+    )
+    return safe_markdown
+
+
+def render_guide_markdown(guide: GuideSpec) -> str:
     source_path = SOURCE_DIR / validated_markdown_name(guide.source_name)
     source = source_path.read_text(encoding="utf-8")
     heading_offset = source.find(guide.body_heading)
     if heading_offset < 0:
         raise ValueError(f"找不到教程正文起始标题: {guide.body_heading}")
     body = source[heading_offset:]
+    if guide.body_end_heading is not None:
+        end_offset = body.find(guide.body_end_heading)
+        if end_offset < 0:
+            raise ValueError(f"找不到教程正文结束标题: {guide.body_end_heading}")
+        body = body[:end_offset].rstrip()
+    body = remove_sections(body, guide.removed_sections)
+    for old_text, new_text in guide.replacements:
+        if old_text not in body:
+            raise ValueError(f"找不到待改写内容: {old_text}")
+        body = body.replace(old_text, new_text)
     introduction = render_introduction(source, guide)
-    rendered_markdown = rewrite_for_feishu(f"{introduction}{body.rstrip()}\n")
-    return embed_images(rendered_markdown, source_path)
+    rendered_markdown = rewrite_for_feishu(
+        f"{introduction}{guide.preface}{body.rstrip()}\n"
+    )
+    return sanitize_upload_markdown(rendered_markdown, guide)
+
+
+def render_guide(guide: GuideSpec) -> str:
+    source_path = SOURCE_DIR / validated_markdown_name(guide.source_name)
+    return embed_images(render_guide_markdown(guide), source_path)
 
 
 def rendered_guides() -> tuple[tuple[str, str], ...]:
@@ -247,20 +471,24 @@ def atomic_write_text(destination: Path, content: str) -> None:
 def export_guides(output_dir: Path, exports: tuple[tuple[str, str], ...]) -> None:
     output_dir.mkdir(parents=True, exist_ok=True)
     for output_name, content in exports:
-        destination = output_dir / validated_markdown_name(output_name)
+        destination = output_dir / validated_markdown_path(output_name)
+        destination.parent.mkdir(parents=True, exist_ok=True)
         atomic_write_text(destination, content)
 
 
 def check_guides(output_dir: Path, exports: tuple[tuple[str, str], ...]) -> list[str]:
     errors: list[str] = []
     expected_names = {output_name for output_name, _ in exports}
-    existing_names = {path.name for path in output_dir.glob("*.md")}
+    existing_names = {
+        path.relative_to(output_dir).as_posix()
+        for path in output_dir.rglob("*.md")
+    }
     for missing_name in sorted(expected_names - existing_names):
         errors.append(f"缺少生成文件: {missing_name}")
     for extra_name in sorted(existing_names - expected_names):
         errors.append(f"存在多余生成文件: {extra_name}")
     for output_name, expected_content in exports:
-        output_path = output_dir / validated_markdown_name(output_name)
+        output_path = output_dir / validated_markdown_path(output_name)
         if output_path.is_symlink() or (output_path.exists() and not output_path.is_file()):
             errors.append(f"生成路径不是普通文件: {output_name}")
             continue
