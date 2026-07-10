@@ -114,9 +114,25 @@ describe('feature route guard', () => {
     authStore.isAuthenticated = true
     authStore.isAdmin = false
     authStore.isSimpleMode = false
+    authStore.hasPendingAuthSession = false
+    appStore.backendModeEnabled = false
     appStore.publicSettingsLoaded = false
     appStore.cachedPublicSettings = null
     appStore.fetchPublicSettings.mockReset()
+  })
+
+  it('allows unauthenticated users to open the registration guide in backend mode', async () => {
+    authStore.isAuthenticated = false
+    appStore.backendModeEnabled = true
+
+    const { navigation, next } = runGuard(
+      { requiresAuth: false },
+      '/registration-key-guide'
+    )
+    await navigation
+
+    expect(next).toHaveBeenCalledOnce()
+    expect(next).toHaveBeenCalledWith()
   })
 
   it('waits for the first public-settings request before deciding payment access', async () => {

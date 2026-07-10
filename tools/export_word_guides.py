@@ -41,8 +41,8 @@ FIXED_CORE_TIME = datetime(2026, 7, 10, tzinfo=timezone.utc)
 CONTENT_WIDTH_DXA = 9360
 TABLE_INDENT_DXA = 120
 CELL_MARGIN_DXA = {"top": 80, "bottom": 80, "start": 120, "end": 120}
-BODY_FONT = "Arial Unicode MS"
-EAST_ASIA_FONT = "Arial Unicode MS"
+BODY_FONT = "Arial"
+EAST_ASIA_FONT = "PingFang SC"
 MONO_FONT = "Menlo"
 ACCENT_BLUE = RGBColor(46, 116, 181)
 DARK_BLUE = RGBColor(31, 77, 120)
@@ -752,14 +752,28 @@ def atomic_write_bytes(destination: Path, content: bytes) -> None:
             temporary_path.unlink()
 
 
+def safe_output_destination(output_dir: Path, relative_path: Path) -> Path:
+    output_root = output_dir.resolve()
+    destination = output_root / relative_path
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    resolved_parent = destination.parent.resolve()
+    try:
+        resolved_parent.relative_to(output_root)
+    except ValueError as error:
+        raise ValueError(f"Word 输出目录超出允许范围: {relative_path}") from error
+    return resolved_parent / destination.name
+
+
 def export_documents(
     output_dir: Path,
     exports: tuple[tuple[str, bytes], ...],
 ) -> None:
     output_dir.mkdir(parents=True, exist_ok=True)
     for output_name, content in exports:
-        destination = output_dir / validated_docx_path(output_name)
-        destination.parent.mkdir(parents=True, exist_ok=True)
+        destination = safe_output_destination(
+            output_dir,
+            validated_docx_path(output_name),
+        )
         atomic_write_bytes(destination, content)
 
 

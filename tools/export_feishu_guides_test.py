@@ -48,12 +48,9 @@ EXPECTED_IMAGE_TARGETS = {
         "../../frontend/public/img/codex-guide/image-20.png",
     ),
     "codex-guide.md": (
-        "../../frontend/public/img/codex-guide/image-5.png",
         "../../frontend/public/img/codex-guide/image-6.png",
-        "../../frontend/public/img/codex-guide/image-31.png",
         "../../frontend/public/img/codex-guide/image-7.png",
         "../../frontend/public/img/codex-guide/image-8.png",
-        "../../frontend/public/img/codex-guide/image-31.png",
         "../../frontend/public/img/codex-guide/image-10.png",
         "../../frontend/public/img/codex-guide/image-11.png",
         "../../frontend/public/img/codex-guide/image-12.png",
@@ -66,7 +63,7 @@ EXPECTED_IMAGE_TARGETS = {
     "open-claw-guide.md": (),
     "mobile-guide.md": tuple(
         f"../../frontend/public/img/codex-guide/image-{number}.png"
-        for number in range(32, 47)
+        for number in (32, 33, 34, 35, 36, 37, 40, 42, 44, 45, 46)
     ),
     "image-guide.md": (
         "../../frontend/public/img/image-guide/image.png",
@@ -74,7 +71,6 @@ EXPECTED_IMAGE_TARGETS = {
         "../../frontend/public/img/image-guide/image-5.png",
         "../../frontend/public/img/image-guide/image-8.png",
         "../../frontend/public/img/image-guide/image-9.png",
-        "../../frontend/public/img/image-guide/image-12.png",
         "../../frontend/public/img/image-guide/image-12.png",
         "../../frontend/public/img/image-guide/image-13.png",
         "../../frontend/public/img/image-guide/image-14.png",
@@ -116,6 +112,64 @@ class FeishuGuideExportTests(unittest.TestCase):
             text=True,
             check=False,
         )
+
+    def test_source_markdown_matches_the_parent_child_hierarchy(self) -> None:
+        source_dir = REPO_ROOT / "docs" / "static-guides"
+        parent = (source_dir / "registration-key-guide.md").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn("https://sakai.my/register", parent)
+        self.assertIn("https://sakai.my/redeem", parent)
+        self.assertIn("创建 API 密钥", parent)
+
+        forbidden_source_markers = (
+            "## 页面头部信息",
+            "章节快捷入口：",
+            "图片目录：",
+        )
+        forbidden_image_targets = (
+            "codex-guide/image-5.png",
+            "codex-guide/image-31.png",
+            "codex-guide/image-38.png",
+            "codex-guide/image-39.png",
+            "codex-guide/image-41.png",
+            "codex-guide/image-43.png",
+            "image-guide/image-6.png",
+            "image-guide/image-7.png",
+            "image-guide/image-10.png",
+            "image-guide/image-11.png",
+        )
+
+        for source_name in SOURCE_TO_OUTPUT:
+            content = (source_dir / source_name).read_text(encoding="utf-8")
+            with self.subTest(source_name=source_name):
+                for marker in forbidden_source_markers:
+                    self.assertNotIn(marker, content)
+                for image_target in forbidden_image_targets:
+                    self.assertNotIn(image_target, content)
+                if source_name != "registration-key-guide.md":
+                    self.assertIn("父教程《中转注册、兑换与 API 密钥配置教程》", content)
+                    self.assertNotIn("https://sakai.my/register", content)
+                    self.assertNotIn("https://sakai.my/redeem", content)
+
+    def test_unsafe_screenshot_files_cannot_be_published_directly(self) -> None:
+        image_root = REPO_ROOT / "frontend" / "public" / "img"
+        unsafe_images = (
+            "codex-guide/image-5.png",
+            "codex-guide/image-31.png",
+            "codex-guide/image-38.png",
+            "codex-guide/image-39.png",
+            "codex-guide/image-41.png",
+            "codex-guide/image-43.png",
+            "image-guide/image-6.png",
+            "image-guide/image-7.png",
+            "image-guide/image-10.png",
+            "image-guide/image-11.png",
+        )
+
+        for relative_path in unsafe_images:
+            with self.subTest(relative_path=relative_path):
+                self.assertFalse((image_root / relative_path).exists())
 
     def test_exports_exact_seven_parent_and_child_tutorial_files(self) -> None:
         with tempfile.TemporaryDirectory() as temporary_directory:
@@ -266,21 +320,6 @@ class FeishuGuideExportTests(unittest.TestCase):
             self.assertNotEqual(crlf_drift.returncode, 0)
             self.assertIn(stale_file.name, crlf_drift.stderr)
 
-    def test_codex_source_tracks_the_current_image_guide_navigation(self) -> None:
-        codex_source = (
-            REPO_ROOT / "docs" / "static-guides" / "codex-guide.md"
-        ).read_text(encoding="utf-8")
-
-        self.assertIn(
-            "Claude Code、Open Code、Open Claw、移动端和图像生成请打开对应独立教程页。",
-            codex_source,
-        )
-        self.assertIn("- 图像生成", codex_source)
-        self.assertEqual(
-            codex_source.count("| 图像生成教程 | `/image-guide` |"),
-            2,
-        )
-
     def test_exports_are_standalone_well_formed_and_free_of_real_keys(self) -> None:
         with tempfile.TemporaryDirectory() as temporary_directory:
             output_dir = Path(temporary_directory)
@@ -303,48 +342,19 @@ class FeishuGuideExportTests(unittest.TestCase):
                     for image_target in image_targets:
                         self.assertTrue(image_target.startswith("data:image/png;base64,"))
 
-            self.assertEqual(total_images, 42)
+            self.assertEqual(total_images, 34)
 
-    def test_keeps_source_leads_and_tutorial_points_in_the_export_intro(self) -> None:
+    def test_exporter_uses_clean_source_markdown_without_content_rewrites(self) -> None:
         from tools import export_feishu_guides as exporter
 
         source_dir = REPO_ROOT / "docs" / "static-guides"
-        with tempfile.TemporaryDirectory() as temporary_directory:
-            output_dir = Path(temporary_directory)
-            result = self.run_export(output_dir)
-            self.assertEqual(result.returncode, 0, result.stderr)
-
-            parent_spec = exporter.GUIDES[0]
-            parent_source = (source_dir / parent_spec.source_name).read_text(
-                encoding="utf-8"
-            )
-            parent_lead = exporter.extract_section(
-                parent_source,
-                "引导文案：\n\n",
-                "\n\n教程要点：",
-            )
-            parent_points = exporter.extract_section(
-                parent_source,
-                "教程要点：\n\n",
-                "\n\n章节快捷入口：",
-            ).splitlines()
-            parent_export = (output_dir / parent_spec.output_name).read_text(
-                encoding="utf-8"
-            )
-            self.assertIn(parent_lead, parent_export)
-            for point in parent_points:
-                self.assertIn(point, parent_export)
-
-            for guide in exporter.GUIDES:
-                exported = (output_dir / guide.output_name).read_text(encoding="utf-8")
-                with self.subTest(output_name=guide.output_name):
-                    self.assertIn("## 教程要点\n", exported)
-                    if guide is parent_spec:
-                        continue
-                    self.assertIn(exporter.CHILD_GUIDE_LEAD, exported)
-                    self.assertIsNotNone(guide.tutorial_points_override)
-                    for point in guide.tutorial_points_override or ():
-                        self.assertIn(f"- {point}", exported)
+        for guide in exporter.GUIDES:
+            source = (source_dir / guide.source_name).read_text(encoding="utf-8")
+            with self.subTest(source_name=guide.source_name):
+                self.assertEqual(
+                    exporter.render_guide_markdown(guide),
+                    source.rstrip() + "\n",
+                )
 
     def test_rejects_unsupported_or_external_image_syntax(self) -> None:
         from tools import export_feishu_guides as exporter
@@ -397,6 +407,28 @@ class FeishuGuideExportTests(unittest.TestCase):
                 )
 
             self.assertFalse(escaped_path.exists())
+
+    def test_rejects_a_parent_directory_symlink_that_escapes_the_output_directory(self) -> None:
+        from tools import export_feishu_guides as exporter
+
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            root = Path(temporary_directory)
+            output_dir = root / "exports"
+            outside_dir = root / "outside"
+            output_dir.mkdir()
+            outside_dir.mkdir()
+            (output_dir / OUTPUT_PARENT_DIR).symlink_to(
+                outside_dir,
+                target_is_directory=True,
+            )
+
+            with self.assertRaises(ValueError):
+                exporter.export_guides(
+                    output_dir,
+                    ((f"{OUTPUT_PARENT_DIR}/escaped.md", "# escaped\n"),),
+                )
+
+            self.assertFalse((outside_dir / "escaped.md").exists())
 
     def test_preserves_body_headings_code_blocks_tables_and_external_urls(self) -> None:
         required_content = {

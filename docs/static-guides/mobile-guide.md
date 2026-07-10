@@ -1,42 +1,17 @@
-# 移动端配置教程
+# 移动端 Chatbox 配置教程
 
-源页面：`/mobile-guide`
+> API base_url：`https://sakai.my/`
 
-对应文件：`frontend/src/views/public/client-guides/MobileGuideContent.vue`
+前置步骤：请先完成父教程《中转注册、兑换与 API 密钥配置教程》，准备好自己的 `base_url` 和 API Key。本文只讲客户端配置，不再重复注册、兑换和创建密钥。
 
-公共外壳：`frontend/src/views/public/ClientGuideView.vue`
+## 教程要点
 
-图片目录：`../../frontend/public/img/codex-guide/`
+- 下载并安装 Chatbox
+- 添加 OpenAI response API 兼容提供方
+- 获取并选择模型
+- 新建对话完成验证
 
-## 页面头部信息
-
-API base_url：`https://sakai.my/`
-
-页面标题：移动端配置教程
-
-引导文案：
-
-使用 Chatbox 在 iOS、Android 等移动设备接入 sak API 服务，从下载应用、添加模型提供方到完成模型选择，按步骤配置即可。
-
-教程要点：
-
-- 下载 Chatbox
-- 手机端配置
-- OpenAI response API 兼容
-- 新对话切换模型
-
-章节快捷入口：
-
-- 下载应用：`#mobileDownload`
-- 配置步骤：`#mobileConfig`
-- 完成检查：`#mobileCheck`
-- 开始使用：`#mobileUse`
-
-## 移动端完整接入流程
-
-### 开始前准备
-
-开始前请先准备自己的 API Key：请先在 [Codex 总教程第二章](/codex-guide#chapterKey) 完成中转账户注册、权益兑换与 API Key 创建，再回到本页做移动端接入。
+## Chatbox 配置流程
 
 ### 1. 前往官网下载 Chatbox
 
@@ -79,19 +54,11 @@ API base_url：`https://sakai.my/`
 
 图 6：点击添加。
 
-![选择 OpenAI response API 兼容模式](../../frontend/public/img/codex-guide/image-38.png)
-
-图 7：API 模式选择 OpenAI response API 兼容。
-
-![移动端填写 API 配置](../../frontend/public/img/codex-guide/image-39.png)
-
-图 8：进入 API 配置页。
-
-填写规则：API 主机填写 `https://sakai.my/`；API 密钥请前往 <https://sakai.my/keys> 创建并复制你自己的 Key。
+填写规则：API 主机和 API 密钥请以父教程“使用密钥”弹窗显示的真实配置为准。
 
 ![从中转后台复制 API 密钥](../../frontend/public/img/codex-guide/image-40.png)
 
-图 9：在中转后台复制自己的 API 密钥后粘贴到移动端配置里。
+图 7：在中转后台复制自己的 API 密钥后粘贴到移动端配置里。
 
 #### 3.1 获取并选择模型
 
@@ -99,22 +66,14 @@ API base_url：`https://sakai.my/`
 2. 在模型列表中点击右侧加号，添加你要使用的主流模型。
 3. 回到配置页检查 API 主机、API 密钥和模型是否都已保存。
 
-![点击获取模型列表](../../frontend/public/img/codex-guide/image-41.png)
-
-图 10：点击获取模型。
-
 ![在模型列表中添加主流模型](../../frontend/public/img/codex-guide/image-42.png)
 
-图 11：点击右侧加号添加模型。
-
-![检查移动端配置是否完成](../../frontend/public/img/codex-guide/image-43.png)
-
-图 12：确认主要配置项都已完成。
+图 8：点击右侧加号添加模型。
 
 ### 4. 完成检查
 
 - API 模式已选择 `OpenAI response API 兼容`。
-- API 主机已填写 `https://sakai.my/`。
+- API 主机与父教程“使用密钥”弹窗显示的地址一致。
 - API 密钥来自你自己的 [中转后台](https://sakai.my/keys)，不是教程示例。
 - 至少已添加一个可用模型，避免新建对话后没有模型可选。
 
@@ -124,12 +83,12 @@ API base_url：`https://sakai.my/`
 
 ![打开移动端新对话并点击右下角](../../frontend/public/img/codex-guide/image-44.png)
 
-图 13：新建对话后点击右下角模型入口。
+图 9：新建对话后点击右下角模型入口。
 
 ![选择自己配置的移动端模型](../../frontend/public/img/codex-guide/image-45.png)
 
-图 14：下滑找到自己配置的模型并点击使用。
+图 10：下滑找到自己配置的模型并点击使用。
 
 ![移动端模型配置成功后的界面](../../frontend/public/img/codex-guide/image-46.png)
 
-图 15：配置成功后即可正常使用。
+图 11：配置成功后即可正常使用。

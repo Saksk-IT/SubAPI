@@ -126,6 +126,7 @@
 
 .codex-doc-shell {
   width: min(100%, 1180px);
+  min-width: 0;
   margin: 0 auto;
   padding-top: 2rem;
 }
@@ -854,7 +855,7 @@
 @media (max-width: 1100px) {
   .codex-guide-frame {
     display: grid;
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
     gap: 1.2rem;
   }
 
@@ -995,6 +996,10 @@
 
   .codex-doc-actions {
     gap: 0.3rem;
+  }
+
+  .codex-doc-link--secondary {
+    display: none;
   }
 
   .codex-doc-link,

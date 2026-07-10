@@ -3,21 +3,12 @@ import { Icon } from '@/components/icons'
 </script>
 
 <template>
-  <h1>Open Claw 完整接入流程</h1>
+  <h1>Open Claw 配置流程</h1>
   <section id="openClawStart" class="codex-callout codex-callout--important">
-    <p><strong>开始前请先完成 API Key 准备：</strong>Open Claw 的 OpenAI-compatible 地址通常填写 <code>https://sakai.my/v1</code>。如果“使用密钥”弹窗给出的地址不同，请以弹窗为准。</p>
+    <p><strong>开始前准备：</strong>请先完成<a href="/registration-key-guide">父教程《中转注册、兑换与 API 密钥配置教程》</a>。Open Claw 的 OpenAI-compatible 地址通常填写 <code>https://sakai.my/v1</code>，如果“使用密钥”弹窗给出的地址不同，请以弹窗为准。</p>
   </section>
 
-  <h2>1. 从第一步开始：注册、兑换、创建 Key</h2>
-  <ol class="codex-steps-list">
-    <li>打开 <a href="https://sakai.my/register" target="_blank" rel="noopener noreferrer">中转注册页</a>，填写邮箱、验证码和密码，完成账户注册。</li>
-    <li>使用质保补发兑换码、站内兑换码，或通过 <a href="https://catfk.com/shop/92O8CR0C" target="_blank" rel="noopener noreferrer">链动小铺卡密地址</a> 购买额度包并兑换。</li>
-    <li>兑换后打开 <a href="https://sakai.my/profile" target="_blank" rel="noopener noreferrer">额度查询页</a>，确认余额或订阅权益到账。</li>
-    <li>进入 <a href="https://sakai.my/keys" target="_blank" rel="noopener noreferrer">API 密钥页面</a>，点击“创建密钥”，按兑换码来源选择“质保补偿”或 GPT / GPT-Plus 分组。</li>
-    <li>创建后点击“使用密钥”，复制 Open Claw 或 OpenAI-compatible 配置中的 <code>base_url</code> 和 <code>api_key</code>。</li>
-  </ol>
-
-  <h2 id="openClawCloud">2. 方式 A：腾讯云在线配置（推荐新手）</h2>
+  <h2 id="openClawCloud">1. 方式 A：腾讯云在线配置（推荐新手）</h2>
   <p><strong>适用场景：</strong>你已经在腾讯云开通 Open Claw / 龙虾服务器，希望直接在云端面板中接入中转模型。</p>
   <ol class="codex-steps-list">
     <li>登录腾讯云，进入你的 Open Claw / 龙虾服务器控制台。</li>
@@ -40,7 +31,7 @@ import { Icon } from '@/components/icons'
     <p><strong>注意：</strong><code>api_key</code> 字段务必替换为自己的 API Key，不要提交占位符；模型 ID 以中转后台可用模型清单为准。</p>
   </section>
 
-  <h2 id="openClawLocal">3. 方式 B：本地配置（Windows / macOS / Linux）</h2>
+  <h2 id="openClawLocal">2. 方式 B：本地配置（Windows / macOS / Linux）</h2>
   <p>如果你使用本地 Open Claw，可在配置目录中新增中转 provider。官方文档中的 provider 配置使用 <code>models.providers</code> 结构；本页示例保留一个 <code>sakms</code> provider，便于和默认模型区分。</p>
   <div class="codex-doc-table-wrap">
     <table class="codex-doc-table">
@@ -74,7 +65,7 @@ import { Icon } from '@/components/icons'
     <p><strong>提示：</strong>腾讯云端示例使用 <code>openai-completions</code>，本地 Open Claw 示例使用 <code>openai-responses</code>。如果你的客户端版本明确要求另一种 API 类型，请以客户端提示为准。</p>
   </section>
 
-  <h2 id="openClawCheck">4. 验证与快速检查</h2>
+  <h2 id="openClawCheck">3. 验证与快速检查</h2>
   <ul class="codex-checklist">
     <li><Icon name="checkCircle" class="codex-icon" /><span><code>base_url</code> / <code>baseURL</code> 是否为 <code>https://sakai.my/v1</code>，或是否与“使用密钥”弹窗一致。</span></li>
     <li><Icon name="checkCircle" class="codex-icon" /><span><code>api_key</code> / <code>apiKey</code> 是否已替换成自己的真实 API Key，没有保留“填写你的 API 密钥”。</span></li>

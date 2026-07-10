@@ -176,12 +176,23 @@ const routes: RouteRecordRaw[] = [
     }
   },
   {
-    path: '/codex-guide',
-    name: 'CodexGuide',
-    component: () => import('@/views/public/CodexGuideView.vue'),
+    path: '/registration-key-guide',
+    name: 'RegistrationKeyGuide',
+    component: () => import('@/views/public/ClientGuideView.vue'),
     meta: {
       requiresAuth: false,
-      title: 'Codex API 登录对接教程'
+      title: '中转注册、兑换与 API 密钥配置教程',
+      guideKey: 'registration'
+    }
+  },
+  {
+    path: '/codex-guide',
+    name: 'CodexGuide',
+    component: () => import('@/views/public/ClientGuideView.vue'),
+    meta: {
+      requiresAuth: false,
+      title: 'Codex API 登录对接教程',
+      guideKey: 'codex'
     }
   },
   {
@@ -809,6 +820,7 @@ const BACKEND_MODE_ALLOWED_PATHS = [
   '/payment/result',
   '/payment/airwallex',
   '/legal',
+  '/registration-key-guide',
   '/codex-guide',
   '/claude-code-guide',
   '/open-code-guide',

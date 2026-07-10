@@ -3,21 +3,12 @@ import { Icon } from '@/components/icons'
 </script>
 
 <template>
-  <h1>Open Code 完整接入流程</h1>
+  <h1>Open Code 配置流程</h1>
   <section id="openCodeStart" class="codex-callout codex-callout--important">
-    <p><strong>开始前请先拿到自己的 Key：</strong>Open Code 通常使用 OpenAI-compatible 地址 <code>https://sakai.my/v1</code>。如“使用密钥”弹窗给出的地址不同，请以弹窗为准。</p>
+    <p><strong>开始前准备：</strong>请先完成<a href="/registration-key-guide">父教程《中转注册、兑换与 API 密钥配置教程》</a>。Open Code 通常使用 OpenAI-compatible 地址 <code>https://sakai.my/v1</code>，如“使用密钥”弹窗给出的地址不同，请以弹窗为准。</p>
   </section>
 
-  <h2>1. 从第一步开始：注册、兑换、创建 Key</h2>
-  <ol class="codex-steps-list">
-    <li>打开 <a href="https://sakai.my/register" target="_blank" rel="noopener noreferrer">中转注册页</a>，用邮箱、验证码和密码注册账户。</li>
-    <li>通过站内兑换、质保补发兑换码或链动小铺额度包获得权益；需要自助购买时打开 <a href="https://catfk.com/shop/92O8CR0C" target="_blank" rel="noopener noreferrer">卡密购买地址</a>。</li>
-    <li>兑换后进入 <a href="https://sakai.my/profile" target="_blank" rel="noopener noreferrer">额度查询页</a>，确认余额或订阅额度已经到账。</li>
-    <li>进入 <a href="https://sakai.my/keys" target="_blank" rel="noopener noreferrer">API 密钥页面</a>，点击“创建密钥”，按兑换码来源选择正确分组。</li>
-    <li>创建后点击“使用密钥”，复制 Open Code 或 OpenAI-compatible 配置中的 <code>baseURL</code> 和 <code>apiKey</code>。</li>
-  </ol>
-
-  <h2 id="openCodeInstall">2. 安装并首次启动 Open Code</h2>
+  <h2 id="openCodeInstall">1. 安装并首次启动 Open Code</h2>
   <ol class="codex-steps-list">
     <li>按你的系统安装 Open Code CLI；如果已经安装，可以直接进入下一步。</li>
     <li>打开一个新终端，输入 <code>opencode</code> 启动一次，确认命令可用。</li>
@@ -27,7 +18,7 @@ import { Icon } from '@/components/icons'
     <p><strong>提示：</strong>Open Code 配置格式会随版本演进，字段细节可对照 <a href="https://opencode.ai/docs/config" target="_blank" rel="noopener noreferrer">Open Code 官方配置文档</a>。本页示例使用官方支持的自定义 provider 写法。</p>
   </section>
 
-  <h2 id="openCodePath">3. 定位 Open Code 配置目录</h2>
+  <h2 id="openCodePath">2. 定位 Open Code 配置目录</h2>
   <div class="codex-doc-table-wrap">
     <table class="codex-doc-table">
       <thead><tr><th>系统</th><th>配置目录</th><th>配置文件</th></tr></thead>
@@ -42,7 +33,7 @@ import { Icon } from '@/components/icons'
     <p><strong>提示：</strong>目录不存在时先手动创建。Windows 用户记得显示文件扩展名，避免实际文件名变成 <code>opencode.json.txt</code>。</p>
   </section>
 
-  <h2 id="openCodeJson">4. 方式 A：写入 <code>opencode.json</code>（推荐，长期生效）</h2>
+  <h2 id="openCodeJson">3. 方式 A：写入 <code>opencode.json</code>（推荐，长期生效）</h2>
   <p>把下面配置写入 <code>opencode.json</code>。其中 <code>baseURL</code>、<code>apiKey</code>、模型 ID 都应以“使用密钥”弹窗或中转后台模型清单为准。</p>
   <pre class="codex-code-block"><code>{
   "$schema": "https://opencode.ai/config.json",
@@ -67,7 +58,7 @@ import { Icon } from '@/components/icons'
     <li>如果你的账户只支持某些模型，就只保留后台可用的模型条目，避免出现 <code>model not found</code>。</li>
   </ul>
 
-  <h2 id="openCodeConnect">5. 方式 B：客户端内 <code>/connect</code> 临时切换</h2>
+  <h2 id="openCodeConnect">4. 方式 B：客户端内 <code>/connect</code> 临时切换</h2>
   <ol class="codex-steps-list">
     <li>在终端输入 <code>opencode</code> 启动客户端。</li>
     <li>在交互界面输入 <code>/connect</code>。</li>
@@ -77,7 +68,7 @@ import { Icon } from '@/components/icons'
   <pre class="codex-code-block"><code>/connect</code></pre>
   <p>此方式适合临时测试、多账号切换或不方便编辑配置文件的环境。</p>
 
-  <h2 id="openCodeVerify">6. 验证与排错</h2>
+  <h2 id="openCodeVerify">5. 验证与排错</h2>
   <ul class="codex-checklist">
     <li><Icon name="checkCircle" class="codex-icon" /><span>任意终端输入 <code>opencode</code>，选择 <code>sakms</code> provider 后发起一次对话，能正常返回即成功。</span></li>
     <li><Icon name="checkCircle" class="codex-icon" /><span>返回 <code>404</code> 时，优先检查 <code>baseURL</code> 是否包含 <code>/v1</code>。</span></li>

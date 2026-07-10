@@ -5,25 +5,100 @@ import { useRoute } from 'vue-router'
 import { Icon } from '@/components/icons'
 
 import ClaudeCodeGuideContent from './client-guides/ClaudeCodeGuideContent.vue'
+import CodexGuideContent from './client-guides/CodexGuideContent.vue'
 import ImageGuideContent from './client-guides/ImageGuideContent.vue'
 import MobileGuideContent from './client-guides/MobileGuideContent.vue'
 import OpenClawGuideContent from './client-guides/OpenClawGuideContent.vue'
 import OpenCodeGuideContent from './client-guides/OpenCodeGuideContent.vue'
-import { guideLinks, type GuideKey, type GuidePage } from './client-guide-data'
+import RegistrationKeyGuideContent from './client-guides/RegistrationKeyGuideContent.vue'
+import {
+  guideLinks,
+  parentGuideLink,
+  type GuideKey,
+  type GuidePage,
+} from './client-guide-data'
 
-const guidePages: Record<Exclude<GuideKey, 'codex'>, GuidePage> = {
+const guidePages: Record<GuideKey, GuidePage> = {
+  registration: {
+    active: 'registration',
+    title: '中转注册、兑换与 API 密钥配置教程',
+    baseLabel: 'API base_url: https://sakai.my/',
+    lead: '所有客户端配置的父教程：先完成中转账户注册、权益兑换、API 密钥创建与分组选择，再进入对应的客户端子教程。',
+    badges: [
+      { icon: 'userPlus', label: '注册中转账户' },
+      { icon: 'gift', label: '兑换权益' },
+      { icon: 'key', label: '创建 API 密钥' },
+      { icon: 'checkCircle', label: '选择正确分组' },
+    ],
+    jumps: [
+      { href: '#guideHierarchy', label: '教程目录' },
+      { href: '#registerAccount', label: '注册' },
+      { href: '#redeemBenefits', label: '兑换' },
+      { href: '#createApiKey', label: '创建 Key' },
+    ],
+    toc: [
+      {
+        title: '父教程',
+        items: [
+          { href: '#guideTitle', label: '教程总览' },
+          { href: '#guideHierarchy', label: '父子目录关系' },
+          { href: '#usageNotes', label: '使用前说明' },
+          { href: '#registerAccount', label: '注册中转账户' },
+          { href: '#redeemBenefits', label: '获取并兑换权益' },
+          { href: '#createApiKey', label: '创建 API 密钥' },
+          { href: '#clientConfig', label: '查看客户端配置' },
+          { href: '#parentFaq', label: '常见问题' },
+        ],
+      },
+    ],
+    component: RegistrationKeyGuideContent,
+  },
+  codex: {
+    active: 'codex',
+    title: 'Codex API 登录对接教程',
+    baseLabel: 'base_url 与 API Key：以父教程“使用密钥”弹窗为准',
+    lead: '完成父教程后，配置 Codex 的 config.toml 与 auth.json，使用自己的 API Key 登录并验证连接。',
+    badges: [
+      { icon: 'download', label: '下载并初始化 Codex' },
+      { icon: 'document', label: 'config.toml / auth.json' },
+      { icon: 'key', label: 'API 登录' },
+      { icon: 'checkCircle', label: '验证与排错' },
+    ],
+    jumps: [
+      { href: '#codexStart', label: '开始前准备' },
+      { href: '#codexManual', label: '手动配置' },
+      { href: '#codexLogin', label: 'API 登录' },
+      { href: '#codexVerify', label: '验证排错' },
+    ],
+    toc: [
+      {
+        title: 'Codex 教程',
+        items: [
+          { href: '#guideTitle', label: '教程总览' },
+          { href: '#codexStart', label: '开始前准备' },
+          { href: '#codexManual', label: '手动配置 Codex' },
+          { href: '#codexWindows', label: 'Windows 配置' },
+          { href: '#codexMac', label: 'macOS 配置' },
+          { href: '#codexLogin', label: '重新登录' },
+          { href: '#codexVerify', label: '验证与排错' },
+        ],
+      },
+    ],
+    component: CodexGuideContent,
+  },
   claude: {
     active: 'claude',
     title: 'Claude Code 配置教程',
-    lead: '从注册中转账户、兑换额度、创建 API Key，到通过 settings.json 或系统环境变量手动接入 Claude Code。',
+    baseLabel: 'base_url 与 API Key：以父教程“使用密钥”弹窗为准',
+    lead: '完成父教程后，通过 settings.json 或系统环境变量接入 Claude Code，并使用新终端验证配置。',
     badges: [
-      { icon: 'userPlus', label: '注册中转' },
-      { icon: 'gift', label: '兑换额度' },
-      { icon: 'cog', label: '手动配置' },
+      { icon: 'book', label: '先完成父教程' },
+      { icon: 'document', label: 'settings.json' },
+      { icon: 'cog', label: '系统环境变量' },
       { icon: 'terminal', label: 'claude 验证' },
     ],
     jumps: [
-      { href: '#claudeStart', label: '从零开始' },
+      { href: '#claudeStart', label: '开始前准备' },
       { href: '#claudeManual', label: '手动配置' },
       { href: '#claudeVerify', label: '验证排错' },
     ],
@@ -32,7 +107,7 @@ const guidePages: Record<Exclude<GuideKey, 'codex'>, GuidePage> = {
         title: 'Claude Code 教程',
         items: [
           { href: '#guideTitle', label: '教程总览' },
-          { href: '#claudeStart', label: '准备 API Key' },
+          { href: '#claudeStart', label: '开始前准备' },
           { href: '#claudeManual', label: '手动配置' },
           { href: '#claudePath', label: '配置目录' },
           { href: '#claudeSettings', label: 'settings.json' },
@@ -46,15 +121,16 @@ const guidePages: Record<Exclude<GuideKey, 'codex'>, GuidePage> = {
   openCode: {
     active: 'openCode',
     title: 'Open Code 配置教程',
-    lead: '从注册中转账户、兑换额度、创建 API Key 开始，完整接入 Open Code CLI；长期使用写入 opencode.json，临时切换可用 /connect。',
+    baseLabel: 'base_url 与 API Key：以父教程“使用密钥”弹窗为准',
+    lead: '完成父教程后接入 Open Code CLI；长期使用写入 opencode.json，临时切换可使用 /connect。',
     badges: [
-      { icon: 'userPlus', label: '注册中转' },
-      { icon: 'key', label: '创建 Key' },
+      { icon: 'book', label: '先完成父教程' },
+      { icon: 'download', label: '安装 Open Code' },
       { icon: 'document', label: 'opencode.json' },
       { icon: 'terminal', label: '/connect' },
     ],
     jumps: [
-      { href: '#openCodeStart', label: '从零开始' },
+      { href: '#openCodeStart', label: '开始前准备' },
       { href: '#openCodeInstall', label: '安装' },
       { href: '#openCodeJson', label: 'JSON' },
       { href: '#openCodeVerify', label: '验证排错' },
@@ -64,7 +140,7 @@ const guidePages: Record<Exclude<GuideKey, 'codex'>, GuidePage> = {
         title: 'Open Code 教程',
         items: [
           { href: '#guideTitle', label: '教程总览' },
-          { href: '#openCodeStart', label: '准备 API Key' },
+          { href: '#openCodeStart', label: '开始前准备' },
           { href: '#openCodeInstall', label: '安装并启动' },
           { href: '#openCodePath', label: '配置目录' },
           { href: '#openCodeJson', label: 'opencode.json' },
@@ -78,15 +154,16 @@ const guidePages: Record<Exclude<GuideKey, 'codex'>, GuidePage> = {
   openClaw: {
     active: 'openClaw',
     title: 'Open Claw 配置教程',
-    lead: '从注册中转账户、兑换额度、创建 API Key 开始，完整接入 Open Claw。支持腾讯云在线配置，也支持本地 ~/.openclaw 配置。',
+    baseLabel: 'base_url 与 API Key：以父教程“使用密钥”弹窗为准',
+    lead: '完成父教程后接入 Open Claw，支持腾讯云在线配置和 Windows、macOS、Linux 本地配置。',
     badges: [
-      { icon: 'userPlus', label: '注册中转' },
+      { icon: 'book', label: '先完成父教程' },
       { icon: 'cloud', label: '腾讯云在线配置' },
       { icon: 'document', label: '本地配置' },
       { icon: 'checkCircle', label: '模型测试' },
     ],
     jumps: [
-      { href: '#openClawStart', label: '从零开始' },
+      { href: '#openClawStart', label: '开始前准备' },
       { href: '#openClawCloud', label: '云端' },
       { href: '#openClawLocal', label: '本地' },
       { href: '#openClawCheck', label: '检查' },
@@ -96,7 +173,7 @@ const guidePages: Record<Exclude<GuideKey, 'codex'>, GuidePage> = {
         title: 'Open Claw 教程',
         items: [
           { href: '#guideTitle', label: '教程总览' },
-          { href: '#openClawStart', label: '准备 API Key' },
+          { href: '#openClawStart', label: '开始前准备' },
           { href: '#openClawCloud', label: '腾讯云在线配置' },
           { href: '#openClawLocal', label: '本地配置' },
           { href: '#openClawCheck', label: '验证与检查' },
@@ -107,11 +184,12 @@ const guidePages: Record<Exclude<GuideKey, 'codex'>, GuidePage> = {
   },
   mobile: {
     active: 'mobile',
-    title: '移动端配置教程',
-    lead: '使用 Chatbox 在 iOS、Android 等移动设备接入 sak API 服务，从下载应用、添加模型提供方到完成模型选择，按步骤配置即可。',
+    title: '移动端 Chatbox 配置教程',
+    baseLabel: 'API 主机与 API Key：以父教程“使用密钥”弹窗为准',
+    lead: '完成父教程后，在 iOS、Android 等移动设备使用 Chatbox 添加模型提供方并选择可用模型。',
     badges: [
+      { icon: 'book', label: '先完成父教程' },
       { icon: 'download', label: '下载 Chatbox' },
-      { icon: 'chat', label: '手机端配置' },
       { icon: 'bolt', label: 'OpenAI response API 兼容' },
       { icon: 'chatBubble', label: '新对话切换模型' },
     ],
@@ -126,6 +204,7 @@ const guidePages: Record<Exclude<GuideKey, 'codex'>, GuidePage> = {
         title: '移动端教程',
         items: [
           { href: '#guideTitle', label: '教程总览' },
+          { href: '#mobileStart', label: '开始前准备' },
           { href: '#mobileDownload', label: '下载 Chatbox' },
           { href: '#mobileHome', label: '确认应用界面' },
           { href: '#mobileConfig', label: '配置步骤' },
@@ -139,17 +218,18 @@ const guidePages: Record<Exclude<GuideKey, 'codex'>, GuidePage> = {
   },
   image: {
     active: 'image',
-    title: '图像生成教程',
-    lead: '使用 Cherry Studio 接入 https://sakai.my/，配置 gpt-image-2 图像生成端点，并通过绘画入口完成专业生图。',
+    title: 'Cherry Studio 图像生成教程',
+    baseLabel: 'API 地址与 API Key：以父教程“使用密钥”弹窗为准',
+    lead: '完成父教程后，在 Cherry Studio 配置 gpt-image-2 图像生成端点，并通过绘画入口完成生图。',
     badges: [
+      { icon: 'book', label: '先完成父教程' },
       { icon: 'download', label: '下载 Cherry Studio' },
-      { icon: 'key', label: '填写 API Key' },
       { icon: 'sparkles', label: 'gpt-image-2' },
       { icon: 'checkCircle', label: '绘画入口验证' },
     ],
     jumps: [
+      { href: '#imageStart', label: '开始前准备' },
       { href: '#imageDownload', label: '下载' },
-      { href: '#imageService', label: '模型服务' },
       { href: '#imageModel', label: '配置模型' },
       { href: '#imageGenerate', label: '开始生图' },
     ],
@@ -158,6 +238,7 @@ const guidePages: Record<Exclude<GuideKey, 'codex'>, GuidePage> = {
         title: '图像生成教程',
         items: [
           { href: '#guideTitle', label: '教程总览' },
+          { href: '#imageStart', label: '开始前准备' },
           { href: '#imageGuideIntro', label: '生图路径说明' },
           { href: '#imageDownload', label: '下载 Cherry Studio' },
           { href: '#imageService', label: '配置模型服务' },
@@ -174,9 +255,11 @@ const guidePages: Record<Exclude<GuideKey, 'codex'>, GuidePage> = {
 const route = useRoute()
 
 const page = computed(() => {
-  const key = route.meta.guideKey as Exclude<GuideKey, 'codex'>
-  return guidePages[key] ?? guidePages.claude
+  const key = route.meta.guideKey as GuideKey
+  return guidePages[key] ?? guidePages.registration
 })
+
+const isParentGuide = computed(() => page.value.active === 'registration')
 </script>
 
 <template>
@@ -187,19 +270,29 @@ const page = computed(() => {
           <img src="/logo.png" alt="Logo">
           <span>
             <strong>GPT Team</strong>
-            <small>客户端配置文档</small>
+            <small>{{ isParentGuide ? '中转接入父教程' : '客户端配置子教程' }}</small>
           </span>
         </a>
         <div class="codex-doc-actions">
-          <a href="/codex-guide" class="codex-doc-link">
-            <Icon name="book" class="codex-icon" /> Codex 总教程
-          </a>
-          <a href="/codex-guide#chapterKey" class="codex-doc-link">
-            <Icon name="key" class="codex-icon" /> 先创建 Key
-          </a>
-          <a href="https://sakai.my/profile" target="_blank" rel="noopener noreferrer" class="codex-doc-cta">
-            <Icon name="externalLink" class="codex-icon" /> 打开额度查询
-          </a>
+          <template v-if="isParentGuide">
+            <a href="#createApiKey" class="codex-doc-link codex-doc-link--secondary">
+              <Icon name="key" class="codex-icon" /> 创建 API 密钥
+            </a>
+            <a href="https://sakai.my/register" target="_blank" rel="noopener noreferrer" class="codex-doc-cta">
+              <Icon name="externalLink" class="codex-icon" /> 打开中转注册
+            </a>
+          </template>
+          <template v-else>
+            <a :href="parentGuideLink.path" class="codex-doc-link">
+              <Icon name="book" class="codex-icon" /> 父教程
+            </a>
+            <a :href="parentGuideLink.keyPath" class="codex-doc-link codex-doc-link--secondary">
+              <Icon name="key" class="codex-icon" /> 先创建 Key
+            </a>
+            <a href="https://sakai.my/profile" target="_blank" rel="noopener noreferrer" class="codex-doc-cta">
+              <Icon name="externalLink" class="codex-icon" /> 打开额度查询
+            </a>
+          </template>
         </div>
       </nav>
     </header>
@@ -231,7 +324,7 @@ const page = computed(() => {
 
       <main class="codex-doc-shell">
         <section class="codex-doc-hero" aria-labelledby="guideTitle">
-          <p class="codex-doc-base">API base_url: https://sakai.my/</p>
+          <p class="codex-doc-base">{{ page.baseLabel }}</p>
           <h1 id="guideTitle">{{ page.title }}</h1>
           <p class="codex-doc-lead">{{ page.lead }}</p>
           <div class="codex-doc-badges" aria-label="教程要点">
@@ -244,7 +337,9 @@ const page = computed(() => {
           </nav>
 
           <nav class="codex-guide-switcher" aria-label="客户端教程互跳入口">
-            <p class="codex-guide-switcher__label">客户端配置教程</p>
+            <p class="codex-guide-switcher__label">
+              {{ isParentGuide ? '选择客户端子教程' : '切换客户端子教程' }}
+            </p>
             <div class="codex-client-guide-grid codex-client-guide-grid--all">
               <a
                 v-for="guide in guideLinks"

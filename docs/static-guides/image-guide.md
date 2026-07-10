@@ -1,38 +1,17 @@
-# 图像生成教程
+# Cherry Studio 图像生成教程
 
-源页面：`/image-guide`
+> API base_url：`https://sakai.my/`
 
-对应文件：`frontend/src/views/public/client-guides/ImageGuideContent.vue`
+前置步骤：请先完成父教程《中转注册、兑换与 API 密钥配置教程》，准备好自己的 `base_url` 和 API Key。本文只讲客户端配置，不再重复注册、兑换和创建密钥。
 
-公共外壳：`frontend/src/views/public/ClientGuideView.vue`
+## 教程要点
 
-图片目录：`../../frontend/public/img/image-guide/`
+- 安装 Cherry Studio
+- 配置 New API 模型服务
+- 添加 `gpt-image-2` 图像生成模型
+- 使用绘画入口生成图片
 
-## 页面头部信息
-
-API base_url：`https://sakai.my/`
-
-页面标题：图像生成教程
-
-引导文案：
-
-使用 Cherry Studio 接入 <https://sakai.my/>，配置 `gpt-image-2` 图像生成端点，并通过绘画入口完成专业生图。
-
-教程要点：
-
-- 下载 Cherry Studio
-- 填写 API Key
-- `gpt-image-2`
-- 绘画入口验证
-
-章节快捷入口：
-
-- 下载：`#imageDownload`
-- 模型服务：`#imageService`
-- 配置模型：`#imageModel`
-- 开始生图：`#imageGenerate`
-
-## Cherry Studio 图像生成完整配置流程
+## Cherry Studio 图像生成流程
 
 ### 当前图像生成路径说明
 
@@ -52,7 +31,7 @@ API base_url：`https://sakai.my/`
 
 1. 打开 Cherry Studio，点击右上角设置按钮。
 2. 在“模型服务”中找到并选择 **New API**。
-3. 填写 API 地址和密钥。API 地址填写 `https://sakai.my/`，API 密钥填写你自己的中转 API Key。
+3. 填写 API 地址和密钥，具体值以父教程“使用密钥”弹窗显示的真实配置为准。
 
 ![Cherry Studio 右上角设置按钮](../../frontend/public/img/image-guide/image-3.png)
 
@@ -62,11 +41,7 @@ API base_url：`https://sakai.my/`
 
 图 3：在模型服务中找到 New API。
 
-![Cherry Studio 填写 API 地址和密钥](../../frontend/public/img/image-guide/image-6.png)
-
-图 4：填写 API 地址和自己的 API 密钥。
-
-填写提醒：API 地址固定填写 `https://sakai.my/`。API 密钥请从 [中转后台 API 密钥页面](https://sakai.my/keys) 复制自己的 Key，不要复制教程截图。
+填写提醒：API 地址和 API 密钥都以父教程“使用密钥”弹窗为准，不要复制教程截图中的示例值。
 
 ### 3. 配置图像生成模型
 
@@ -75,21 +50,13 @@ API base_url：`https://sakai.my/`
 3. 在端点类型中选择“图像生成”，然后点击“添加模型”。
 4. 返回模型列表，确认 `gpt-image-2` 已经以图像生成端点保存。
 
-![Cherry Studio 获取模型列表](../../frontend/public/img/image-guide/image-7.png)
-
-图 5：点击获取模型列表。
-
 ![Cherry Studio 添加 gpt-image-2 模型](../../frontend/public/img/image-guide/image-8.png)
 
-图 6：找到 gpt-image-2 并点击右侧加号。
+图 4：找到 gpt-image-2 并点击右侧加号。
 
 ![Cherry Studio 选择图像生成端点类型](../../frontend/public/img/image-guide/image-9.png)
 
-图 7：端点类型选择图像生成后添加模型。
-
-![Cherry Studio 图像生成模型配置完成](../../frontend/public/img/image-guide/image-10.png)
-
-图 8：配置完成后的模型服务状态。
+图 5：端点类型选择图像生成后添加模型。
 
 ### 4. 开始生图
 
@@ -98,25 +65,21 @@ API base_url：`https://sakai.my/`
 3. 选择刚配置的模型提供商和 `gpt-image-2` 模型。
 4. 输入提示词并发送，等待图片生成完成。
 
-![Cherry Studio 点击上方加号](../../frontend/public/img/image-guide/image-11.png)
-
-图 9：点击上方加号。
-
 ![Cherry Studio 选择绘画入口](../../frontend/public/img/image-guide/image-12.png)
 
-图 10：选择绘画。
+图 6：选择绘画。
 
 ![Cherry Studio 选择模型提供商和模型发送提示词](../../frontend/public/img/image-guide/image-13.png)
 
-图 11：选择模型提供商和模型后发送提示词。
+图 7：选择模型提供商和模型后发送提示词。
 
 ![Cherry Studio 图像生成成功示例](../../frontend/public/img/image-guide/image-14.png)
 
-图 12：图片生成成功。
+图 8：图片生成成功。
 
 ### 5. 完成检查
 
-- 模型服务 API 地址已填写 `https://sakai.my/`。
+- 模型服务 API 地址与父教程“使用密钥”弹窗显示的地址一致。
 - API 密钥来自你自己的中转后台账号，没有复制教程截图或他人密钥。
 - `gpt-image-2` 已添加，并且端点类型为“图像生成”。
 - 生图入口选择“绘画”，并在发送前确认模型提供商和模型都已切换到刚配置的服务。

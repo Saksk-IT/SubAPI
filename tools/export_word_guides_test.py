@@ -25,20 +25,20 @@ CHILD_OUTPUT_PATHS = (
 EXPECTED_OUTPUT_PATHS = {PARENT_OUTPUT_PATH, *CHILD_OUTPUT_PATHS}
 EXPECTED_IMAGE_PLACEMENTS = {
     PARENT_OUTPUT_PATH: 7,
-    CHILD_OUTPUT_PATHS[0]: 10,
+    CHILD_OUTPUT_PATHS[0]: 7,
     CHILD_OUTPUT_PATHS[1]: 1,
     CHILD_OUTPUT_PATHS[2]: 0,
     CHILD_OUTPUT_PATHS[3]: 0,
-    CHILD_OUTPUT_PATHS[4]: 15,
-    CHILD_OUTPUT_PATHS[5]: 9,
+    CHILD_OUTPUT_PATHS[4]: 11,
+    CHILD_OUTPUT_PATHS[5]: 8,
 }
 EXPECTED_UNIQUE_MEDIA = {
     PARENT_OUTPUT_PATH: 7,
-    CHILD_OUTPUT_PATHS[0]: 9,
+    CHILD_OUTPUT_PATHS[0]: 7,
     CHILD_OUTPUT_PATHS[1]: 1,
     CHILD_OUTPUT_PATHS[2]: 0,
     CHILD_OUTPUT_PATHS[3]: 0,
-    CHILD_OUTPUT_PATHS[4]: 15,
+    CHILD_OUTPUT_PATHS[4]: 11,
     CHILD_OUTPUT_PATHS[5]: 8,
 }
 WORD_NS = "http://schemas.openxmlformats.org/wordprocessingml/2006/main"
@@ -130,30 +130,34 @@ class WordGuideExportTests(unittest.TestCase):
                             )
                 total_image_placements += placements
 
-            self.assertEqual(total_image_placements, 42)
+            self.assertEqual(total_image_placements, 34)
 
-    def test_excludes_unredacted_image_guide_screenshots(self) -> None:
+    def test_excludes_outdated_or_unredacted_screenshots(self) -> None:
         with tempfile.TemporaryDirectory() as temporary_directory:
             output_dir = Path(temporary_directory)
             result = self.run_export(output_dir)
             self.assertEqual(result.returncode, 0, result.stderr)
 
-            image_dir = REPO_ROOT / "frontend" / "public" / "img" / "image-guide"
             forbidden_hashes = {
-                hashlib.sha256((image_dir / filename).read_bytes()).hexdigest()
-                for filename in (
-                    "image-6.png",
-                    "image-7.png",
-                    "image-10.png",
-                    "image-11.png",
-                )
+                "d82ffd2b5a7a3bd8c302849c68592bd7a6fb818573f3b8ccaad6cd8922381962",
+                "2e7b40aebdd2fd503d643ae3b3c57bc567679c821ec607b95ed86391957871f3",
+                "27bd7b2b9a862b8c705b6a28d9e4d80c24d93bb085f322c1c396638da5d646f6",
+                "732cf2ed9b3b58fcbb21c5ffe886c4259b595d6078dbcd367807f18e1c4dbe02",
+                "e78a40abc06003630dfdd48725eb2843584daa837cb6fea77087e052ced9aa6f",
+                "f7f9dbdc295b63693539484c521a7bbd5ca7037bb8195434111d540bf3a1cc42",
+                "704850f01dfb57f7bda2626de8b072248c8b0557c9184d34b3b4ed31004954c8",
+                "91ac8e19533f8135bc4eeae9b2ebd097984b051c96e554e40a2f6245dda664e6",
+                "f826a908abf27fb922aa7083b65c6c0c7a3dc3a6af60c0c71afd55c60d48458c",
+                "61ee0f2073ee41cf836252c7f24dfb6851249caf4b5dde8c06e313311635d170",
             }
-            with zipfile.ZipFile(output_dir / CHILD_OUTPUT_PATHS[5]) as archive:
-                embedded_hashes = {
-                    hashlib.sha256(archive.read(name)).hexdigest()
-                    for name in archive.namelist()
-                    if name.startswith("word/media/")
-                }
+            embedded_hashes = set()
+            for output_path in EXPECTED_OUTPUT_PATHS:
+                with zipfile.ZipFile(output_dir / output_path) as archive:
+                    embedded_hashes.update(
+                        hashlib.sha256(archive.read(name)).hexdigest()
+                        for name in archive.namelist()
+                        if name.startswith("word/media/")
+                    )
 
             self.assertTrue(forbidden_hashes.isdisjoint(embedded_hashes))
 
@@ -243,6 +247,21 @@ class WordGuideExportTests(unittest.TestCase):
                                 )
                             )
 
+    def test_uses_a_dedicated_simplified_chinese_font_for_cjk_text(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            output_dir = Path(temporary_directory)
+            result = self.run_export(output_dir)
+            self.assertEqual(result.returncode, 0, result.stderr)
+
+            for output_path in EXPECTED_OUTPUT_PATHS:
+                with zipfile.ZipFile(output_dir / output_path) as archive:
+                    document_xml = archive.read("word/document.xml").decode("utf-8")
+                    styles_xml = archive.read("word/styles.xml").decode("utf-8")
+                package_xml = document_xml + styles_xml
+                with self.subTest(output_path=output_path):
+                    self.assertIn('w:eastAsia="PingFang SC"', package_xml)
+                    self.assertNotIn("Arial Unicode MS", package_xml)
+
     def test_rejects_an_output_path_that_escapes_the_output_directory(self) -> None:
         from tools import export_word_guides as exporter
 
@@ -251,6 +270,28 @@ class WordGuideExportTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 exporter.export_documents(output_dir, (("../escaped.docx", b"bad"),))
             self.assertFalse((output_dir.parent / "escaped.docx").exists())
+
+    def test_rejects_a_parent_directory_symlink_that_escapes_the_output_directory(self) -> None:
+        from tools import export_word_guides as exporter
+
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            root = Path(temporary_directory)
+            output_dir = root / "exports"
+            outside_dir = root / "outside"
+            output_dir.mkdir()
+            outside_dir.mkdir()
+            (output_dir / OUTPUT_PARENT_DIR).symlink_to(
+                outside_dir,
+                target_is_directory=True,
+            )
+
+            with self.assertRaises(ValueError):
+                exporter.export_documents(
+                    output_dir,
+                    ((f"{OUTPUT_PARENT_DIR}/escaped.docx", b"bad"),),
+                )
+
+            self.assertFalse((outside_dir / "escaped.docx").exists())
 
 
 if __name__ == "__main__":

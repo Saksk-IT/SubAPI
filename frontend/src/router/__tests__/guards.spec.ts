@@ -89,6 +89,7 @@ function simulateGuard(
         '/key-usage',
         '/setup',
         '/payment/result',
+        '/registration-key-guide',
         '/codex-guide',
         '/claude-code-guide',
         '/open-code-guide',
@@ -149,6 +150,7 @@ function simulateGuard(
       '/key-usage',
       '/setup',
       '/payment/result',
+      '/registration-key-guide',
       '/codex-guide',
       '/claude-code-guide',
       '/open-code-guide',
@@ -403,6 +405,22 @@ describe('路由守卫逻辑', () => {
         hasPendingAuthSession: false,
       }
       const redirect = simulateGuard('/codex-guide', { requiresAuth: false }, authState)
+      expect(redirect).toBeNull()
+    })
+
+    it('unauthenticated: /registration-key-guide is allowed', () => {
+      const authState: MockAuthState = {
+        isAuthenticated: false,
+        isAdmin: false,
+        isSimpleMode: false,
+        backendModeEnabled: true,
+        hasPendingAuthSession: false,
+      }
+      const redirect = simulateGuard(
+        '/registration-key-guide',
+        { requiresAuth: false },
+        authState
+      )
       expect(redirect).toBeNull()
     })
 

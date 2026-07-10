@@ -2,10 +2,19 @@ import type { Component } from 'vue'
 
 import { Icon } from '@/components/icons'
 
-export type GuideKey = 'codex' | 'claude' | 'openCode' | 'openClaw' | 'mobile' | 'image'
+export type GuideKey =
+  | 'registration'
+  | 'codex'
+  | 'claude'
+  | 'openCode'
+  | 'openClaw'
+  | 'mobile'
+  | 'image'
+
+export type ClientGuideKey = Exclude<GuideKey, 'registration'>
 
 export type GuideLink = {
-  key: GuideKey
+  key: ClientGuideKey
   path: string
   title: string
   description: string
@@ -23,6 +32,7 @@ export type TocSection = {
 export type GuidePage = {
   active: GuideKey
   title: string
+  baseLabel: string
   lead: string
   badges: {
     icon: InstanceType<typeof Icon>['$props']['name']
@@ -35,6 +45,12 @@ export type GuidePage = {
   toc: TocSection[]
   component: Component
 }
+
+export const parentGuideLink = {
+  path: '/registration-key-guide',
+  title: '中转注册、兑换与 API 密钥配置教程',
+  keyPath: '/registration-key-guide#createApiKey',
+} as const
 
 export const guideLinks: GuideLink[] = [
   {

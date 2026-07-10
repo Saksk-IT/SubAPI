@@ -3,9 +3,9 @@ import { Icon } from '@/components/icons'
 </script>
 
 <template>
-  <h1>移动端完整接入流程</h1>
-  <section class="codex-callout codex-callout--important">
-    <p><strong>开始前请先准备自己的 API Key：</strong>请先在 <a href="/codex-guide#chapterKey">Codex 总教程第二章</a> 完成中转账户注册、权益兑换与 API Key 创建，再回到本页做移动端接入。</p>
+  <h1>移动端 Chatbox 配置流程</h1>
+  <section id="mobileStart" class="codex-callout codex-callout--important">
+    <p><strong>开始前准备：</strong>请先完成<a href="/registration-key-guide">父教程《中转注册、兑换与 API 密钥配置教程》</a>，准备好自己的 API Key 和“使用密钥”弹窗给出的 API 主机。</p>
   </section>
 
   <h2 id="mobileDownload">1. 前往官网下载 Chatbox</h2>
@@ -49,23 +49,15 @@ import { Icon } from '@/components/icons'
       <img src="/img/codex-guide/image-37.png" alt="添加新的模型提供方" loading="lazy">
       <figcaption>图 6：点击添加。</figcaption>
     </figure>
-    <figure class="codex-figure">
-      <img src="/img/codex-guide/image-38.png" alt="选择 OpenAI response API 兼容模式" loading="lazy">
-      <figcaption>图 7：API 模式选择 OpenAI response API 兼容。</figcaption>
-    </figure>
-    <figure class="codex-figure">
-      <img src="/img/codex-guide/image-39.png" alt="移动端填写 API 配置" loading="lazy">
-      <figcaption>图 8：进入 API 配置页。</figcaption>
-    </figure>
   </div>
 
   <section class="codex-callout">
-    <p><strong>填写规则：</strong>API 主机填写 <code>https://sakai.my/</code>；API 密钥请前往 <a href="https://sakai.my/keys" target="_blank" rel="noopener noreferrer">https://sakai.my/keys</a> 创建并复制你自己的 Key。</p>
+    <p><strong>填写规则：</strong>API 模式选择 <strong>OpenAI response API 兼容</strong>；API 主机和 API 密钥以父教程“使用密钥”弹窗为准，不要根据旧截图手动填写。</p>
   </section>
 
   <figure class="codex-figure codex-config-result">
     <img src="/img/codex-guide/image-40.png" alt="从中转后台复制 API 密钥" loading="lazy">
-    <figcaption>图 9：在中转后台复制自己的 API 密钥后粘贴到移动端配置里。</figcaption>
+    <figcaption>图 7：在中转后台复制自己的 API 密钥后粘贴到移动端配置里。</figcaption>
   </figure>
 
   <h3 id="mobileModels">3.1 获取并选择模型</h3>
@@ -77,23 +69,15 @@ import { Icon } from '@/components/icons'
 
   <div class="codex-image-grid">
     <figure class="codex-figure">
-      <img src="/img/codex-guide/image-41.png" alt="点击获取模型列表" loading="lazy">
-      <figcaption>图 10：点击获取模型。</figcaption>
-    </figure>
-    <figure class="codex-figure">
       <img src="/img/codex-guide/image-42.png" alt="在模型列表中添加主流模型" loading="lazy">
-      <figcaption>图 11：点击右侧加号添加模型。</figcaption>
-    </figure>
-    <figure class="codex-figure">
-      <img src="/img/codex-guide/image-43.png" alt="检查移动端配置是否完成" loading="lazy">
-      <figcaption>图 12：确认主要配置项都已完成。</figcaption>
+      <figcaption>图 8：获取模型列表后，点击右侧加号添加模型。</figcaption>
     </figure>
   </div>
 
   <h2 id="mobileCheck">4. 完成检查</h2>
   <ul class="codex-checklist">
     <li><Icon name="checkCircle" class="codex-icon" /><span>API 模式已选择 <code>OpenAI response API 兼容</code>。</span></li>
-    <li><Icon name="checkCircle" class="codex-icon" /><span>API 主机已填写 <code>https://sakai.my/</code>。</span></li>
+    <li><Icon name="checkCircle" class="codex-icon" /><span>API 主机与父教程“使用密钥”弹窗给出的地址一致。</span></li>
     <li><Icon name="checkCircle" class="codex-icon" /><span>API 密钥来自你自己的 <a href="https://sakai.my/keys" target="_blank" rel="noopener noreferrer">中转后台</a>，不是教程示例。</span></li>
     <li><Icon name="checkCircle" class="codex-icon" /><span>至少已添加一个可用模型，避免新建对话后没有模型可选。</span></li>
   </ul>
@@ -103,15 +87,15 @@ import { Icon } from '@/components/icons'
   <div class="codex-image-grid">
     <figure class="codex-figure">
       <img src="/img/codex-guide/image-44.png" alt="打开移动端新对话并点击右下角" loading="lazy">
-      <figcaption>图 13：新建对话后点击右下角模型入口。</figcaption>
+      <figcaption>图 9：新建对话后点击右下角模型入口。</figcaption>
     </figure>
     <figure class="codex-figure">
       <img src="/img/codex-guide/image-45.png" alt="选择自己配置的移动端模型" loading="lazy">
-      <figcaption>图 14：下滑找到自己配置的模型并点击使用。</figcaption>
+      <figcaption>图 10：下滑找到自己配置的模型并点击使用。</figcaption>
     </figure>
     <figure class="codex-figure">
       <img src="/img/codex-guide/image-46.png" alt="移动端模型配置成功后的界面" loading="lazy">
-      <figcaption>图 15：配置成功后即可正常使用。</figcaption>
+      <figcaption>图 11：配置成功后即可正常使用。</figcaption>
     </figure>
   </div>
 </template>

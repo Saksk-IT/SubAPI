@@ -3,28 +3,19 @@ import { Icon } from '@/components/icons'
 </script>
 
 <template>
-  <h1>Claude Code 完整接入流程</h1>
+  <h1>Claude Code 配置流程</h1>
   <section id="claudeStart" class="codex-callout codex-callout--important">
-    <p><strong>先准备好两项信息：</strong>在中转站创建自己的 API Key，并以“使用密钥”弹窗里 Claude Code 对应配置为准。教程截图和示例里的密钥都不能直接复制。</p>
+    <p><strong>开始前准备：</strong>请先完成<a href="/registration-key-guide">父教程《中转注册、兑换与 API 密钥配置教程》</a>，再从“使用密钥”弹窗复制 Claude Code 对应的真实 <code>base_url</code> 和 <code>api_key</code>。教程截图和示例里的密钥不能直接复制。</p>
   </section>
-
-  <h2>1. 从第一步开始：注册、兑换、创建 Key</h2>
-  <ol class="codex-steps-list">
-    <li>打开 <a href="https://sakai.my/register" target="_blank" rel="noopener noreferrer">中转注册页</a>，填写邮箱、验证码和密码，完成中转账户注册。</li>
-    <li>如果还没有权益，先通过卡密自助购买地址 <a href="https://catfk.com/shop/92O8CR0C" target="_blank" rel="noopener noreferrer">https://catfk.com/shop/92O8CR0C</a> 购买额度包，或使用已发放的质保补发兑换码。</li>
-    <li>登录后进入兑换页面，输入中转兑换码或额度包兑换码并兑换；随后打开 <a href="https://sakai.my/profile" target="_blank" rel="noopener noreferrer">额度查询页</a> 确认权益到账。</li>
-    <li>进入 <a href="https://sakai.my/keys" target="_blank" rel="noopener noreferrer">API 密钥页面</a>，点击“创建密钥”，按来源选择正确分组：质保补发码选“质保补偿”，链动小铺额度包选 GPT / GPT-Plus。</li>
-    <li>创建成功后点击“使用密钥”，切到 Claude Code 配置区域，复制弹窗里的真实 <code>base_url</code> 和 <code>api_key</code>。</li>
-  </ol>
   <figure class="codex-figure codex-config-result">
     <img src="/img/codex-guide/image-22.png" alt="Claude Code 配置弹窗示例，密钥已脱敏" loading="lazy">
     <figcaption>Claude Code 配置示例，截图中的 API Key 已脱敏。请以自己的“使用密钥”弹窗为准。</figcaption>
   </figure>
 
-  <h2 id="claudeManual">2. 手动配置 Claude Code</h2>
+  <h2 id="claudeManual">1. 手动配置 Claude Code</h2>
   <p>按“使用密钥”弹窗中的 Claude Code 配置，手动写入环境变量。Claude Code 支持在 <code>settings.json</code> 里通过 <code>env</code> 为每次会话注入变量；也可以直接写到系统环境变量中。</p>
 
-  <h3 id="claudePath">2.1 定位 Claude 配置目录</h3>
+  <h3 id="claudePath">1.1 定位 Claude 配置目录</h3>
   <div class="codex-doc-table-wrap">
     <table class="codex-doc-table">
       <thead><tr><th>系统</th><th>配置目录</th><th>打开方式</th></tr></thead>
@@ -36,7 +27,7 @@ import { Icon } from '@/components/icons'
     </table>
   </div>
 
-  <h3 id="claudeSettings">2.2 方式 A：写入 <code>settings.json</code>（推荐）</h3>
+  <h3 id="claudeSettings">1.2 方式 A：写入 <code>settings.json</code>（推荐）</h3>
   <p>在 <code>~/.claude/settings.json</code> 中写入下面结构。<code>ANTHROPIC_BASE_URL</code> 和 <code>ANTHROPIC_AUTH_TOKEN</code> 请复制“使用密钥”弹窗里的真实值；如果弹窗给出的地址带 <code>/v1</code>，就照弹窗填写。</p>
   <pre class="codex-code-block"><code>{
   "env": {
@@ -49,7 +40,7 @@ import { Icon } from '@/components/icons'
     <p><strong>提示：</strong>如果文件里已经有其他设置，只新增或合并 <code>env</code> 字段，不要覆盖原有 <code>permissions</code>、<code>hooks</code> 等配置。</p>
   </section>
 
-  <h3 id="claudeEnv">2.3 方式 B：配置系统环境变量</h3>
+  <h3 id="claudeEnv">1.3 方式 B：配置系统环境变量</h3>
   <div class="codex-doc-table-wrap">
     <table class="codex-doc-table">
       <thead><tr><th>系统</th><th>设置方法</th></tr></thead>
@@ -61,7 +52,7 @@ import { Icon } from '@/components/icons'
     </table>
   </div>
 
-  <h2 id="claudeVerify">3. 验证与排错</h2>
+  <h2 id="claudeVerify">2. 验证与排错</h2>
   <ul class="codex-checklist">
     <li><Icon name="checkCircle" class="codex-icon" /><span>打开新终端窗口，输入 <code>claude</code>，能进入交互并发起一次对话即配置成功。</span></li>
     <li><Icon name="checkCircle" class="codex-icon" /><span>如果提示认证失败，回到中转站重新复制 Claude Code 配置，并确认没有复制教程截图里的脱敏密钥。</span></li>

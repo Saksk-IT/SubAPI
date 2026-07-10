@@ -1,32 +1,15 @@
 # 中转注册、兑换与 API 密钥配置教程
 
-飞书层级：父教程
-
-图片目录：`../../frontend/public/img/codex-guide/`
-
-## 页面头部信息
-
-API base_url：`https://sakai.my/`
-
-页面标题：中转注册、兑换与 API 密钥配置教程
-
-引导文案：
+> API base_url：`https://sakai.my/`
 
 本教程作为所有客户端配置教程的父文档，统一说明中转账户注册、权益兑换、API 密钥创建与分组选择。完成后，再阅读对应的子教程配置具体客户端。
 
-教程要点：
+## 教程要点
 
 - 注册中转账户
 - 充值或兑换权益
 - 创建 API 密钥
 - 选择正确分组
-
-章节快捷入口：
-
-- 目录关系：`#guideHierarchy`
-- 注册账户：`#registerAccount`
-- 兑换权益：`#redeemBenefits`
-- 创建密钥：`#createApiKey`
 
 ## 中转注册、兑换与 API 密钥配置流程
 

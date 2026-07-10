@@ -1,52 +1,19 @@
 # Open Claw 配置教程
 
-源页面：`/open-claw-guide`
+> API base_url：`https://sakai.my/`
 
-对应文件：`frontend/src/views/public/client-guides/OpenClawGuideContent.vue`
+前置步骤：请先完成父教程《中转注册、兑换与 API 密钥配置教程》，准备好自己的 `base_url` 和 API Key。本文只讲客户端配置，不再重复注册、兑换和创建密钥。
 
-公共外壳：`frontend/src/views/public/ClientGuideView.vue`
+## 教程要点
 
-图片目录：`../../frontend/public/img/codex-guide/`
-
-## 页面头部信息
-
-API base_url：`https://sakai.my/`
-
-页面标题：Open Claw 配置教程
-
-引导文案：
-
-从注册中转账户、兑换额度、创建 API Key 开始，完整接入 Open Claw。支持腾讯云在线配置，也支持本地 ~/.openclaw 配置。
-
-教程要点：
-
-- 注册中转
 - 腾讯云在线配置
-- 本地配置
-- 模型测试
+- Windows / macOS / Linux 本地配置
+- 区分 `openai-completions` 与 `openai-responses`
+- 验证地址、密钥和模型
 
-章节快捷入口：
+## Open Claw 配置流程
 
-- 从零开始：`#openClawStart`
-- 云端：`#openClawCloud`
-- 本地：`#openClawLocal`
-- 检查：`#openClawCheck`
-
-## Open Claw 完整接入流程
-
-### 开始前准备
-
-开始前请先完成 API Key 准备：Open Claw 的 OpenAI-compatible 地址通常填写 `https://sakai.my/v1`。如果“使用密钥”弹窗给出的地址不同，请以弹窗为准。
-
-### 1. 从第一步开始：注册、兑换、创建 Key
-
-1. 打开 [中转注册页](https://sakai.my/register)，填写邮箱、验证码和密码，完成账户注册。
-2. 使用质保补发兑换码、站内兑换码，或通过 [链动小铺卡密地址](https://catfk.com/shop/92O8CR0C) 购买额度包并兑换。
-3. 兑换后打开 [额度查询页](https://sakai.my/profile)，确认余额或订阅权益到账。
-4. 进入 [API 密钥页面](https://sakai.my/keys)，点击“创建密钥”，按兑换码来源选择“质保补偿”或 GPT / GPT-Plus 分组。
-5. 创建后点击“使用密钥”，复制 Open Claw 或 OpenAI-compatible 配置中的 `base_url` 和 `api_key`。
-
-### 2. 方式 A：腾讯云在线配置（推荐新手）
+### 1. 方式 A：腾讯云在线配置（推荐新手）
 
 **适用场景：**你已经在腾讯云开通 Open Claw / 龙虾服务器，希望直接在云端面板中接入中转模型。
 
@@ -71,9 +38,9 @@ API base_url：`https://sakai.my/`
 
 注意：`api_key` 字段务必替换为自己的 API Key，不要提交占位符；模型 ID 以中转后台可用模型清单为准。
 
-### 3. 方式 B：本地配置（Windows / macOS / Linux）
+### 2. 方式 B：本地配置（Windows / macOS / Linux）
 
-如果你使用本地 Open Claw，可在配置目录中新增中转 provider。官方文档中的 provider 配置使用 `models.providers` 结构；本页示例保留一个 `sakms` provider，便于和默认模型区分。
+如果你使用本地 Open Claw，可在配置目录中新增中转 provider。官方文档中的 provider 配置使用 `models.providers` 结构；本文示例保留一个 `sakms` provider，便于和默认模型区分。
 
 | 系统 | 配置目录 | 打开方式 |
 | --- | --- | --- |
@@ -105,7 +72,7 @@ API base_url：`https://sakai.my/`
 
 提示：腾讯云端示例使用 `openai-completions`，本地 Open Claw 示例使用 `openai-responses`。如果你的客户端版本明确要求另一种 API 类型，请以客户端提示为准。
 
-### 4. 验证与快速检查
+## 验证与快速检查
 
 - `base_url` / `baseURL` 是否为 `https://sakai.my/v1`，或是否与“使用密钥”弹窗一致。
 - `api_key` / `apiKey` 是否已替换成自己的真实 API Key，没有保留“填写你的 API 密钥”。

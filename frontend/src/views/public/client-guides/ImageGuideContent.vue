@@ -3,7 +3,10 @@ import { Icon } from '@/components/icons'
 </script>
 
 <template>
-  <h1>Cherry Studio 图像生成完整配置流程</h1>
+  <h1>Cherry Studio 图像生成流程</h1>
+  <section id="imageStart" class="codex-callout codex-callout--important">
+    <p><strong>开始前准备：</strong>请先完成<a href="/registration-key-guide">父教程《中转注册、兑换与 API 密钥配置教程》</a>，并从“使用密钥”弹窗复制自己的 API 地址和 API Key。</p>
+  </section>
   <section id="imageGuideIntro" class="codex-callout codex-callout--important">
     <p><strong>当前图像生成路径：</strong>生图请走 <code>/imagegen</code> 路径。除“GPT Image 生图专用”分组外，其他分组暂无法在 Codex 中直接调用 <code>image2</code> 生图模型。</p>
     <p>建议按本教程配置 Cherry Studio，图像生成流程更专业，也更方便选择模型和管理提示词。</p>
@@ -20,7 +23,7 @@ import { Icon } from '@/components/icons'
   <ol class="codex-steps-list">
     <li>打开 Cherry Studio，点击右上角设置按钮。</li>
     <li>在“模型服务”中找到并选择 <strong>New API</strong>。</li>
-    <li>填写 API 地址和密钥。API 地址填写 <code>https://sakai.my/</code>，API 密钥填写你自己的中转 API Key。</li>
+    <li>填写父教程“使用密钥”弹窗给出的 API 地址和自己的中转 API Key。</li>
   </ol>
   <div class="codex-image-grid">
     <figure class="codex-figure">
@@ -31,13 +34,9 @@ import { Icon } from '@/components/icons'
       <img src="/img/image-guide/image-5.png" alt="Cherry Studio 模型服务 New API 入口" loading="lazy">
       <figcaption>图 3：在模型服务中找到 New API。</figcaption>
     </figure>
-    <figure class="codex-figure">
-      <img src="/img/image-guide/image-6.png" alt="Cherry Studio 填写 API 地址和密钥" loading="lazy">
-      <figcaption>图 4：填写 API 地址和自己的 API 密钥。</figcaption>
-    </figure>
   </div>
   <section class="codex-callout">
-    <p><strong>填写提醒：</strong>API 地址固定填写 <code>https://sakai.my/</code>。API 密钥请从 <a href="https://sakai.my/keys" target="_blank" rel="noopener noreferrer">中转后台 API 密钥页面</a> 复制自己的 Key，不要复制教程截图。</p>
+    <p><strong>填写提醒：</strong>API 地址和 API Key 均以自己的“使用密钥”弹窗为准，不要复制教程截图中的旧地址或示例密钥。</p>
   </section>
 
   <h2 id="imageModel">3. 配置图像生成模型</h2>
@@ -49,20 +48,12 @@ import { Icon } from '@/components/icons'
   </ol>
   <div class="codex-image-grid">
     <figure class="codex-figure">
-      <img src="/img/image-guide/image-7.png" alt="Cherry Studio 获取模型列表" loading="lazy">
-      <figcaption>图 5：点击获取模型列表。</figcaption>
-    </figure>
-    <figure class="codex-figure">
       <img src="/img/image-guide/image-8.png" alt="Cherry Studio 添加 gpt-image-2 模型" loading="lazy">
-      <figcaption>图 6：找到 gpt-image-2 并点击右侧加号。</figcaption>
+      <figcaption>图 4：获取模型列表后，找到 gpt-image-2 并点击右侧加号。</figcaption>
     </figure>
     <figure class="codex-figure">
       <img src="/img/image-guide/image-9.png" alt="Cherry Studio 选择图像生成端点类型" loading="lazy">
-      <figcaption>图 7：端点类型选择图像生成后添加模型。</figcaption>
-    </figure>
-    <figure class="codex-figure">
-      <img src="/img/image-guide/image-10.png" alt="Cherry Studio 图像生成模型配置完成" loading="lazy">
-      <figcaption>图 8：配置完成后的模型服务状态。</figcaption>
+      <figcaption>图 5：端点类型选择图像生成后添加模型。</figcaption>
     </figure>
   </div>
 
@@ -75,26 +66,22 @@ import { Icon } from '@/components/icons'
   </ol>
   <div class="codex-image-grid">
     <figure class="codex-figure">
-      <img src="/img/image-guide/image-11.png" alt="Cherry Studio 点击上方加号" loading="lazy">
-      <figcaption>图 9：点击上方加号。</figcaption>
-    </figure>
-    <figure class="codex-figure">
       <img src="/img/image-guide/image-12.png" alt="Cherry Studio 选择绘画入口" loading="lazy">
-      <figcaption>图 10：选择绘画。</figcaption>
+      <figcaption>图 6：点击上方加号后，选择“绘画”。</figcaption>
     </figure>
     <figure class="codex-figure">
       <img src="/img/image-guide/image-13.png" alt="Cherry Studio 选择模型提供商和模型发送提示词" loading="lazy">
-      <figcaption>图 11：选择模型提供商和模型后发送提示词。</figcaption>
+      <figcaption>图 7：选择模型提供商和模型后发送提示词。</figcaption>
     </figure>
     <figure class="codex-figure">
       <img src="/img/image-guide/image-14.png" alt="Cherry Studio 图像生成成功示例" loading="lazy">
-      <figcaption>图 12：图片生成成功。</figcaption>
+      <figcaption>图 8：图片生成成功。</figcaption>
     </figure>
   </div>
 
   <h2 id="imageCheck">5. 完成检查</h2>
   <ul class="codex-checklist">
-    <li><Icon name="checkCircle" class="codex-icon" /><span>模型服务 API 地址已填写 <code>https://sakai.my/</code>。</span></li>
+    <li><Icon name="checkCircle" class="codex-icon" /><span>模型服务 API 地址与父教程“使用密钥”弹窗一致。</span></li>
     <li><Icon name="checkCircle" class="codex-icon" /><span>API 密钥来自你自己的中转后台账号，没有复制教程截图或他人密钥。</span></li>
     <li><Icon name="checkCircle" class="codex-icon" /><span><code>gpt-image-2</code> 已添加，并且端点类型为“图像生成”。</span></li>
     <li><Icon name="checkCircle" class="codex-icon" /><span>生图入口选择“绘画”，并在发送前确认模型提供商和模型都已切换到刚配置的服务。</span></li>
