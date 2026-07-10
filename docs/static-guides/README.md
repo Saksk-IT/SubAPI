@@ -1,15 +1,28 @@
-# 静态教程 Markdown 源稿索引
+# 教程 Markdown 源稿与飞书上传文件
 
-本目录用于反补当前静态教程页的 Markdown 源稿，方便管理员后续先修改 Markdown，再把修改后的 Markdown 发给 AI，由 AI 同步修改对应 Vue 静态页面。
+本目录保留教程的可编辑 Markdown 源稿，并生成可直接导入飞书的自包含 Markdown。飞书成品中的图片已编码为 `data:image/png;base64,...`，每份文件都不依赖仓库外部的图片目录。
 
 ## 维护流程
 
 1. 管理员先修改本目录中的 Markdown 源稿。
-2. 将修改后的 Markdown 发给 AI，并说明要同步到哪个静态页面。
-3. AI 按 Markdown 的文字、章节、表格、代码块、图片说明，同步修改对应 Vue 文件。
-4. 同步后至少运行前端类型检查或相关路由测试，并用浏览器检查页面。
+2. 执行 `python3 tools/export_feishu_guides.py` 重新生成上传文件。
+3. 执行 `python3 tools/export_feishu_guides.py --check` 确认生成稿与源稿一致。
+4. 按文件名前的序号，将 `feishu/` 下六份 Markdown 上传到飞书。
 
-## 页面映射
+## 飞书上传成品
+
+`feishu/` 目录只包含下列六份待上传文件：
+
+1. `01-Codex-API-登录对接教程.md`
+2. `02-Claude-Code-配置教程.md`
+3. `03-Open-Code-配置教程.md`
+4. `04-Open-Claw-配置教程.md`
+5. `05-移动端-Chatbox-配置教程.md`
+6. `06-Cherry-Studio-图像生成教程.md`
+
+不要直接编辑 `feishu/` 中的生成文件；需要调整内容时，修改上级目录的对应源稿后重新生成。
+
+## 旧静态页面映射
 
 | Markdown 源稿 | 线上路由 | Vue 源文件 | 说明 |
 | --- | --- | --- | --- |
@@ -31,13 +44,11 @@
 - `frontend/public/img/codex-guide/`
 - `frontend/public/img/image-guide/`
 
-## 给 AI 的同步要求
+## 源稿维护要求
 
-同步 Markdown 到 Vue 页面时，请遵循以下规则：
+修改 Markdown 源稿时，请遵循以下规则：
 
-- 保留现有路由、CSS 类名、响应式布局和图标组件用法。
-- Markdown 中的图片路径按 Vue 页面写法转换，例如 `../../frontend/public/img/codex-guide/image.png` 对应页面内 `/img/codex-guide/image.png`。
+- 源稿继续使用 `../../frontend/public/img/...` 图片路径，由导出工具统一转为内嵌图片。
 - 不要复制示例中的脱敏密钥；页面中所有密钥都必须继续保持占位或脱敏。
-- 如果只改某一个教程，只提交对应 Markdown 和对应 Vue 文件，避免带入无关改动。
 - 对 JSON、TOML、Shell 命令等代码块保持原格式。
-- 修改表格或排错清单时，同步检查移动端布局不要溢出。
+- 保留外部网址；将网站内部路由改写为飞书文档名称。

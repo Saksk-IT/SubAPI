@@ -14,14 +14,14 @@ API base_url：`https://sakai.my/`
 
 引导文案：
 
-从注册中转账户、兑换中转码、创建 API 密钥，到手动接入 Codex 和常见排错；Claude Code、Open Code、Open Claw 请打开对应独立教程页，移动端请查看 Chatbox 教程。
+从注册中转账户、兑换中转码、创建 API 密钥，到手动接入 Codex 和常见排错；Claude Code、Open Code、Open Claw、移动端和图像生成请打开对应独立教程页。
 
 教程要点：
 
 - 先兑换中转码
 - 生成 API Key
 - 手动配置 Codex
-- 移动端 Chatbox
+- 图像生成
 
 章节快捷入口：
 
@@ -39,6 +39,7 @@ API base_url：`https://sakai.my/`
 | Open Code 配置教程 | `/open-code-guide` | `opencode.json / /connect 临时切换` |
 | Open Claw 配置教程 | `/open-claw-guide` | `腾讯云在线配置 / 本地配置` |
 | 移动端配置教程 | `/mobile-guide` | `Chatbox / 手机配置 / 模型切换` |
+| 图像生成教程 | `/image-guide` | `Cherry Studio / imagegen / gpt-image-2` |
 
 ## 站点信息卡
 
@@ -247,6 +248,7 @@ Codex 下载页：<https://openai.com/zh-Hans-CN/codex/>
 | Open Code 配置教程 | `/open-code-guide` | opencode.json / /connect 临时切换 |
 | Open Claw 配置教程 | `/open-claw-guide` | 腾讯云在线配置 / 本地配置 |
 | 移动端配置教程 | `/mobile-guide` | Chatbox / 手机配置 / 模型切换 |
+| 图像生成教程 | `/image-guide` | Cherry Studio / imagegen / gpt-image-2 |
 
 ### 3.3 重新打开 Codex 并使用 API 登录
 
