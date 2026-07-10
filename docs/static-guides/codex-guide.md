@@ -77,24 +77,16 @@ Codex 下载页：<https://openai.com/zh-Hans-CN/codex/>
 
 ## 验证与排错
 
-### 1. 一行命令自检（推荐）
+### 1. 联系群主远程（推荐）
 
-复制下方命令到终端，把 `sk-xxxx` 换成你的真实密钥。如果能返回模型清单，说明 Key 与 base_url 基本正常。
-
-```bash
-curl https://sakai.my/v1/models \
-  -H "Authorization: Bearer sk-xxxx"
-```
-
-- **Windows PowerShell** 用户请把 `\` 续行符换成反引号 `` ` ``，或直接写成单行。
-- 如果你的“使用密钥”弹窗显示的 base_url 不是 `/v1` 结尾，请以弹窗为准调整命令。
+如果仍无法登录或无法判断配置问题，请返回父教程“使用前说明”，扫描交流群二维码后联系群主远程协助。
 
 ### 2. 登录失败时快速检查
 
 - 编辑配置前是否已经完全关闭 Codex？
 - `config.toml` 和 `auth.json` 是否放在同一个 `.codex` 目录？
 - 是否粘贴了你自己生成的 API Key，而不是教程截图中的示例？
-- 创建密钥时是否按来源选择正确分组：质保网站补发的中转码选“质保补偿”，链动小铺额度兑换码选“GPT”或订阅分组？
+- 创建密钥时是否按计费模式选择了对应订阅分组，或 `OpenAI-Plus`、`Pro`、`Claude` 等额度分组？
 
 ### 3. 常见报错对照表
 
@@ -103,11 +95,7 @@ curl https://sakai.my/v1/models \
 | `401 Unauthorized` / Incorrect API key | 密钥错、被删，或配置时 Codex 已经在运行。 | 关闭 Codex，回到父教程重新创建或复制密钥，再重新配置 `config.toml` 并登录。 |
 | `404 Not Found` | `base_url` 写错，或客户端需要 `/v1` 但未填写。 | 检查是否与“使用密钥”弹窗一致；OpenAI-compatible 客户端通常使用 `https://sakai.my/v1`。 |
 | `余额不足` / `quota exceeded` / `429 Too Many Requests` | 充值未到账、额度用完、订阅日额度耗尽或触发频率限制。 | [打开额度查询页面](https://sakai.my/profile) 查看余额和额度；必要时等待刷新或补充额度。 |
-| `model not found` | 模型 ID 拼错，或当前分组不支持该模型。 | 用 4.1 的 curl 命令查看模型清单，或按中转后台可用模型重新填写。 |
-| 客户端启动后无反应 | 环境变量未生效，旧终端还在使用旧配置。 | 关闭并新开一个终端窗口，再启动 `codex` / `claude` / `opencode`。 |
-| `config.toml.txt` / `opencode.json.txt` | Windows 默认隐藏文件后缀，实际创建成了文本文件。 | 资源管理器 -> 查看 -> 勾选“文件扩展名”，再把文件名改正确。 |
+| `model not found` | 模型 ID 拼错，或当前分组不支持该模型。 | 按中转后台当前可用模型清单重新填写。 |
+| 客户端启动后无反应 | Codex 仍在使用修改前的配置。 | 完全关闭 Codex 后重新打开，再发起一次测试。 |
+| `config.toml.txt` / `auth.json.txt` | Windows 默认隐藏文件后缀，实际创建成了文本文件。 | 资源管理器 -> 查看 -> 勾选“文件扩展名”，再把文件名改正确。 |
 | 原 Codex 聊天记录不见 | 切换 API 中转后，本地 provider 不一致。 | 参考 [codex-provider-sync releases](https://github.com/Dailin521/codex-provider-sync/releases) 恢复。 |
-
-![Codex 登录时报 401 Incorrect API key，密钥已脱敏](../../frontend/public/img/codex-guide/image-14.png)
-
-图 7：错误示例，API Key 片段已脱敏。

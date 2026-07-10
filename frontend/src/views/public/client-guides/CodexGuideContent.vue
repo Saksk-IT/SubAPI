@@ -78,21 +78,17 @@ import { Icon } from '@/components/icons'
   </div>
 
   <h2 id="codexVerify">验证与排错</h2>
-  <h3>1. 一行命令自检</h3>
-  <p>把命令中的 <code>sk-xxxx</code> 换成自己的真实密钥。如果能返回模型清单，说明 Key 与 base_url 基本正常。</p>
-  <pre class="codex-code-block"><code>curl https://sakai.my/v1/models \
-  -H "Authorization: Bearer sk-xxxx"</code></pre>
-  <ul class="codex-steps-list">
-    <li><strong>Windows PowerShell</strong> 请把反斜杠续行符换成反引号，或直接写成单行。</li>
-    <li>如果“使用密钥”弹窗给出的 base_url 不同，请始终以弹窗为准。</li>
-  </ul>
+  <h3 id="codexRemote">1. 联系群主远程（推荐）</h3>
+  <section class="codex-callout codex-callout--important">
+    <p>如果仍无法登录或无法判断配置问题，请返回<a href="/registration-key-guide#usageNotes">父教程“使用前说明”</a>，扫描交流群二维码后联系群主远程协助。</p>
+  </section>
 
   <h3>2. 登录失败时快速检查</h3>
   <ul class="codex-checklist">
     <li><Icon name="checkCircle" class="codex-icon" /><span>编辑配置前是否已经完全关闭 Codex？</span></li>
     <li><Icon name="checkCircle" class="codex-icon" /><span><code>config.toml</code> 和 <code>auth.json</code> 是否位于同一个 <code>.codex</code> 目录？</span></li>
     <li><Icon name="checkCircle" class="codex-icon" /><span>是否使用了自己的 API Key，而不是教程截图中的示例？</span></li>
-    <li><Icon name="checkCircle" class="codex-icon" /><span>父教程中创建密钥时是否选择了正确分组？</span></li>
+    <li><Icon name="checkCircle" class="codex-icon" /><span>创建密钥时是否按计费模式选择了对应订阅分组，或 <code>OpenAI-Plus</code>、<code>Pro</code>、<code>Claude</code> 等额度分组？</span></li>
   </ul>
 
   <h3>3. 常见报错对照表</h3>
@@ -120,12 +116,17 @@ import { Icon } from '@/components/icons'
         <tr>
           <td><code>model not found</code></td>
           <td>模型 ID 拼错，或当前分组不支持该模型。</td>
-          <td>使用上方 curl 命令查看模型清单，再按实际可用模型填写。</td>
+          <td>按中转后台当前可用模型清单重新填写。</td>
         </tr>
         <tr>
-          <td><code>config.toml.txt</code></td>
+          <td>客户端启动后无反应</td>
+          <td>Codex 仍在使用修改前的配置。</td>
+          <td>完全关闭 Codex 后重新打开，再发起一次测试。</td>
+        </tr>
+        <tr>
+          <td><code>config.toml.txt</code> / <code>auth.json.txt</code></td>
           <td>Windows 隐藏文件扩展名，配置被保存成文本文件。</td>
-          <td>显示文件扩展名后，把文件名改为 <code>config.toml</code>。</td>
+          <td>显示文件扩展名后，把文件名改为 <code>config.toml</code> 或 <code>auth.json</code>。</td>
         </tr>
         <tr>
           <td>原 Codex 聊天记录不见</td>
@@ -135,8 +136,4 @@ import { Icon } from '@/components/icons'
       </tbody>
     </table>
   </div>
-  <figure class="codex-figure codex-error-figure">
-    <img src="/img/codex-guide/image-14.png" alt="Codex 登录时报 401 Incorrect API key，密钥已脱敏" loading="lazy">
-    <figcaption>图 7：401 错误示例，API Key 片段已脱敏。</figcaption>
-  </figure>
 </template>

@@ -24,8 +24,8 @@ CHILD_OUTPUT_PATHS = (
 )
 EXPECTED_OUTPUT_PATHS = {PARENT_OUTPUT_PATH, *CHILD_OUTPUT_PATHS}
 EXPECTED_IMAGE_PLACEMENTS = {
-    PARENT_OUTPUT_PATH: 7,
-    CHILD_OUTPUT_PATHS[0]: 7,
+    PARENT_OUTPUT_PATH: 6,
+    CHILD_OUTPUT_PATHS[0]: 6,
     CHILD_OUTPUT_PATHS[1]: 1,
     CHILD_OUTPUT_PATHS[2]: 0,
     CHILD_OUTPUT_PATHS[3]: 0,
@@ -33,8 +33,8 @@ EXPECTED_IMAGE_PLACEMENTS = {
     CHILD_OUTPUT_PATHS[5]: 8,
 }
 EXPECTED_UNIQUE_MEDIA = {
-    PARENT_OUTPUT_PATH: 7,
-    CHILD_OUTPUT_PATHS[0]: 7,
+    PARENT_OUTPUT_PATH: 6,
+    CHILD_OUTPUT_PATHS[0]: 6,
     CHILD_OUTPUT_PATHS[1]: 1,
     CHILD_OUTPUT_PATHS[2]: 0,
     CHILD_OUTPUT_PATHS[3]: 0,
@@ -130,7 +130,7 @@ class WordGuideExportTests(unittest.TestCase):
                             )
                 total_image_placements += placements
 
-            self.assertEqual(total_image_placements, 34)
+            self.assertEqual(total_image_placements, 32)
 
     def test_excludes_outdated_or_unredacted_screenshots(self) -> None:
         with tempfile.TemporaryDirectory() as temporary_directory:

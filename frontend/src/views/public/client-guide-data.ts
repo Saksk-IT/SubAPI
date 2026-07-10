@@ -56,7 +56,7 @@ export const guideLinks: GuideLink[] = [
   {
     key: 'codex',
     path: '/codex-guide',
-    title: 'Codex 配置教程',
+    title: 'Codex API 登录对接教程',
     description: 'config.toml / auth.json / API 登录',
     icon: 'terminal',
   },
@@ -84,14 +84,14 @@ export const guideLinks: GuideLink[] = [
   {
     key: 'mobile',
     path: '/mobile-guide',
-    title: '移动端配置教程',
+    title: '移动端 Chatbox 配置教程',
     description: 'Chatbox / 手机配置 / 模型切换',
     icon: 'chat',
   },
   {
     key: 'image',
     path: '/image-guide',
-    title: '图像生成教程',
+    title: 'Cherry Studio 图像生成教程',
     description: 'Cherry Studio / imagegen / gpt-image-2',
     icon: 'sparkles',
   },

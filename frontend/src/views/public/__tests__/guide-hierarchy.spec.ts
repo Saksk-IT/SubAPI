@@ -1,3 +1,6 @@
+import { existsSync } from 'node:fs'
+import { resolve } from 'node:path'
+
 import { mount } from '@vue/test-utils'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -103,6 +106,50 @@ describe('static guide hierarchy', () => {
     for (const guide of guideLinks) {
       expect(wrapper.find(`a[href="${guide.path}"]`).exists()).toBe(true)
     }
+  })
+
+  it('syncs the updated parent billing rules, screenshots and client entries', () => {
+    const wrapper = mountGuide('registration')
+    const text = wrapper.text()
+
+    expect(text).toContain('本教程适用于小铺购买的额度或订阅兑换码、站内充值或订阅')
+    expect(text).toContain('订阅 xx 刀')
+    expect(text).toContain('OpenAI-Plus、Pro、Claude 等')
+    expect(text).not.toContain('质保补发')
+    const billingTable = wrapper.find(
+      'table#billingModes[aria-label="API 密钥分组与计费模式"]'
+    )
+    expect(billingTable.exists()).toBe(true)
+    expect(billingTable.findAll('tbody tr')).toHaveLength(2)
+    expect(wrapper.find('img[src="/img/codex-guide/image-15.png"]').exists()).toBe(
+      true
+    )
+    expect(wrapper.find('img[src="/img/codex-guide/image-17.png"]').exists()).toBe(
+      false
+    )
+    expect(wrapper.find('img[src="/img/codex-guide/image-19.png"]').exists()).toBe(
+      false
+    )
+    expect(
+      existsSync(resolve(process.cwd(), 'public/img/codex-guide/image-15.png'))
+    ).toBe(true)
+
+    const clientEntries = wrapper.find('#clientConfigEntries')
+    for (const guide of guideLinks) {
+      expect(clientEntries.find(`a[href="${guide.path}"]`).exists()).toBe(true)
+    }
+  })
+
+  it('syncs the updated Codex remote-support troubleshooting flow', () => {
+    const wrapper = mountGuide('codex')
+    const text = wrapper.text()
+
+    expect(text).toContain('联系群主远程（推荐）')
+    expect(text).not.toContain('一行命令自检')
+    expect(text).not.toContain('curl https://sakai.my/v1/models')
+    expect(wrapper.find('img[src="/img/codex-guide/image-14.png"]').exists()).toBe(
+      false
+    )
   })
 
   it('marks the secondary header action so narrow screens can hide it', () => {

@@ -42,9 +42,8 @@ EXPECTED_IMAGE_TARGETS = {
         "../../frontend/public/img/codex-guide/image-16.png",
         "../../frontend/public/img/codex-guide/image.png",
         "../../frontend/public/img/codex-guide/image-1.png",
-        "../../frontend/public/img/codex-guide/image-17.png",
         "../../frontend/public/img/codex-guide/image-18.png",
-        "../../frontend/public/img/codex-guide/image-19.png",
+        "../../frontend/public/img/codex-guide/image-15.png",
         "../../frontend/public/img/codex-guide/image-20.png",
     ),
     "codex-guide.md": (
@@ -54,7 +53,6 @@ EXPECTED_IMAGE_TARGETS = {
         "../../frontend/public/img/codex-guide/image-10.png",
         "../../frontend/public/img/codex-guide/image-11.png",
         "../../frontend/public/img/codex-guide/image-12.png",
-        "../../frontend/public/img/codex-guide/image-14.png",
     ),
     "claude-code-guide.md": (
         "../../frontend/public/img/codex-guide/image-22.png",
@@ -129,6 +127,9 @@ class FeishuGuideExportTests(unittest.TestCase):
         )
         forbidden_image_targets = (
             "codex-guide/image-5.png",
+            "codex-guide/image-14.png",
+            "codex-guide/image-17.png",
+            "codex-guide/image-19.png",
             "codex-guide/image-31.png",
             "codex-guide/image-38.png",
             "codex-guide/image-39.png",
@@ -342,7 +343,7 @@ class FeishuGuideExportTests(unittest.TestCase):
                     for image_target in image_targets:
                         self.assertTrue(image_target.startswith("data:image/png;base64,"))
 
-            self.assertEqual(total_images, 34)
+            self.assertEqual(total_images, 32)
 
     def test_exporter_uses_clean_source_markdown_without_content_rewrites(self) -> None:
         from tools import export_feishu_guides as exporter

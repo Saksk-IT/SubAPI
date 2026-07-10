@@ -81,6 +81,7 @@ const guidePages: Record<GuideKey, GuidePage> = {
           { href: '#codexMac', label: 'macOS 配置' },
           { href: '#codexLogin', label: '重新登录' },
           { href: '#codexVerify', label: '验证与排错' },
+          { href: '#codexRemote', label: '联系群主远程' },
         ],
       },
     ],

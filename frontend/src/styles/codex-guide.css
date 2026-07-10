@@ -759,6 +759,10 @@
   margin: 0;
 }
 
+.codex-client-guide-grid--section {
+  margin: 1rem 0;
+}
+
 .codex-client-guide-card {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr);
