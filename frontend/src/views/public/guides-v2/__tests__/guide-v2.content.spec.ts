@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto'
 import { readFile, readdir, stat } from 'node:fs/promises'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -37,6 +38,9 @@ const testDirectory = dirname(fileURLToPath(import.meta.url))
 const frontendDirectory = resolve(testDirectory, '../../../../..')
 const contentDirectory = join(frontendDirectory, 'src/content/guides-v2')
 const publicDirectory = join(frontendDirectory, 'public')
+
+const sha256 = (value: Buffer | string): string =>
+  createHash('sha256').update(value).digest('hex')
 
 const splitMarkdown = (source: string) => {
   const match = /^---\r?\n([\s\S]*?)\r?\n---\r?\n([\s\S]*)$/.exec(source)
@@ -131,6 +135,7 @@ describe('V2 指南单一源内容', () => {
     ) as {
       readonly media: readonly {
         readonly webPath: string
+        readonly alt: string
         readonly caption: string
       }[]
     }
@@ -148,6 +153,7 @@ describe('V2 指南单一源内容', () => {
         expect(target, `${slug}: 图片必须包含非空 title`).not.toBeNull()
         const media = registeredMedia.get(target?.[1] ?? '')
         expect(media, `${slug}: ${target?.[1]}`).toBeDefined()
+        expect(match[1], `${slug}: alt`).toBe(media?.alt)
         expect(target?.[2], `${slug}: caption`).toBe(media?.caption)
         const line = body.slice(0, match.index).split('\n').length
         expect(body.split('\n')[line - 1].trim(), `${slug}:${line}`).toBe(match[0])
@@ -171,6 +177,9 @@ describe('V2 指南单一源内容', () => {
         readonly height: number
         readonly simulated: boolean
         readonly sourceTool: string
+        readonly sourceSha256: string
+        readonly pngSha256: string
+        readonly webpSha256: string
       }[]
     }
 
@@ -205,8 +214,92 @@ describe('V2 指南单一源内容', () => {
         expect(svg).toMatch(/<svg[^>]+viewBox="0 0 1280 720"/)
         expect(readPngDimensions(png)).toEqual([media.width, media.height])
         expect(readWebpDimensions(webp)).toEqual([media.width, media.height])
+        expect(media.sourceSha256).toMatch(/^[a-f0-9]{64}$/)
+        expect(media.pngSha256).toMatch(/^[a-f0-9]{64}$/)
+        expect(media.webpSha256).toMatch(/^[a-f0-9]{64}$/)
+        expect(sha256(svg)).toBe(media.sourceSha256)
+        expect(sha256(png)).toBe(media.pngSha256)
+        expect(sha256(webp)).toBe(media.webpSha256)
       }),
     )
+  })
+
+  it('Codex 示例与站内真实生成配置保持认证契约一致', async () => {
+    const codex = await readFile(join(contentDirectory, 'codex.md'), 'utf8')
+
+    expect(codex).toMatch(
+      /\[model_providers\.custom\][\s\S]*?requires_openai_auth\s*=\s*true/,
+    )
+    expect(codex).toMatch(/"OPENAI_API_KEY"\s*:\s*"sk-example-not-a-real-key"/)
+  })
+
+  it('OpenCode 明确区分 provider 配置、credential 保存与模型选择', async () => {
+    const opencode = await readFile(join(contentDirectory, 'opencode.md'), 'utf8')
+
+    expect(opencode).toContain('/connect` 只保存 credential')
+    expect(opencode).toContain('~/.local/share/opencode/auth.json')
+    expect(opencode).toContain('自定义 provider 仍必须在 `opencode.json`')
+    expect(opencode).toContain('/models')
+    expect(opencode).not.toMatch(/\/connect[^\n]*按提示填写[^\n]*(?:API 主机|模型)/)
+    expect(opencode).not.toMatch(/\/connect[^\n]*(?:临时切换|临时测试)/)
+  })
+
+  it('腾讯云在线 JSON 示例明确限定为 ClawPro 界面', async () => {
+    const openclaw = await readFile(join(contentDirectory, 'openclaw.md'), 'utf8')
+
+    expect(openclaw).toContain('仅适用于 ClawPro')
+    expect(openclaw).toContain('不适用于腾讯云云应用 Dashboard')
+  })
+
+  it('离线校验 HTTPS 外链语法与跨页 fragment 目标锚点', async () => {
+    const guides = await readGuides()
+    const routeToSlug = new Map<string, (typeof slugs)[number]>([
+      ['/guides/v2', 'index'],
+      ...slugs.slice(1).map((slug) => [`/guides/v2/${slug}`, slug] as const),
+    ])
+    const anchorsBySlug = new Map(
+      guides.map(({ slug, source }) => [
+        slug,
+        new Set(Array.from(source.matchAll(/\{#([a-z][a-z0-9-]*)\}/g), (match) => match[1])),
+      ]),
+    )
+    let fragmentCount = 0
+
+    guides.forEach(({ slug, source }) => {
+      const markdownLinks = Array.from(
+        source.matchAll(/(?<!!)\[[^\]]+\]\(([^)\s]+)(?:\s+"[^"]+")?\)/g),
+        (match) => match[1],
+      )
+      markdownLinks.forEach((href) => {
+        if (/^https:\/\//i.test(href)) {
+          const external = new URL(href)
+          expect(external.protocol, `${slug}: ${href}`).toBe('https:')
+          expect(external.hostname, `${slug}: ${href}`).not.toBe('')
+          return
+        }
+
+        const internal = new URL(href, 'https://guides.local')
+        const targetSlug = href.startsWith('#') ? slug : routeToSlug.get(internal.pathname)
+        expect(targetSlug, `${slug}: ${href}`).toBeDefined()
+        if (internal.hash !== '') {
+          fragmentCount += 1
+          expect(
+            anchorsBySlug.get(targetSlug ?? slug)?.has(internal.hash.slice(1)),
+            `${slug}: ${href}`,
+          ).toBe(true)
+        }
+      })
+
+      Array.from(source.matchAll(/https?:\/\/[^\s)"'<>]+/gi), (match) => match[0]).forEach(
+        (href) => {
+          const external = new URL(href)
+          expect(external.protocol, `${slug}: ${href}`).toBe('https:')
+          expect(external.hostname, `${slug}: ${href}`).not.toBe('')
+        },
+      )
+    })
+
+    expect(fragmentCount).toBeGreaterThan(0)
   })
 
   it('不包含真实密钥、旧域名、真实账号、余额或用量数据', async () => {
@@ -274,7 +367,7 @@ describe('V2 指南单一源内容', () => {
     guides
       .filter(({ slug }) => !['index', 'get-started', 'troubleshooting'].includes(slug))
       .forEach(({ slug, source }) => {
-        expect(source, slug).toContain('](/guides/v2/troubleshooting)')
+        expect(source, slug).toMatch(/\]\(\/guides\/v2\/troubleshooting(?:#[a-z0-9-]+)?\)/)
       })
   })
 })

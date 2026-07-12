@@ -16,7 +16,10 @@
       "clientVersion": "通用界面示意",
       "updatedAt": "2026-07-13",
       "simulated": true,
-      "sourceTool": "deterministic-svg"
+      "sourceTool": "deterministic-svg",
+      "sourceSha256": "3beb7589c68540b0a46a020741309f37446f7a828cbcaf70eb1033eb7c986f97",
+      "pngSha256": "b42f19f587238362e79a01be044797aafb2fb2b2aa18b8283f7ee294decc7eef",
+      "webpSha256": "0dbffaa8f13c8d8ad86ccc0a1c02be82c880c07f8c68262314f145309cd119ec"
     },
     {
       "id": "common/create-key-group",
@@ -33,7 +36,10 @@
       "clientVersion": "通用控制台示意",
       "updatedAt": "2026-07-13",
       "simulated": true,
-      "sourceTool": "deterministic-svg"
+      "sourceTool": "deterministic-svg",
+      "sourceSha256": "789b1e9acdee9785289d30971139bf75b95e0ee445dc0b3ad64de059d8b7a323",
+      "pngSha256": "c53faa955a326e28515314683289b31cc53350ee9949f537f9c7fa7293154cce",
+      "webpSha256": "1a468cfd72ecad98fd8bd77c95dab0e71c593c4f795ddb42172f886e45e91d0b"
     },
     {
       "id": "codex/initialize",
@@ -50,7 +56,10 @@
       "clientVersion": "2026-07 教程示意",
       "updatedAt": "2026-07-13",
       "simulated": true,
-      "sourceTool": "deterministic-svg"
+      "sourceTool": "deterministic-svg",
+      "sourceSha256": "3511e167ccd73a6278ab939e5ba0617383f9d736198bc25fca1392ac4e1c0547",
+      "pngSha256": "756302ebb2471040b90244e2e016e37f8ff3793fa2db13915b31914b15274d7b",
+      "webpSha256": "d0f91b11117a6e477e5a59c8b63c3ad1c7fb652a78d53711d3da1aed5a490eb2"
     },
     {
       "id": "codex/config-folder",
@@ -67,7 +76,10 @@
       "clientVersion": "通用路径示意",
       "updatedAt": "2026-07-13",
       "simulated": true,
-      "sourceTool": "deterministic-svg"
+      "sourceTool": "deterministic-svg",
+      "sourceSha256": "099ec4d9eb4fab94943b878e979c7b1cd81755f9988601c2500b269face8ae71",
+      "pngSha256": "7d8c8f6a38a02e1bcabff713880af5249ca141ed99872afe88ef19320f1621d0",
+      "webpSha256": "14e35d7d44f9c75afe92f20bdb9235e69ae8cff33d57a957cddf318e04174f10"
     },
     {
       "id": "codex/api-login",
@@ -84,7 +96,10 @@
       "clientVersion": "2026-07 教程示意",
       "updatedAt": "2026-07-13",
       "simulated": true,
-      "sourceTool": "deterministic-svg"
+      "sourceTool": "deterministic-svg",
+      "sourceSha256": "e73838df417c72c28dbd3e99a38bb0096e89bb69231cfd6a2942c1a16fe21ba7",
+      "pngSha256": "df90d218f359dd1473a84b68113d6dd30992cc2bdceb6743421a6dc40640568b",
+      "webpSha256": "23669e2d131658786cc572286fd9d5f27756fdc6fabda4ab7db1e751971a78b6"
     },
     {
       "id": "claude-code/settings",
@@ -101,24 +116,30 @@
       "clientVersion": "通用配置示意",
       "updatedAt": "2026-07-13",
       "simulated": true,
-      "sourceTool": "deterministic-svg"
+      "sourceTool": "deterministic-svg",
+      "sourceSha256": "e408631f46bbb63a9e8f3938c44ab9dbf9fb1e8664ed937c15d12c5754145c0b",
+      "pngSha256": "cac4c9b8283a352f3f3fb8bb076227105e68acdbcf8a7359ce52ac4e09262f5c",
+      "webpSha256": "31a8bf956899703915919113a1435496748cf3e63afbea9b98634cb101167653"
     },
     {
       "id": "opencode/config",
       "webPath": "/img/guides/v2/opencode/config.webp",
       "exportPath": "frontend/public/img/guides/v2/opencode/config.png",
-      "alt": "OpenCode 自定义 provider 配置结构",
+      "alt": "OpenCode 自定义 provider 配置与凭据分工",
       "source": "asset-sources/opencode-config.svg",
       "guide": "opencode",
       "step": 3,
       "kind": "code-map",
-      "caption": "重点核对 baseURL、apiKey 与 models 三个区域。",
+      "caption": "provider 结构写入配置文件，credential 通过 connect 单独保存。",
       "width": 1280,
       "height": 720,
       "clientVersion": "官方 provider 结构示意",
       "updatedAt": "2026-07-13",
       "simulated": true,
-      "sourceTool": "deterministic-svg"
+      "sourceTool": "deterministic-svg",
+      "sourceSha256": "495067c11e710bbc827159172dc3a9fe4eac41f340ca60de397375a8a86ec922",
+      "pngSha256": "a9653cef2471bfbec9ce5a0b8508f5c168bf04fc63893a35ffd865a1e0d97eae",
+      "webpSha256": "bf223413069476bd483e9bc9ea1d562c44df65ce526cb79625487c611b617892"
     },
     {
       "id": "openclaw/mode-choice",
@@ -135,7 +156,10 @@
       "clientVersion": "在线与本地模式示意",
       "updatedAt": "2026-07-13",
       "simulated": true,
-      "sourceTool": "deterministic-svg"
+      "sourceTool": "deterministic-svg",
+      "sourceSha256": "61118f7e5c8cd23fe1362da1da593e02c6ab5bcd7a27609c047b5cd83152a4c2",
+      "pngSha256": "6d923ce6685d95a26107df8b3d7dd389f3f9adfc9e11f6f28e8f680d39b2629a",
+      "webpSha256": "3966d669fdcd20fe0bcecf08b58fa3708bd08a0c144382187fea4b1e53acd20d"
     },
     {
       "id": "chatbox/add-provider",
@@ -152,7 +176,10 @@
       "clientVersion": "移动端通用界面示意",
       "updatedAt": "2026-07-13",
       "simulated": true,
-      "sourceTool": "deterministic-svg"
+      "sourceTool": "deterministic-svg",
+      "sourceSha256": "99b7d13d2b005f95b91958f5d8727607a9f06416d5e4a8dc4cd815197898f60a",
+      "pngSha256": "f5a7e9f056a0f56d36b53c2a774a5adc929116ca062b40f02f61ffeebd3b3a63",
+      "webpSha256": "22fc2a154ce89677d4806f07805648f8bbd8613823322396ca8380f45fc11cd4"
     },
     {
       "id": "chatbox/select-model",
@@ -169,7 +196,10 @@
       "clientVersion": "移动端通用界面示意",
       "updatedAt": "2026-07-13",
       "simulated": true,
-      "sourceTool": "deterministic-svg"
+      "sourceTool": "deterministic-svg",
+      "sourceSha256": "b571ff60ce28096100eb304ebe3773706f49910b1da0cb42c34ffd0304790428",
+      "pngSha256": "8591b7ecf8cc347c3cca632d0ca37c2eddb71eff878614c6f46bf30ca963134c",
+      "webpSha256": "2c24ea523814c14acaff6b2c6878651533d3d46d85563de9177ebe0b1140f18f"
     },
     {
       "id": "cherry-studio/add-service",
@@ -186,7 +216,10 @@
       "clientVersion": "2026-07 教程示意",
       "updatedAt": "2026-07-13",
       "simulated": true,
-      "sourceTool": "deterministic-svg"
+      "sourceTool": "deterministic-svg",
+      "sourceSha256": "57cde720fb2d69379199fe54106d29982186983d5c745751c5b8269bec6330f8",
+      "pngSha256": "1c2e5b108c1bba5bad247354918be32bd5237e3ed4ac5c8d401870163e9976e2",
+      "webpSha256": "df6ec15a96833edc1a26600f3089c7e8c09e11263675c0139d262e59f4b7e373"
     },
     {
       "id": "cherry-studio/generate-image",
@@ -203,7 +236,10 @@
       "clientVersion": "2026-07 教程示意",
       "updatedAt": "2026-07-13",
       "simulated": true,
-      "sourceTool": "deterministic-svg"
+      "sourceTool": "deterministic-svg",
+      "sourceSha256": "0fbb2cfaee58ba4249fac8d97aac6266051ab71cc69ffb58111a212cad6975e2",
+      "pngSha256": "277dc93f0b45614b519cfebbabece1a775f576b442a7a69c28449cd3a937205b",
+      "webpSha256": "ae176d013ccabeea0a453a7d3bfdd0e7c4b80cacebea67b4dffd05606105e1f4"
     },
     {
       "id": "troubleshooting/status-map",
@@ -220,7 +256,10 @@
       "clientVersion": "通用排错示意",
       "updatedAt": "2026-07-13",
       "simulated": true,
-      "sourceTool": "deterministic-svg"
+      "sourceTool": "deterministic-svg",
+      "sourceSha256": "d5a818effc8ef38de40a0f55656b61720d45611238eba5b9a95d39b01665392d",
+      "pngSha256": "5254541ccbe0662c21c678c1b8787282ede86278251ffd1945b7615a8ada0d1f",
+      "webpSha256": "5a43529c7b99bc55baebe9a94f359865a9084efa2bd72899926f0ea13b12d10e"
     }
   ]
 }

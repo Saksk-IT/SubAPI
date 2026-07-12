@@ -20,7 +20,7 @@
       },
       "path": "/guides/v2",
       "source": "index.md",
-      "contentHash": "d0bff2219ac709e41f21cd8e71947d556bf47fa9acb3261ba070d278c4701e62"
+      "contentHash": "2b1fd3801855a54233812c993084c88cc8997cf59f7fe6ce9cb0b43cc83f2b78"
     },
     {
       "meta": {
@@ -60,7 +60,7 @@
       },
       "path": "/guides/v2/codex",
       "source": "codex.md",
-      "contentHash": "ce249cd4c608801c85c799abb7c7667b758481da7566d49cef1270803ce6d53e"
+      "contentHash": "29870c2bb9d2d575c1d5b1060da3460969b98c39f2cd2761476351ee3fea23c3"
     },
     {
       "meta": {
@@ -85,7 +85,7 @@
       "meta": {
         "title": "OpenCode 配置",
         "slug": "opencode",
-        "summary": "安装 OpenCode，配置长期 provider 或用 /connect 临时切换并验证模型。",
+        "summary": "安装 OpenCode，配置自定义 provider，保存 credential 并选择模型完成验证。",
         "duration": "10 分钟",
         "platforms": [
           "Windows",
@@ -98,7 +98,7 @@
       },
       "path": "/guides/v2/opencode",
       "source": "opencode.md",
-      "contentHash": "56b7130c7473abf76c7f67ff3c180950a28354354d4656137d97b3fb5da3ae39"
+      "contentHash": "2244c035688ae8c55f70bd9fc851718b6261dbe041f2f00af84bcaa92057aa9d"
     },
     {
       "meta": {
@@ -117,7 +117,7 @@
       },
       "path": "/guides/v2/openclaw",
       "source": "openclaw.md",
-      "contentHash": "55a334458d36d5af0fa1dcea5041dc33cc77dd75c4d7b49f0074b8650c3cc931"
+      "contentHash": "db35bb23997854d9a3679c3083dfaaa70be55a147b3f448ba28f6a11e1f033b2"
     },
     {
       "meta": {

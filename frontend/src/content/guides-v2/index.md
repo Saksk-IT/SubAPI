@@ -34,7 +34,7 @@ version: v2
 
 - [Codex](/guides/v2/codex)：适合 Codex CLI、编辑器插件与桌面应用，需要配置 `.codex` 目录。
 - [Claude Code](/guides/v2/claude-code)：适合终端开发工作流，可选 `settings.json` 或系统环境变量。
-- [OpenCode](/guides/v2/opencode)：适合自定义 OpenAI-compatible provider，也支持 `/connect` 临时切换。
+- [OpenCode](/guides/v2/opencode)：适合自定义 OpenAI-compatible provider，配置文件、credential 与模型选择步骤相互独立。
 - [OpenClaw](/guides/v2/openclaw)：先在腾讯云在线模式与本地模式之间二选一。
 - [Chatbox 移动端](/guides/v2/chatbox-mobile)：适用于 iOS 与 Android 的对话客户端。
 - [Cherry Studio 图像生成](/guides/v2/cherry-studio-image)：用于添加图像模型并从绘画入口生成图片。

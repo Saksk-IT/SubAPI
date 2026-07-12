@@ -25,6 +25,7 @@ const ALLOWED_INTERNAL_PATHS = new Set([
 ])
 const FRONTMATTER_PATTERN = /^---\r?\n([\s\S]*?)\r?\n---\r?\n?/
 const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/
+const SHA256_PATTERN = /^[a-f0-9]{64}$/
 const HEADING_ANCHOR_PATTERN = /\s+\{#([a-z][a-z0-9-]*)\}$/
 const DANGEROUS_PROTOCOL_PATTERN = /^(?:javascript|data|vbscript):/i
 const EVENT_ATTRIBUTE_PATTERN = /\son[a-z0-9_-]+\s*=/i
@@ -32,6 +33,7 @@ const SCRIPT_ELEMENT_PATTERN = /<\s*\/?\s*script\b/i
 
 const scriptDirectory = dirname(fileURLToPath(import.meta.url))
 const defaultContentDir = join(scriptDirectory, '../src/content/guides-v2')
+const defaultAssetRoot = resolve(scriptDirectory, '../..')
 
 const fail = (source, message) => {
   throw new Error(`${source}: ${message}`)
@@ -55,6 +57,12 @@ const requiredString = (metadata, field, source) => {
   if (typeof value !== 'string' || value.trim() === '') {
     return fail(source, `缺少或非法字段 ${field}`)
   }
+  return value
+}
+
+const requiredSha256 = (entry, field, source) => {
+  const value = requiredString(entry, field, source)
+  if (!SHA256_PATTERN.test(value)) return fail(source, `${field} 必须是小写 SHA-256`)
   return value
 }
 
@@ -142,6 +150,23 @@ const assertSafeInputFile = async (contentDirReal, absolutePath, source) => {
   return fileReal
 }
 
+const assertSafeMediaFile = async (assetRootReal, absolutePath, source, label) => {
+  let fileStat
+  try {
+    fileStat = await lstat(absolutePath)
+  } catch (error) {
+    return fail(source, `无法检查 ${label}: ${error.message}`)
+  }
+  if (fileStat.isSymbolicLink()) return fail(source, `${label} 拒绝符号链接: ${absolutePath}`)
+  if (!fileStat.isFile()) return fail(source, `${label} 必须是普通文件: ${absolutePath}`)
+  const fileReal = await realpath(absolutePath)
+  assertInsideContentDir(assetRootReal, fileReal, source, label)
+  return fileReal
+}
+
+const fileSha256 = async (path) =>
+  createHash('sha256').update(await readFile(path)).digest('hex')
+
 const inspectOutputSegments = async (currentPath, segments, source) => {
   if (segments.length === 0) return
   const [segment, ...remaining] = segments
@@ -193,7 +218,7 @@ const assertSafeOutputPath = async ({ contentDir, contentDirReal, outputPath, cr
   }
 }
 
-const loadMediaManifest = async (contentDir, contentDirReal) => {
+const loadMediaManifest = async (contentDir, contentDirReal, assetRoot, assetRootReal) => {
   const source = 'media-manifest.json'
   let parsed
   try {
@@ -207,7 +232,7 @@ const loadMediaManifest = async (contentDir, contentDirReal) => {
     return fail(source, '必须包含 version=v2 和 media 数组')
   }
 
-  const media = parsed.media.map((entry, index) => {
+  const media = await Promise.all(parsed.media.map(async (entry, index) => {
     if (!isRecord(entry)) return fail(source, `media[${index}] 必须是对象`)
     const id = requiredString(entry, 'id', source)
     const webPath = requiredString(entry, 'webPath', source)
@@ -225,8 +250,52 @@ const loadMediaManifest = async (contentDir, contentDirReal) => {
     const sourcePath = Object.hasOwn(entry, 'source')
       ? validateRelativeSource(entry.source, source)
       : undefined
-    return { id, webPath, exportPath, alt, ...(sourcePath ? { source: sourcePath } : {}) }
-  })
+    if (!sourcePath) return fail(source, `media[${index}] 缺少 source`)
+    if (
+      !exportPath.startsWith('frontend/public/img/guides/v2/') ||
+      !exportPath.endsWith('.png')
+    ) {
+      return fail(source, `media[${index}] exportPath 必须是 V2 PNG: ${exportPath}`)
+    }
+    if (!webPath.endsWith('.webp')) {
+      return fail(source, `media[${index}] webPath 必须是 WebP: ${webPath}`)
+    }
+    const sourceSha256 = requiredSha256(entry, 'sourceSha256', source)
+    const pngSha256 = requiredSha256(entry, 'pngSha256', source)
+    const webpSha256 = requiredSha256(entry, 'webpSha256', source)
+    const sourceFile = await assertSafeInputFile(
+      contentDirReal,
+      join(contentDir, sourcePath),
+      source,
+    )
+    const pngFile = await assertSafeMediaFile(
+      assetRootReal,
+      resolve(assetRoot, exportPath),
+      source,
+      `media[${index}] PNG`,
+    )
+    const webpFile = await assertSafeMediaFile(
+      assetRootReal,
+      resolve(assetRoot, 'frontend/public', webPath.slice(1)),
+      source,
+      `media[${index}] WebP`,
+    )
+    const [actualSourceSha256, actualPngSha256, actualWebpSha256] = await Promise.all([
+      fileSha256(sourceFile),
+      fileSha256(pngFile),
+      fileSha256(webpFile),
+    ])
+    if (actualSourceSha256 !== sourceSha256) {
+      return fail(source, `media[${index}] SVG source SHA-256 不匹配`)
+    }
+    if (actualPngSha256 !== pngSha256) {
+      return fail(source, `media[${index}] PNG SHA-256 不匹配`)
+    }
+    if (actualWebpSha256 !== webpSha256) {
+      return fail(source, `media[${index}] WebP SHA-256 不匹配`)
+    }
+    return { id, webPath, exportPath, alt, source: sourcePath }
+  }))
   const uniqueIds = new Set(media.map((entry) => entry.id))
   const uniquePaths = new Set(media.map((entry) => entry.webPath))
   if (uniqueIds.size !== media.length) return fail(source, '存在重复 media id')
@@ -335,17 +404,20 @@ const atomicWrite = async (outputPath, contents) => {
 export const buildManifest = async ({
   contentDir = defaultContentDir,
   outputPath = join(contentDir, 'manifest.generated.json'),
+  assetRoot = defaultAssetRoot,
   check = false,
 } = {}) => {
   let contentDirReal
+  let assetRootReal
   try {
     contentDirReal = await realpath(contentDir)
+    assetRootReal = await realpath(assetRoot)
   } catch (error) {
-    return fail(contentDir, `无法解析 contentDir: ${error.message}`)
+    return fail(contentDir, `无法解析 contentDir 或 assetRoot: ${error.message}`)
   }
   await assertExactGuideFiles(contentDir)
   await assertSafeOutputPath({ contentDir, contentDirReal, outputPath, createParent: !check })
-  const media = await loadMediaManifest(contentDir, contentDirReal)
+  const media = await loadMediaManifest(contentDir, contentDirReal, assetRoot, assetRootReal)
   const entries = await Promise.all(
     GUIDE_SLUGS.map(async (slug) => {
       const source = validateRelativeSource(`${slug}.md`, `${slug}.md`)

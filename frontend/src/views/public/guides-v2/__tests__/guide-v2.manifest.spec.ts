@@ -1,4 +1,5 @@
-import { mkdtemp, readFile, stat, symlink, writeFile } from 'node:fs/promises'
+import { createHash } from 'node:crypto'
+import { mkdir, mkdtemp, readFile, stat, symlink, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
@@ -19,6 +20,8 @@ const slugs = [
 ] as const
 
 const tempDirs: string[] = []
+
+const sha256 = (value: string): string => createHash('sha256').update(value).digest('hex')
 
 const markdownFor = (slug: (typeof slugs)[number], extra = '') => `---
 title: ${slug} 指南
@@ -42,6 +45,7 @@ ${extra}
 const createFixture = async (): Promise<{
   readonly contentDir: string
   readonly outputPath: string
+  readonly assetRoot: string
 }> => {
   const contentDir = await mkdtemp(join(tmpdir(), 'guide-v2-manifest-'))
   tempDirs.push(contentDir)
@@ -53,7 +57,47 @@ const createFixture = async (): Promise<{
     JSON.stringify({ version: 'v2', media: [] }, null, 2),
     'utf8',
   )
-  return { contentDir, outputPath: join(contentDir, 'manifest.generated.json') }
+  return {
+    contentDir,
+    outputPath: join(contentDir, 'manifest.generated.json'),
+    assetRoot: contentDir,
+  }
+}
+
+const createVerifiedMedia = async (
+  fixture: Awaited<ReturnType<typeof createFixture>>,
+): Promise<{
+  readonly entry: Readonly<Record<string, string>>
+  readonly webpPath: string
+}> => {
+  const source = '<svg xmlns="http://www.w3.org/2000/svg"><rect width="1" height="1"/></svg>'
+  const png = 'deterministic-png-output'
+  const webp = 'deterministic-webp-output'
+  const sourcePath = join(fixture.contentDir, 'sources/install.svg')
+  const pngPath = join(fixture.assetRoot, 'frontend/public/img/guides/v2/install.png')
+  const webpPath = join(fixture.assetRoot, 'frontend/public/img/guides/v2/install.webp')
+  await Promise.all([
+    mkdir(join(fixture.contentDir, 'sources'), { recursive: true }),
+    mkdir(join(fixture.assetRoot, 'frontend/public/img/guides/v2'), { recursive: true }),
+  ])
+  await Promise.all([
+    writeFile(sourcePath, source, 'utf8'),
+    writeFile(pngPath, png, 'utf8'),
+    writeFile(webpPath, webp, 'utf8'),
+  ])
+  return {
+    entry: {
+      id: 'install',
+      webPath: '/img/guides/v2/install.webp',
+      exportPath: 'frontend/public/img/guides/v2/install.png',
+      alt: '安装页面',
+      source: 'sources/install.svg',
+      sourceSha256: sha256(source),
+      pngSha256: sha256(png),
+      webpSha256: sha256(webp),
+    },
+    webpPath,
+  }
 }
 
 afterEach(async () => {
@@ -156,17 +200,12 @@ describe('buildManifest', () => {
 
   it('接受 Task 3 的 webPath/exportPath 媒体契约', async () => {
     const fixture = await createFixture()
+    const media = await createVerifiedMedia(fixture)
     await writeFile(
       join(fixture.contentDir, 'media-manifest.json'),
       JSON.stringify({
         version: 'v2',
-        media: [{
-          id: 'install',
-          webPath: '/img/guides/v2/install.webp',
-          exportPath: 'public/img/guides/v2/install.webp',
-          alt: '安装页面',
-          source: 'sources/install.png',
-        }],
+        media: [media.entry],
       }),
       'utf8',
     )
@@ -177,6 +216,21 @@ describe('buildManifest', () => {
     )
 
     await expect(buildManifest(fixture)).resolves.toMatchObject({ entries: { length: 9 } })
+  })
+
+  it('拒绝与 SVG、PNG 或 WebP 登记哈希不一致的素材', async () => {
+    const fixture = await createFixture()
+    const media = await createVerifiedMedia(fixture)
+    await writeFile(
+      join(fixture.contentDir, 'media-manifest.json'),
+      JSON.stringify({ version: 'v2', media: [media.entry] }),
+      'utf8',
+    )
+
+    await expect(buildManifest(fixture)).resolves.toMatchObject({ entries: { length: 9 } })
+    await writeFile(media.webpPath, 'tampered-webp-output', 'utf8')
+
+    await expect(buildManifest(fixture)).rejects.toThrow(/media-manifest\.json.*WebP.*SHA-256/i)
   })
 
   it('允许协议大小写不同的 HTTPS 外链', async () => {

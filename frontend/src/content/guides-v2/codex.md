@@ -56,11 +56,20 @@ model_provider = "custom"
 name = "Custom API"
 base_url = "<使用密钥弹窗中的完整地址>"
 wire_api = "responses"
+requires_openai_auth = true
 ```
 
 尖括号内容是不可直接使用的占位符。请从“使用密钥”弹窗复制完整地址，并从当前模型清单复制模型 ID。
 
-若弹窗要求 `auth.json`，使用同一弹窗提供的字段名。示例密钥只能写成 `sk-example-not-a-real-key`；实际配置时替换为你自己的密钥，并确保 JSON 逗号与引号正确。
+`requires_openai_auth = true` 表示 provider 从 Codex 的认证文件读取 API Key。`auth.json` 使用与站内“使用密钥”弹窗一致的字段：
+
+```json
+{
+  "OPENAI_API_KEY": "sk-example-not-a-real-key"
+}
+```
+
+实际配置时把示例密钥替换为你自己的密钥，并确保 JSON 逗号与引号正确。
 
 ## 第 5 步：重新打开并使用 API 登录 {#api-login}
 
@@ -73,4 +82,4 @@ wire_api = "responses"
 新建会话并发送“回复 OK”。若失败，先检查：两个文件是否位于同一个 `.codex` 目录、扩展名是否正确、`wire_api` 是否与弹窗一致、修改前是否完全关闭客户端。
 
 > [!TIP]
-> `config.toml.txt`、旧进程覆盖配置、在错误用户目录下编辑，是 Codex 最常见的三类专属问题。其他状态码请查看[统一排错指南](/guides/v2/troubleshooting)。
+> `config.toml.txt`、旧进程覆盖配置、在错误用户目录下编辑，是 Codex 最常见的三类专属问题。其他状态码请查看[统一排错指南](/guides/v2/troubleshooting#fix-stale-config)。
