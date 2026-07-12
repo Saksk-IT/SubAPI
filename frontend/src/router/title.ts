@@ -1,4 +1,5 @@
 import { i18n } from '@/i18n'
+import guideV2Manifest from '@/content/guides-v2/manifest.generated.json'
 import type { RouteLocationNormalizedLoaded } from 'vue-router'
 import type { CustomMenuItem } from '@/types'
 
@@ -29,10 +30,19 @@ export function resolveRouteDocumentTitle(
   customMenuItems: CustomMenuItem[] = [],
 ): string {
   const id = typeof route.params.id === 'string' ? route.params.id : ''
+  const guideSlug = typeof route.params.slug === 'string' ? route.params.slug : ''
   const menuItem = route.name === 'CustomPage' && id
     ? customMenuItems.find((item) => item.id === id)
     : undefined
   const menuTitle = menuItem?.label.trim()
+  const guideTitle = route.name === 'GuideV2Detail' && guideSlug
+    ? guideV2Manifest.entries.find((entry) => entry.meta.slug === guideSlug)?.meta.title
+    : undefined
+  const resolvedTitle = menuTitle || guideTitle || route.meta.title
 
-  return resolveDocumentTitle(menuTitle || route.meta.title, siteName, menuTitle ? undefined : route.meta.titleKey as string)
+  return resolveDocumentTitle(
+    resolvedTitle,
+    siteName,
+    menuTitle || guideTitle ? undefined : route.meta.titleKey as string,
+  )
 }

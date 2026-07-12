@@ -59,12 +59,13 @@ describe('GuideV2View', () => {
       wrapper.get('[data-guide-v2-mobile-toc]').element,
     )
     expect(wrapper.get('[data-guide-v2-sidebar]').classes()).toContain('guide-v2-sidebar')
-    expect(document.title).toBe('Codex API 配置 · 蓝图测试站')
+    expect(document.title).toBe('原始标题')
+    document.title = '全局路由标题'
     await router.push('/guides/v2/claude-code')
-    await vi.waitFor(() => expect(document.title).toBe('Claude Code 配置 · 蓝图测试站'))
-    document.title = '目标页面标题'
+    await vi.waitFor(() => expect(wrapper.get('h1').text()).toBe('Claude Code 配置'))
+    expect(document.title).toBe('全局路由标题')
     wrapper.unmount()
-    expect(document.title).toBe('目标页面标题')
+    expect(document.title).toBe('全局路由标题')
   })
 
   it('平台切换同步过滤正文、桌面目录和移动目录，同时保留共享步骤', async () => {
@@ -132,8 +133,12 @@ describe('GuideV2View', () => {
     await vi.waitFor(() => {
       expect(wrapper.get('[role="tab"][aria-selected="true"]').text()).toBe('macOS')
     })
+    const target = wrapper.get('#macos').element as HTMLElement
+    expect(target.scrollIntoView).toBe(HTMLElement.prototype.scrollIntoView)
+    await vi.waitFor(() => {
+      expect(localStorage.getItem(GUIDE_V2_PROGRESS_STORAGE_KEY)).toContain('"lastAnchor":"macos"')
+    })
     expect(HTMLElement.prototype.scrollIntoView).toHaveBeenCalled()
-    expect(localStorage.getItem(GUIDE_V2_PROGRESS_STORAGE_KEY)).toContain('"lastAnchor":"macos"')
   })
 
   it.each(['#foo_bar', '#%E0%A4%A', '#missing-anchor'])(

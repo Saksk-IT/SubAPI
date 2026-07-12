@@ -2,7 +2,6 @@
 import { computed, nextTick, onBeforeUnmount, ref, shallowRef, watch } from 'vue'
 import { RouterLink, useRoute } from 'vue-router'
 
-import { useAppStore } from '@/stores/app'
 import mediaManifest from '../../../content/guides-v2/media-manifest.json'
 import GuideV2Header from './components/GuideV2Header.vue'
 import GuideV2Hero from './components/GuideV2Hero.vue'
@@ -22,7 +21,6 @@ import {
 } from './guide-v2.visibility'
 
 const route = useRoute()
-const appStore = useAppStore()
 const guide = ref<ParsedGuideV2>()
 const loadError = ref('')
 const loading = ref(false)
@@ -83,6 +81,7 @@ const scrollToAnchor = async (anchor: string, updateHash = false): Promise<void>
     if (requiredPlatform && requiredPlatform !== selectedPlatform.value) {
       try {
         progressStore.setPlatform(current, requiredPlatform)
+        await nextTick()
       } catch {
         return
       }
@@ -196,13 +195,6 @@ const startGuide = (): void => {
 }
 
 watch(slug, loadGuide, { immediate: true })
-watch(
-  [() => guide.value?.meta.title, () => appStore.siteName],
-  ([title, siteName]) => {
-    if (title) document.title = `${title} · ${siteName}`
-  },
-  { immediate: true },
-)
 watch(
   () => route.hash,
   (hash) => guide.value && scrollToRouteHash(hash),
