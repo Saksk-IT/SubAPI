@@ -13,6 +13,7 @@ import { useRoutePrefetch } from '@/composables/useRoutePrefetch'
 import { getSetupStatus } from '@/api/setup'
 import { resolveCompletedSetupRedirectPath } from './setupRedirect'
 import { resolveRouteDocumentTitle } from './title'
+import { isBackendModePublicRouteAllowed } from './backendModePublic'
 
 /**
  * Route definitions with lazy loading
@@ -243,6 +244,24 @@ const routes: RouteRecordRaw[] = [
       requiresAuth: false,
       title: '图像生成教程',
       guideKey: 'image'
+    }
+  },
+  {
+    path: '/guides/v2',
+    name: 'GuideV2Hub',
+    component: () => import('@/views/public/guides-v2/GuideV2HubView.vue'),
+    meta: {
+      requiresAuth: false,
+      title: 'AI 客户端使用指南'
+    }
+  },
+  {
+    path: '/guides/v2/:slug',
+    name: 'GuideV2Detail',
+    component: () => import('@/views/public/guides-v2/GuideV2View.vue'),
+    meta: {
+      requiresAuth: false,
+      title: 'AI 客户端使用指南'
     }
   },
 
@@ -824,47 +843,6 @@ let authInitialized = false
 const navigationLoading = useNavigationLoadingState()
 // 延迟初始化预加载，传入 router 实例
 let routePrefetch: ReturnType<typeof useRoutePrefetch> | null = null
-const BACKEND_MODE_ALLOWED_PATHS = [
-  '/login',
-  '/key-usage',
-  '/setup',
-  '/payment/result',
-  '/payment/airwallex',
-  '/legal',
-  '/registration-key-guide',
-  '/codex-guide',
-  '/claude-code-guide',
-  '/open-code-guide',
-  '/open-claw-guide',
-  '/mobile-guide',
-  '/image-guide',
-]
-const BACKEND_MODE_CALLBACK_PATHS = [
-  '/auth/callback',
-  '/auth/linuxdo/callback',
-  '/auth/dingtalk/callback',
-  '/auth/dingtalk/email-completion',
-  '/auth/oidc/callback',
-  '/auth/wechat/callback',
-  '/auth/wechat/payment/callback',
-]
-const BACKEND_MODE_PENDING_AUTH_PATHS = ['/register', '/email-verify']
-
-function isBackendModePublicRouteAllowed(path: string, hasPendingAuthSession: boolean): boolean {
-  if (BACKEND_MODE_ALLOWED_PATHS.some((allowedPath) => path === allowedPath || path.startsWith(allowedPath))) {
-    return true
-  }
-
-  if (BACKEND_MODE_CALLBACK_PATHS.some((callbackPath) => path === callbackPath)) {
-    return true
-  }
-
-  if (hasPendingAuthSession && BACKEND_MODE_PENDING_AUTH_PATHS.some((allowedPath) => path === allowedPath)) {
-    return true
-  }
-
-  return false
-}
 
 router.beforeEach(async (to, _from, next) => {
   // 开始导航加载状态

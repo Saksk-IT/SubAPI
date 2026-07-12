@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { setActivePinia, createPinia } from 'pinia'
+import { isBackendModePublicRouteAllowed } from '@/router/backendModePublic'
 import { resolveCompletedSetupRedirectPath } from '@/router/setupRedirect'
 
 const routerAuthStore = vi.hoisted(() => ({
@@ -110,31 +111,10 @@ function simulateGuard(
       return authState.isAdmin ? '/admin/dashboard' : '/dashboard'
     }
     if (authState.backendModeEnabled && !authState.isAuthenticated) {
-      const allowed = [
-        '/login',
-        '/key-usage',
-        '/setup',
-        '/payment/result',
-        '/registration-key-guide',
-        '/codex-guide',
-        '/claude-code-guide',
-        '/open-code-guide',
-        '/open-claw-guide',
-        '/mobile-guide',
-        '/image-guide',
-      ]
-      const callbackPaths = [
-        '/auth/callback',
-        '/auth/linuxdo/callback',
-        '/auth/oidc/callback',
-        '/auth/wechat/callback',
-        '/auth/wechat/payment/callback',
-      ]
-      const pendingAuthPaths = ['/register', '/email-verify']
-      const isAllowed =
-        allowed.some((path) => toPath === path || toPath.startsWith(path)) ||
-        callbackPaths.includes(toPath) ||
-        (authState.hasPendingAuthSession && pendingAuthPaths.includes(toPath))
+      const isAllowed = isBackendModePublicRouteAllowed(
+        toPath,
+        authState.hasPendingAuthSession,
+      )
       if (!isAllowed) {
         return '/login'
       }
@@ -171,31 +151,10 @@ function simulateGuard(
     if (authState.isAuthenticated && authState.isAdmin) {
       return null
     }
-    const allowed = [
-      '/login',
-      '/key-usage',
-      '/setup',
-      '/payment/result',
-      '/registration-key-guide',
-      '/codex-guide',
-      '/claude-code-guide',
-      '/open-code-guide',
-      '/open-claw-guide',
-      '/mobile-guide',
-      '/image-guide',
-    ]
-    const callbackPaths = [
-      '/auth/callback',
-      '/auth/linuxdo/callback',
-      '/auth/oidc/callback',
-      '/auth/wechat/callback',
-      '/auth/wechat/payment/callback',
-    ]
-    const pendingAuthPaths = ['/register', '/email-verify']
-    const isAllowed =
-      allowed.some((path) => toPath === path || toPath.startsWith(path)) ||
-      callbackPaths.includes(toPath) ||
-      (authState.hasPendingAuthSession && pendingAuthPaths.includes(toPath))
+    const isAllowed = isBackendModePublicRouteAllowed(
+      toPath,
+      authState.hasPendingAuthSession,
+    )
     if (!isAllowed) {
       return '/login'
     }
@@ -387,6 +346,17 @@ describe('路由守卫逻辑', () => {
   })
 
   describe('Backend Mode', () => {
+    it.each(['/guides/v2', '/guides/v2/', '/guides/v2/codex'])(
+      'unauthenticated: %s is allowed with an exact V2 path boundary',
+      (path) => {
+        expect(isBackendModePublicRouteAllowed(path, false)).toBe(true)
+      },
+    )
+
+    it('unauthenticated: /guides/v2evil is rejected', () => {
+      expect(isBackendModePublicRouteAllowed('/guides/v2evil', false)).toBe(false)
+    })
+
     it('unauthenticated: /home redirects to /login', () => {
       const authState: MockAuthState = {
         isAuthenticated: false,
