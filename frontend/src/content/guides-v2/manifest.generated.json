@@ -1,0 +1,181 @@
+{
+  "version": "v2",
+  "entries": [
+    {
+      "meta": {
+        "title": "API 客户端配置指南",
+        "slug": "index",
+        "summary": "从创建 API Key 到选择客户端、完成验证和排查问题的一站式入口。",
+        "duration": "3 分钟",
+        "platforms": [
+          "Windows",
+          "macOS",
+          "Linux",
+          "iOS",
+          "Android"
+        ],
+        "difficulty": "新手",
+        "updatedAt": "2026-07-13",
+        "version": "v2"
+      },
+      "path": "/guides/v2",
+      "source": "index.md",
+      "contentHash": "d0bff2219ac709e41f21cd8e71947d556bf47fa9acb3261ba070d278c4701e62"
+    },
+    {
+      "meta": {
+        "title": "注册、获取权益与创建 API Key",
+        "slug": "get-started",
+        "summary": "完成注册、权益准备、密钥分组选择、安全保存与接入前检查。",
+        "duration": "8 分钟",
+        "platforms": [
+          "Windows",
+          "macOS",
+          "Linux",
+          "iOS",
+          "Android"
+        ],
+        "difficulty": "新手",
+        "updatedAt": "2026-07-13",
+        "version": "v2"
+      },
+      "path": "/guides/v2/get-started",
+      "source": "get-started.md",
+      "contentHash": "106535001d763846f50c60f8e925a2c8a748ae1c565f20b5f114d81dc747e3c3"
+    },
+    {
+      "meta": {
+        "title": "Codex API 配置",
+        "slug": "codex",
+        "summary": "初始化 Codex，按平台定位配置目录，写入配置并使用 API Key 登录验证。",
+        "duration": "12 分钟",
+        "platforms": [
+          "Windows",
+          "macOS",
+          "Linux"
+        ],
+        "difficulty": "入门",
+        "updatedAt": "2026-07-13",
+        "version": "v2"
+      },
+      "path": "/guides/v2/codex",
+      "source": "codex.md",
+      "contentHash": "ce249cd4c608801c85c799abb7c7667b758481da7566d49cef1270803ce6d53e"
+    },
+    {
+      "meta": {
+        "title": "Claude Code 配置",
+        "slug": "claude-code",
+        "summary": "安装 Claude Code，在 settings.json 与系统环境变量之间二选一并完成终端验证。",
+        "duration": "10 分钟",
+        "platforms": [
+          "Windows",
+          "macOS",
+          "Linux"
+        ],
+        "difficulty": "入门",
+        "updatedAt": "2026-07-13",
+        "version": "v2"
+      },
+      "path": "/guides/v2/claude-code",
+      "source": "claude-code.md",
+      "contentHash": "ed978859c3a6c76fb3350c0a6154e1cc43b408cc3017b6b5ed6248d290f2b295"
+    },
+    {
+      "meta": {
+        "title": "OpenCode 配置",
+        "slug": "opencode",
+        "summary": "安装 OpenCode，配置长期 provider 或用 /connect 临时切换并验证模型。",
+        "duration": "10 分钟",
+        "platforms": [
+          "Windows",
+          "macOS",
+          "Linux"
+        ],
+        "difficulty": "入门",
+        "updatedAt": "2026-07-13",
+        "version": "v2"
+      },
+      "path": "/guides/v2/opencode",
+      "source": "opencode.md",
+      "contentHash": "56b7130c7473abf76c7f67ff3c180950a28354354d4656137d97b3fb5da3ae39"
+    },
+    {
+      "meta": {
+        "title": "OpenClaw 在线与本地配置",
+        "slug": "openclaw",
+        "summary": "先选择腾讯云在线模式或本地模式，再分别配置 provider 并完成模型测试。",
+        "duration": "12 分钟",
+        "platforms": [
+          "Windows",
+          "macOS",
+          "Linux"
+        ],
+        "difficulty": "入门",
+        "updatedAt": "2026-07-13",
+        "version": "v2"
+      },
+      "path": "/guides/v2/openclaw",
+      "source": "openclaw.md",
+      "contentHash": "55a334458d36d5af0fa1dcea5041dc33cc77dd75c4d7b49f0074b8650c3cc931"
+    },
+    {
+      "meta": {
+        "title": "Chatbox 移动端配置",
+        "slug": "chatbox-mobile",
+        "summary": "在 iOS 或 Android 添加自定义提供方，获取模型并完成首次测试对话。",
+        "duration": "8 分钟",
+        "platforms": [
+          "iOS",
+          "Android"
+        ],
+        "difficulty": "新手",
+        "updatedAt": "2026-07-13",
+        "version": "v2"
+      },
+      "path": "/guides/v2/chatbox-mobile",
+      "source": "chatbox-mobile.md",
+      "contentHash": "e6583646ddeee06276a831c9d792d6716e310e0249c335c019f0344421b7a121"
+    },
+    {
+      "meta": {
+        "title": "Cherry Studio 图像生成配置",
+        "slug": "cherry-studio-image",
+        "summary": "添加兼容模型服务与图像模型，从绘画入口完成一次生成验证。",
+        "duration": "10 分钟",
+        "platforms": [
+          "Windows",
+          "macOS",
+          "Linux"
+        ],
+        "difficulty": "入门",
+        "updatedAt": "2026-07-13",
+        "version": "v2"
+      },
+      "path": "/guides/v2/cherry-studio-image",
+      "source": "cherry-studio-image.md",
+      "contentHash": "e268f23680919fbf4eebe791b15a30809bce3f53d0809c55e357e1dd5aebfe24"
+    },
+    {
+      "meta": {
+        "title": "V2 指南统一排错",
+        "slug": "troubleshooting",
+        "summary": "按状态码、模型、配置文件与媒体症状定位常见客户端接入问题。",
+        "duration": "8 分钟",
+        "platforms": [
+          "Windows",
+          "macOS",
+          "Linux",
+          "iOS",
+          "Android"
+        ],
+        "difficulty": "新手",
+        "updatedAt": "2026-07-13",
+        "version": "v2"
+      },
+      "path": "/guides/v2/troubleshooting",
+      "source": "troubleshooting.md",
+      "contentHash": "a58c88c458b4123b1517e056a002e296c9e6ebbdfc98e49eb1f3abfd86b39d5c"
+    }
+  ]
+}

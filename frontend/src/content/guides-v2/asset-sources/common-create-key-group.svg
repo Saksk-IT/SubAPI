@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 720" width="1280" height="720">
+  <rect width="1280" height="720" fill="#f5f9ff"/>
+  <rect x="55" y="42" width="1170" height="636" rx="28" fill="#fff" stroke="#dbe6f7" stroke-width="2"/>
+  <g font-family="Arial, PingFang SC, sans-serif"><text x="94" y="105" fill="#17335c" font-size="32" font-weight="700">创建 API Key</text><text x="94" y="142" fill="#657793" font-size="19">示意界面 · 请按当前控制台的实际分组说明选择</text>
+  <rect x="92" y="182" width="1096" height="420" rx="22" fill="#fbfdff" stroke="#cbdaf0"/>
+  <circle cx="132" cy="238" r="22" fill="#235bd6"/><text x="125" y="246" fill="#fff" font-size="20" font-weight="700">1</text><text x="170" y="246" fill="#17335c" font-size="22" font-weight="700">密钥名称</text>
+  <rect x="170" y="266" width="460" height="58" rx="10" fill="#fff" stroke="#9bb8eb" stroke-width="2"/><text x="194" y="302" fill="#61728c" font-size="19">codex-mac</text>
+  <circle cx="132" cy="383" r="22" fill="#235bd6"/><text x="125" y="391" fill="#fff" font-size="20" font-weight="700">2</text><text x="170" y="391" fill="#17335c" font-size="22" font-weight="700">选择适用分组</text>
+  <rect x="170" y="414" width="460" height="62" rx="10" fill="#fff" stroke="#235bd6" stroke-width="3"/><text x="194" y="452" fill="#17335c" font-size="19">支持目标模型的分组</text><path d="M590 438L602 450L614 438" fill="none" stroke="#235bd6" stroke-width="4"/>
+  <rect x="694" y="230" width="430" height="246" rx="18" fill="#eef5ff" stroke="#bad0f4"/><text x="730" y="278" fill="#235bd6" font-size="22" font-weight="700">选择前核对</text><text x="730" y="322" fill="#435873" font-size="18">• 目标客户端</text><text x="730" y="360" fill="#435873" font-size="18">• 当前可用模型</text><text x="730" y="398" fill="#435873" font-size="18">• 权益对应分组</text><text x="730" y="446" fill="#60728d" font-size="16">不确定时查看控制台说明</text>
+  <rect x="938" y="518" width="186" height="54" rx="27" fill="#235bd6"/><text x="986" y="552" fill="#fff" font-size="20" font-weight="700">创建密钥</text></g>
+</svg>
