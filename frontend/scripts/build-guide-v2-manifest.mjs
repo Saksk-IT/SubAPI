@@ -4,6 +4,7 @@ import { dirname, isAbsolute, join, relative, resolve, sep, win32 } from 'node:p
 import { fileURLToPath, pathToFileURL } from 'node:url'
 
 import { marked } from 'marked'
+import sharp from 'sharp'
 import { parse as parseYaml } from 'yaml'
 
 const GUIDE_SLUGS = Object.freeze([
@@ -30,6 +31,11 @@ const HEADING_ANCHOR_PATTERN = /\s+\{#([a-z][a-z0-9-]*)\}$/
 const DANGEROUS_PROTOCOL_PATTERN = /^(?:javascript|data|vbscript):/i
 const EVENT_ATTRIBUTE_PATTERN = /\son[a-z0-9_-]+\s*=/i
 const SCRIPT_ELEMENT_PATTERN = /<\s*\/?\s*script\b/i
+const VISUAL_WIDTH = 128
+const VISUAL_HEIGHT = 72
+const MAX_VISUAL_MAE = 4
+const MIN_INK_JACCARD = 0.6
+const INK_LUMINANCE_THRESHOLD = 246
 
 const scriptDirectory = dirname(fileURLToPath(import.meta.url))
 const defaultContentDir = join(scriptDirectory, '../src/content/guides-v2')
@@ -167,6 +173,64 @@ const assertSafeMediaFile = async (assetRootReal, absolutePath, source, label) =
 const fileSha256 = async (path) =>
   createHash('sha256').update(await readFile(path)).digest('hex')
 
+const normalizedVisualPixels = async (path) =>
+  sharp(path, { density: 96 })
+    .flatten({ background: '#ffffff' })
+    .resize(VISUAL_WIDTH, VISUAL_HEIGHT, { fit: 'fill', kernel: 'lanczos3' })
+    .blur(0.6)
+    .toColourspace('srgb')
+    .removeAlpha()
+    .raw()
+    .toBuffer()
+
+const visualDifference = (sourcePixels, outputPixels) => {
+  if (sourcePixels.length !== outputPixels.length || sourcePixels.length % 3 !== 0) {
+    return { meanAbsoluteError: Number.POSITIVE_INFINITY, inkJaccard: 0 }
+  }
+  let absoluteDifference = 0
+  let inkIntersection = 0
+  let inkUnion = 0
+  for (let index = 0; index < sourcePixels.length; index += 3) {
+    for (let channel = 0; channel < 3; channel += 1) {
+      absoluteDifference += Math.abs(sourcePixels[index + channel] - outputPixels[index + channel])
+    }
+    const sourceLuminance =
+      (sourcePixels[index] + sourcePixels[index + 1] + sourcePixels[index + 2]) / 3
+    const outputLuminance =
+      (outputPixels[index] + outputPixels[index + 1] + outputPixels[index + 2]) / 3
+    const sourceInk = sourceLuminance < INK_LUMINANCE_THRESHOLD
+    const outputInk = outputLuminance < INK_LUMINANCE_THRESHOLD
+    if (sourceInk && outputInk) inkIntersection += 1
+    if (sourceInk || outputInk) inkUnion += 1
+  }
+  return {
+    meanAbsoluteError: absoluteDifference / sourcePixels.length,
+    inkJaccard: inkUnion === 0 ? 1 : inkIntersection / inkUnion,
+  }
+}
+
+const assertVisualMatch = async (sourceFile, outputFile, source, label) => {
+  let sourcePixels
+  let outputPixels
+  try {
+    const pixels = await Promise.all([
+      normalizedVisualPixels(sourceFile),
+      normalizedVisualPixels(outputFile),
+    ])
+    sourcePixels = pixels[0]
+    outputPixels = pixels[1]
+  } catch (error) {
+    return fail(source, `${label} 无法进行跨平台视觉解码: ${error.message}`)
+  }
+  const { meanAbsoluteError, inkJaccard } = visualDifference(sourcePixels, outputPixels)
+  if (meanAbsoluteError > MAX_VISUAL_MAE || inkJaccard < MIN_INK_JACCARD) {
+    return fail(
+      source,
+      `${label} 视觉内容与 SVG source 不一致（MAE=${meanAbsoluteError.toFixed(3)}, ink=${inkJaccard.toFixed(3)}）`,
+    )
+  }
+}
+
 const inspectOutputSegments = async (currentPath, segments, source) => {
   if (segments.length === 0) return
   const [segment, ...remaining] = segments
@@ -294,6 +358,10 @@ const loadMediaManifest = async (contentDir, contentDirReal, assetRoot, assetRoo
     if (actualWebpSha256 !== webpSha256) {
       return fail(source, `media[${index}] WebP SHA-256 不匹配`)
     }
+    await Promise.all([
+      assertVisualMatch(sourceFile, pngFile, source, `media[${index}] PNG`),
+      assertVisualMatch(sourceFile, webpFile, source, `media[${index}] WebP`),
+    ])
     return { id, webPath, exportPath, alt, source: sourcePath }
   }))
   const uniqueIds = new Set(media.map((entry) => entry.id))
@@ -318,31 +386,61 @@ const nestedTokens = (token) => {
 const walkTokens = (tokens) =>
   tokens.flatMap((token) => [token, ...walkTokens(nestedTokens(token))])
 
-const validateLink = (href, source) => {
+const validateInternalFragment = (url, source, currentPath, anchorsByPath) => {
+  if (url.hash === '') return
+  let fragment
+  try {
+    fragment = decodeURIComponent(url.hash.slice(1))
+  } catch {
+    return fail(source, `fragment 编码非法: ${url.hash}`)
+  }
+  const targetPath = url.pathname === '/' ? currentPath : url.pathname
+  const targetAnchors = anchorsByPath.get(targetPath)
+  if (!targetAnchors?.has(fragment)) {
+    return fail(source, `fragment 不存在: ${targetPath}#${fragment}`)
+  }
+}
+
+const validateLink = (href, source, currentPath, anchorsByPath) => {
   const normalized = href.trim()
   if (DANGEROUS_PROTOCOL_PATTERN.test(normalized)) {
     return fail(source, `危险协议链接: ${href}`)
   }
-  if (/^https:\/\//i.test(normalized) || normalized.startsWith('#')) return
+  if (normalized.startsWith('#')) {
+    const url = new URL(normalized, `https://guides.local${currentPath}`)
+    return validateInternalFragment(url, source, currentPath, anchorsByPath)
+  }
   if (normalized.startsWith('/guides/v2')) {
-    const url = new URL(normalized, 'https://guides.local')
+    let url
+    try {
+      url = new URL(normalized, 'https://guides.local')
+    } catch {
+      return fail(source, `非法内部 URL: ${href}`)
+    }
     if (!ALLOWED_INTERNAL_PATHS.has(url.pathname) || url.search !== '') {
       return fail(source, `非法内部链接: ${href}`)
     }
-    return
+    return validateInternalFragment(url, source, currentPath, anchorsByPath)
   }
-  if (/^http:/i.test(normalized)) return fail(source, `非安全外链: ${href}`)
-  return fail(source, `非法内部链接: ${href}`)
+  let external
+  try {
+    external = new URL(normalized)
+  } catch {
+    return fail(source, `非法 HTTPS URL: ${href}`)
+  }
+  if (external.protocol !== 'https:' || external.hostname === '') {
+    return fail(source, `非安全外链，必须是含主机名的 HTTPS URL: ${href}`)
+  }
 }
 
-const validateHtmlLinks = (html, source) => {
+const validateHtmlLinks = (html, source, currentPath, anchorsByPath) => {
   const hrefPattern = /\bhref\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+))/gi
   Array.from(html.matchAll(hrefPattern)).forEach((match) => {
-    validateLink(match[1] ?? match[2] ?? match[3] ?? '', source)
+    validateLink(match[1] ?? match[2] ?? match[3] ?? '', source, currentPath, anchorsByPath)
   })
 }
 
-const validateBody = (body, source, media) => {
+const inspectBodyTokens = (body, source, media) => {
   const tokens = marked.lexer(body)
   const headings = tokens.filter((token) => token.type === 'heading')
   if (headings.filter((heading) => heading.depth === 1).length !== 1) {
@@ -358,14 +456,24 @@ const validateBody = (body, source, media) => {
 
   const allTokens = walkTokens(tokens)
   allTokens.forEach((token) => {
-    if (token.type === 'link') validateLink(token.href, source)
     if (token.type === 'image' && !media.some((entry) => entry.webPath === token.href)) {
       fail(source, `媒体未在 media-manifest.json 登记: ${token.href}`)
     }
-    if (token.type === 'html' && typeof token.text === 'string') validateHtmlLinks(token.text, source)
   })
   if (SCRIPT_ELEMENT_PATTERN.test(body)) return fail(source, '拒绝 script 元素')
   if (EVENT_ATTRIBUTE_PATTERN.test(body)) return fail(source, '拒绝 on* 事件属性')
+  return { tokens, anchors: new Set(anchors) }
+}
+
+const validateTokenLinks = (tokens, source, currentPath, anchorsByPath) => {
+  walkTokens(tokens).forEach((token) => {
+    if (token.type === 'link') {
+      validateLink(token.href, source, currentPath, anchorsByPath)
+    }
+    if (token.type === 'html' && typeof token.text === 'string') {
+      validateHtmlLinks(token.text, source, currentPath, anchorsByPath)
+    }
+  })
 }
 
 const assertExactGuideFiles = async (contentDir) => {
@@ -418,7 +526,7 @@ export const buildManifest = async ({
   await assertExactGuideFiles(contentDir)
   await assertSafeOutputPath({ contentDir, contentDirReal, outputPath, createParent: !check })
   const media = await loadMediaManifest(contentDir, contentDirReal, assetRoot, assetRootReal)
-  const entries = await Promise.all(
+  const drafts = await Promise.all(
     GUIDE_SLUGS.map(async (slug) => {
       const source = validateRelativeSource(`${slug}.md`, `${slug}.md`)
       const absoluteSource = join(contentDir, source)
@@ -430,16 +538,27 @@ export const buildManifest = async ({
       const sourceText = await readFile(absoluteSource, 'utf8')
       const { metadata: rawMetadata, body } = splitFrontmatter(sourceText, source)
       const meta = validateMetadata(rawMetadata, slug, source)
-      validateBody(body, source, media)
-      const contentHash = createHash('sha256').update(body, 'utf8').digest('hex')
+      const path = slug === 'index' ? '/guides/v2' : `/guides/v2/${slug}`
+      const inspected = inspectBodyTokens(body, source, media)
       return {
         meta,
-        path: slug === 'index' ? '/guides/v2' : `/guides/v2/${slug}`,
+        path,
         source,
-        contentHash,
+        body,
+        ...inspected,
       }
     }),
   )
+  const anchorsByPath = new Map(drafts.map((draft) => [draft.path, draft.anchors]))
+  drafts.forEach((draft) => {
+    validateTokenLinks(draft.tokens, draft.source, draft.path, anchorsByPath)
+  })
+  const entries = drafts.map(({ meta, path, source, body }) => ({
+    meta,
+    path,
+    source,
+    contentHash: createHash('sha256').update(body, 'utf8').digest('hex'),
+  }))
   const manifest = deepFreeze({ version: 'v2', entries })
   const expectedOutput = stableJson(manifest)
 

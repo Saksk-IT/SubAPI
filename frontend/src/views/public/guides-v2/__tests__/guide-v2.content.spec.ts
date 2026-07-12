@@ -3,6 +3,7 @@ import { readFile, readdir, stat } from 'node:fs/promises'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
+import { marked, type Tokens } from 'marked'
 import { describe, expect, it } from 'vitest'
 import { parse as parseYaml } from 'yaml'
 
@@ -115,15 +116,18 @@ describe('V2 指南单一源内容', () => {
     const guides = await readGuides()
     guides.forEach(({ slug, source }) => {
       const { body } = splitMarkdown(source)
-      expect(body.match(/^#\s+.+$/gm), slug).toHaveLength(1)
-      const headings = Array.from(body.matchAll(/^(#{2,3})\s+(.+)$/gm))
-      expect(headings.length, slug).toBeGreaterThan(0)
-      headings.forEach(([, , heading]) => {
-        expect(heading, `${slug}: ${heading}`).toMatch(/\s\{#[a-z][a-z0-9-]*\}$/)
+      const headings = marked
+        .lexer(body)
+        .filter((token): token is Tokens.Heading => token.type === 'heading')
+      expect(headings.filter(({ depth }) => depth === 1), slug).toHaveLength(1)
+      const anchoredHeadings = headings.filter(({ depth }) => depth === 2 || depth === 3)
+      expect(anchoredHeadings.length, slug).toBeGreaterThan(0)
+      anchoredHeadings.forEach(({ text }) => {
+        expect(text, `${slug}: ${text}`).toMatch(/\s\{#[a-z][a-z0-9-]*\}$/)
       })
-      const steps = headings
-        .filter(([, hashes, heading]) => hashes === '##' && /^第 \d+ 步：/.test(heading))
-        .map(([, , heading]) => Number(/^第 (\d+) 步：/.exec(heading)?.[1]))
+      const steps = anchoredHeadings
+        .filter(({ depth, text }) => depth === 2 && /^第 \d+ 步：/.test(text))
+        .map(({ text }) => Number(/^第 (\d+) 步：/.exec(text)?.[1]))
       expect(steps, slug).toEqual(steps.map((_number, index) => index + 1))
       expect(steps.length, slug).toBeGreaterThan(0)
     })
@@ -145,18 +149,27 @@ describe('V2 指南单一源内容', () => {
     let imageCount = 0
     guides.forEach(({ slug, source }) => {
       const { body } = splitMarkdown(source)
-      const images = Array.from(body.matchAll(/!\[([^\]]*)\]\(([^)]+)\)/g))
+      const tokens = marked.lexer(body)
+      const images: Tokens.Image[] = []
+      marked.walkTokens(tokens, (token) => {
+        if (token.type === 'image') images.push(token)
+      })
+      const independentImages = new Set(
+        tokens.flatMap((token) => {
+          if (token.type !== 'paragraph' || token.tokens.length !== 1) return []
+          const [inline] = token.tokens
+          return inline.type === 'image' ? [inline] : []
+        }),
+      )
       imageCount += images.length
-      images.forEach((match) => {
-        expect(match[1].trim(), slug).not.toBe('')
-        const target = /^(\S+)\s+"([^"]+)"$/.exec(match[2])
-        expect(target, `${slug}: 图片必须包含非空 title`).not.toBeNull()
-        const media = registeredMedia.get(target?.[1] ?? '')
-        expect(media, `${slug}: ${target?.[1]}`).toBeDefined()
-        expect(match[1], `${slug}: alt`).toBe(media?.alt)
-        expect(target?.[2], `${slug}: caption`).toBe(media?.caption)
-        const line = body.slice(0, match.index).split('\n').length
-        expect(body.split('\n')[line - 1].trim(), `${slug}:${line}`).toBe(match[0])
+      images.forEach((image) => {
+        expect(independentImages.has(image), `${slug}: 图片必须独立成段`).toBe(true)
+        expect(image.text.trim(), slug).not.toBe('')
+        expect(image.title?.trim(), `${slug}: 图片必须包含非空 title`).not.toBe('')
+        const media = registeredMedia.get(image.href)
+        expect(media, `${slug}: ${image.href}`).toBeDefined()
+        expect(image.text, `${slug}: alt`).toBe(media?.alt)
+        expect(image.title, `${slug}: caption`).toBe(media?.caption)
       })
     })
     expect(imageCount).toBe(13)
@@ -251,58 +264,7 @@ describe('V2 指南单一源内容', () => {
     expect(openclaw).toContain('不适用于腾讯云云应用 Dashboard')
   })
 
-  it('离线校验 HTTPS 外链语法与跨页 fragment 目标锚点', async () => {
-    const guides = await readGuides()
-    const routeToSlug = new Map<string, (typeof slugs)[number]>([
-      ['/guides/v2', 'index'],
-      ...slugs.slice(1).map((slug) => [`/guides/v2/${slug}`, slug] as const),
-    ])
-    const anchorsBySlug = new Map(
-      guides.map(({ slug, source }) => [
-        slug,
-        new Set(Array.from(source.matchAll(/\{#([a-z][a-z0-9-]*)\}/g), (match) => match[1])),
-      ]),
-    )
-    let fragmentCount = 0
-
-    guides.forEach(({ slug, source }) => {
-      const markdownLinks = Array.from(
-        source.matchAll(/(?<!!)\[[^\]]+\]\(([^)\s]+)(?:\s+"[^"]+")?\)/g),
-        (match) => match[1],
-      )
-      markdownLinks.forEach((href) => {
-        if (/^https:\/\//i.test(href)) {
-          const external = new URL(href)
-          expect(external.protocol, `${slug}: ${href}`).toBe('https:')
-          expect(external.hostname, `${slug}: ${href}`).not.toBe('')
-          return
-        }
-
-        const internal = new URL(href, 'https://guides.local')
-        const targetSlug = href.startsWith('#') ? slug : routeToSlug.get(internal.pathname)
-        expect(targetSlug, `${slug}: ${href}`).toBeDefined()
-        if (internal.hash !== '') {
-          fragmentCount += 1
-          expect(
-            anchorsBySlug.get(targetSlug ?? slug)?.has(internal.hash.slice(1)),
-            `${slug}: ${href}`,
-          ).toBe(true)
-        }
-      })
-
-      Array.from(source.matchAll(/https?:\/\/[^\s)"'<>]+/gi), (match) => match[0]).forEach(
-        (href) => {
-          const external = new URL(href)
-          expect(external.protocol, `${slug}: ${href}`).toBe('https:')
-          expect(external.hostname, `${slug}: ${href}`).not.toBe('')
-        },
-      )
-    })
-
-    expect(fragmentCount).toBeGreaterThan(0)
-  })
-
-  it('不包含真实密钥、旧域名、真实账号、余额或用量数据', async () => {
+  it('可检索 Markdown 与 SVG 不包含真实密钥、旧域名、账号、余额或用量数据', async () => {
     const guides = await readGuides()
     const sourceNames = expectedMedia.map((id) => `asset-sources/${id.replace('/', '-')}.svg`)
     const sources = await Promise.all([

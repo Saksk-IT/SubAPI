@@ -1,7 +1,8 @@
 import { createHash } from 'node:crypto'
 import { mkdir, mkdtemp, readFile, stat, symlink, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { dirname, join, resolve } from 'node:path'
+import { fileURLToPath } from 'node:url'
 
 import { afterEach, describe, expect, it } from 'vitest'
 
@@ -20,8 +21,10 @@ const slugs = [
 ] as const
 
 const tempDirs: string[] = []
+const frontendDirectory = resolve(dirname(fileURLToPath(import.meta.url)), '../../../../..')
 
-const sha256 = (value: string): string => createHash('sha256').update(value).digest('hex')
+const sha256 = (value: string | Buffer): string =>
+  createHash('sha256').update(value).digest('hex')
 
 const markdownFor = (slug: (typeof slugs)[number], extra = '') => `---
 title: ${slug} 指南
@@ -68,11 +71,16 @@ const createVerifiedMedia = async (
   fixture: Awaited<ReturnType<typeof createFixture>>,
 ): Promise<{
   readonly entry: Readonly<Record<string, string>>
+  readonly pngPath: string
   readonly webpPath: string
 }> => {
-  const source = '<svg xmlns="http://www.w3.org/2000/svg"><rect width="1" height="1"/></svg>'
-  const png = 'deterministic-png-output'
-  const webp = 'deterministic-webp-output'
+  const [source, png, webp] = await Promise.all([
+    readFile(
+      join(frontendDirectory, 'src/content/guides-v2/asset-sources/common-setup-flow.svg'),
+    ),
+    readFile(join(frontendDirectory, 'public/img/guides/v2/common/setup-flow.png')),
+    readFile(join(frontendDirectory, 'public/img/guides/v2/common/setup-flow.webp')),
+  ])
   const sourcePath = join(fixture.contentDir, 'sources/install.svg')
   const pngPath = join(fixture.assetRoot, 'frontend/public/img/guides/v2/install.png')
   const webpPath = join(fixture.assetRoot, 'frontend/public/img/guides/v2/install.webp')
@@ -81,9 +89,9 @@ const createVerifiedMedia = async (
     mkdir(join(fixture.assetRoot, 'frontend/public/img/guides/v2'), { recursive: true }),
   ])
   await Promise.all([
-    writeFile(sourcePath, source, 'utf8'),
-    writeFile(pngPath, png, 'utf8'),
-    writeFile(webpPath, webp, 'utf8'),
+    writeFile(sourcePath, source),
+    writeFile(pngPath, png),
+    writeFile(webpPath, webp),
   ])
   return {
     entry: {
@@ -96,6 +104,7 @@ const createVerifiedMedia = async (
       pngSha256: sha256(png),
       webpSha256: sha256(webp),
     },
+    pngPath,
     webpPath,
   }
 }
@@ -231,6 +240,75 @@ describe('buildManifest', () => {
     await writeFile(media.webpPath, 'tampered-webp-output', 'utf8')
 
     await expect(buildManifest(fixture)).rejects.toThrow(/media-manifest\.json.*WebP.*SHA-256/i)
+  })
+
+  it('替换为另一张有效 PNG 并同步哈希后仍拒绝视觉错配', async () => {
+    const fixture = await createFixture()
+    const media = await createVerifiedMedia(fixture)
+    const replacement = await readFile(
+      join(frontendDirectory, 'public/img/guides/v2/common/create-key-group.png'),
+    )
+    const tamperedEntry = { ...media.entry, pngSha256: sha256(replacement) }
+    await writeFile(media.pngPath, replacement)
+    await writeFile(
+      join(fixture.contentDir, 'media-manifest.json'),
+      JSON.stringify({ version: 'v2', media: [tamperedEntry] }),
+      'utf8',
+    )
+
+    await expect(buildManifest(fixture)).rejects.toThrow(/media-manifest\.json.*PNG.*视觉/i)
+  })
+
+  it('拒绝 reference-style link 指向不存在的跨页 fragment', async () => {
+    const fixture = await createFixture()
+    await writeFile(
+      join(fixture.contentDir, 'codex.md'),
+      markdownFor(
+        'codex',
+        '\n[失效锚点][bad]\n\n[bad]: /guides/v2/opencode#missing-anchor\n',
+      ),
+      'utf8',
+    )
+
+    await expect(buildManifest(fixture)).rejects.toThrow(/codex\.md.*fragment.*missing-anchor/i)
+  })
+
+  it('拒绝 HTML a 标签中的非法 HTTPS URL', async () => {
+    const fixture = await createFixture()
+    await writeFile(
+      join(fixture.contentDir, 'codex.md'),
+      markdownFor('codex', '\n<a href="https://">损坏链接</a>\n'),
+      'utf8',
+    )
+
+    await expect(buildManifest(fixture)).rejects.toThrow(/codex\.md.*HTTPS.*URL/i)
+  })
+
+  it('代码块中的伪 anchor 不能满足跨页 fragment', async () => {
+    const fixture = await createFixture()
+    await writeFile(
+      join(fixture.contentDir, 'opencode.md'),
+      markdownFor('opencode', '\n```md\n## 伪标题 {#fake-anchor}\n```\n'),
+      'utf8',
+    )
+    await writeFile(
+      join(fixture.contentDir, 'codex.md'),
+      markdownFor('codex', '\n[伪锚点](/guides/v2/opencode#fake-anchor)\n'),
+      'utf8',
+    )
+
+    await expect(buildManifest(fixture)).rejects.toThrow(/codex\.md.*fragment.*fake-anchor/i)
+  })
+
+  it('接受 marked heading token 提供的真实跨页 fragment', async () => {
+    const fixture = await createFixture()
+    await writeFile(
+      join(fixture.contentDir, 'codex.md'),
+      markdownFor('codex', '\n[有效锚点](/guides/v2/opencode#initialize-opencode)\n'),
+      'utf8',
+    )
+
+    await expect(buildManifest(fixture)).resolves.toMatchObject({ entries: { length: 9 } })
   })
 
   it('允许协议大小写不同的 HTTPS 外链', async () => {
