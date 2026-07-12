@@ -356,6 +356,11 @@
     width: min(calc(100% - 28px), var(--guide-v2-max));
   }
 
+  .guide-v2-header__brand,
+  .guide-v2-code__toolbar button {
+    min-height: 44px;
+  }
+
   .guide-v2-header__nav a:first-child {
     display: none;
   }
