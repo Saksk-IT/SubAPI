@@ -13,7 +13,9 @@
     "typecheck": "vue-tsc --noEmit",
     "test": "vitest",
     "test:run": "vitest run",
-    "test:coverage": "vitest run --coverage"
+    "test:coverage": "vitest run --coverage",
+    "guides:v2:manifest": "node scripts/build-guide-v2-manifest.mjs",
+    "guides:v2:check": "node scripts/build-guide-v2-manifest.mjs --check"
   },
   "dependencies": {
     "@airwallex/components-sdk": "^1.30.2",
@@ -34,7 +36,8 @@
     "vue-draggable-plus": "^0.6.1",
     "vue-i18n": "^9.14.5",
     "vue-router": "^4.2.5",
-    "xlsx": "^0.18.5"
+    "xlsx": "^0.18.5",
+    "yaml": "^2.9.0"
   },
   "devDependencies": {
     "@types/dompurify": "^3.0.5",
