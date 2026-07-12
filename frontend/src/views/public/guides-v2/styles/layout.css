@@ -1,0 +1,212 @@
+.guide-v2-header {
+  position: sticky;
+  z-index: 30;
+  top: 0;
+  border-bottom: 1px solid rgb(223 231 242 / 82%);
+  background: rgb(255 255 255 / 92%);
+  backdrop-filter: blur(16px);
+}
+
+.guide-v2-header__inner {
+  display: flex;
+  width: min(calc(100% - 40px), var(--guide-v2-max));
+  min-height: 68px;
+  margin: 0 auto;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+}
+
+.guide-v2-header__brand,
+.guide-v2-header__nav,
+.guide-v2-header__nav a {
+  display: inline-flex;
+  align-items: center;
+}
+
+.guide-v2-header__brand {
+  gap: 10px;
+  color: var(--guide-v2-text) !important;
+  font-size: 15px;
+  font-weight: 750;
+  letter-spacing: -0.01em;
+  text-decoration: none;
+}
+
+.guide-v2-header__mark {
+  display: grid;
+  width: 32px;
+  height: 32px;
+  border: 1px solid #bdd2f5;
+  border-radius: 10px;
+  background: linear-gradient(145deg, #f6faff, #dceaff);
+  color: var(--guide-v2-primary);
+  place-items: center;
+}
+
+.guide-v2-header__nav {
+  gap: 8px;
+}
+
+.guide-v2-header__nav a {
+  min-height: 44px;
+  padding: 0 13px;
+  border-radius: 10px;
+  color: var(--guide-v2-muted);
+  font-size: 14px;
+  font-weight: 650;
+  text-decoration: none;
+}
+
+.guide-v2-header__nav a:hover {
+  background: var(--guide-v2-primary-soft);
+  color: var(--guide-v2-primary-strong);
+}
+
+.guide-v2-main,
+.guide-v2-hub,
+.guide-v2-not-found {
+  width: min(calc(100% - 40px), var(--guide-v2-max));
+  margin: 0 auto;
+}
+
+.guide-v2-hero {
+  padding: 76px 0 52px;
+  border-bottom: 1px solid var(--guide-v2-border);
+  background:
+    radial-gradient(circle at 80% 20%, rgb(76 139 245 / 12%), transparent 30%),
+    linear-gradient(180deg, rgb(255 255 255 / 65%), transparent);
+}
+
+.guide-v2-breadcrumb {
+  display: flex;
+  margin-bottom: 28px;
+  align-items: center;
+  gap: 7px;
+  color: var(--guide-v2-subtle);
+  font-size: 13px;
+  font-weight: 650;
+}
+
+.guide-v2-breadcrumb a {
+  color: var(--guide-v2-muted);
+  text-decoration: none;
+}
+
+.guide-v2-hero h1 {
+  max-width: 780px;
+  margin: 0;
+  font-size: clamp(36px, 5vw, 62px);
+  font-weight: 800;
+  letter-spacing: -0.045em;
+  line-height: 1.08;
+}
+
+.guide-v2-hero__summary {
+  max-width: 680px;
+  margin: 22px 0 0;
+  color: var(--guide-v2-muted);
+  font-size: clamp(17px, 2vw, 20px);
+  line-height: 1.75;
+}
+
+.guide-v2-meta-list {
+  display: flex;
+  margin: 30px 0;
+  flex-wrap: wrap;
+  gap: 12px 28px;
+}
+
+.guide-v2-meta-list div {
+  display: grid;
+  grid-template-columns: auto auto;
+  align-items: center;
+  gap: 3px 9px;
+}
+
+.guide-v2-meta-list dt {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--guide-v2-subtle);
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.guide-v2-meta-list dd {
+  margin: 0;
+  color: var(--guide-v2-text);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.guide-v2-button {
+  display: inline-flex;
+  min-height: 48px;
+  padding: 0 20px;
+  border: 0;
+  border-radius: 13px;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 750;
+  cursor: pointer;
+}
+
+.guide-v2-button--primary {
+  background: var(--guide-v2-primary);
+  box-shadow: 0 10px 24px rgb(37 99 235 / 22%);
+  color: #fff;
+}
+
+.guide-v2-detail-grid {
+  display: grid;
+  padding: 54px 0 90px;
+  grid-template-columns: 220px minmax(0, 760px);
+  justify-content: space-between;
+  gap: 64px;
+}
+
+.guide-v2-sidebar {
+  position: sticky;
+  top: 94px;
+  max-height: calc(100vh - 118px);
+  overflow-y: auto;
+  align-self: start;
+}
+
+.guide-v2-mobile-toc {
+  display: none;
+}
+
+.guide-v2-navigation {
+  display: grid;
+  margin-top: 54px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.guide-v2-navigation a {
+  display: flex;
+  min-height: 96px;
+  padding: 18px 20px;
+  border: 1px solid var(--guide-v2-border);
+  border-radius: var(--guide-v2-radius);
+  background: var(--guide-v2-surface);
+  flex-direction: column;
+  justify-content: center;
+  text-decoration: none;
+}
+
+.guide-v2-navigation span {
+  color: var(--guide-v2-subtle);
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.guide-v2-navigation strong {
+  color: var(--guide-v2-text);
+  font-size: 15px;
+}

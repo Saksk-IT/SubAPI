@@ -1,62 +1,111 @@
 <script setup lang="ts">
 import { RouterLink } from 'vue-router'
 
+import { Icon } from '@/components/icons'
+import GuideV2Header from './components/GuideV2Header.vue'
 import { GUIDE_V2_REGISTRY } from './guide-v2.registry'
 
-const guideEntries = Object.freeze(
-  GUIDE_V2_REGISTRY.filter(({ meta }) => meta.slug !== 'index'),
+const clientSlugs = Object.freeze([
+  'codex',
+  'claude-code',
+  'opencode',
+  'openclaw',
+  'chatbox-mobile',
+  'cherry-studio-image',
+])
+
+const clientEntries = Object.freeze(
+  clientSlugs.flatMap((slug) => {
+    const entry = GUIDE_V2_REGISTRY.find(({ meta }) => meta.slug === slug)
+    return entry ? [entry] : []
+  }),
 )
+
+const clientIcons = Object.freeze({
+  codex: 'terminal',
+  'claude-code': 'chatBubble',
+  opencode: 'cube',
+  openclaw: 'cloud',
+  'chatbox-mobile': 'chat',
+  'cherry-studio-image': 'sparkles',
+} as const)
+
+const setupFlow = Object.freeze([
+  { label: '账户', icon: 'userCircle' },
+  { label: 'Key', icon: 'key' },
+  { label: '客户端', icon: 'cpu' },
+  { label: '测试', icon: 'beaker' },
+] as const)
 </script>
 
 <template>
-  <main class="guide-v2-hub" data-guide-v2-hub>
-    <p class="guide-v2-hub__eyebrow">V2 · 新手友好</p>
-    <h1>AI 客户端使用指南</h1>
-    <p>从创建 API Key 到客户端配置与故障排查，按你的使用场景选择教程。</p>
-    <nav aria-label="V2 教程列表">
-      <RouterLink v-for="entry in guideEntries" :key="entry.meta.slug" :to="entry.path">
-        <strong>{{ entry.meta.title }}</strong>
-        <span>{{ entry.meta.summary }}</span>
-      </RouterLink>
-    </nav>
-  </main>
+  <div class="guide-v2-theme" data-guide-v2-hub>
+    <GuideV2Header />
+    <main class="guide-v2-hub">
+      <section class="guide-v2-hub__hero">
+        <div class="guide-v2-hub__hero-copy">
+          <h1>AI 客户端使用指南</h1>
+          <p>把复杂配置拆成一条清晰路径。跟着当前页面给出的值完成设置，新手也能独立连接并验证。</p>
+          <div class="guide-v2-hub__entries" aria-label="选择开始方式">
+            <RouterLink data-primary-entry to="/guides/v2/get-started">
+              从零开始
+              <Icon name="arrowRight" size="sm" aria-hidden="true" />
+            </RouterLink>
+            <a data-primary-entry href="#clients">
+              我已有 API Key
+              <Icon name="arrowDown" size="sm" aria-hidden="true" />
+            </a>
+          </div>
+        </div>
+        <ol class="guide-v2-flow" data-setup-flow aria-label="完整配置流程">
+          <li v-for="item in setupFlow" :key="item.label" class="guide-v2-flow__item">
+            <span class="guide-v2-flow__icon">
+              <Icon :name="item.icon" size="sm" aria-hidden="true" />
+            </span>
+            <span>{{ item.label }}</span>
+          </li>
+        </ol>
+      </section>
+
+      <section id="clients" class="guide-v2-clients" aria-labelledby="guide-client-title">
+        <div class="guide-v2-section-heading">
+          <h2 id="guide-client-title">选择你的客户端</h2>
+          <p>每篇只保留当前客户端需要的配置、平台分支和验证步骤。</p>
+        </div>
+        <nav class="guide-v2-client-grid" aria-label="客户端教程">
+          <RouterLink
+            v-for="entry in clientEntries"
+            :key="entry.meta.slug"
+            class="guide-v2-client-card"
+            data-client-card
+            :to="entry.path"
+          >
+            <span class="guide-v2-client-card__icon">
+              <Icon :name="clientIcons[entry.meta.slug as keyof typeof clientIcons]" size="lg" aria-hidden="true" />
+            </span>
+            <h3>{{ entry.meta.title }}</h3>
+            <p>{{ entry.meta.summary }}</p>
+            <span class="guide-v2-client-card__meta">
+              <span>{{ entry.meta.platforms.join(' · ') }}</span>
+              <span>{{ entry.meta.duration }}</span>
+              <span>{{ entry.meta.difficulty }}</span>
+            </span>
+          </RouterLink>
+        </nav>
+      </section>
+
+      <aside class="guide-v2-legacy" data-legacy-entry>
+        <span>仍需查看原有版式？V1 路径和内容保持不变。</span>
+        <RouterLink to="/registration-key-guide">
+          打开旧版教程
+          <Icon name="externalLink" size="xs" aria-hidden="true" />
+        </RouterLink>
+      </aside>
+    </main>
+  </div>
 </template>
 
-<style scoped>
-.guide-v2-hub {
-  width: min(100% - 32px, 960px);
-  margin: 48px auto;
-}
-
-.guide-v2-hub__eyebrow {
-  color: #2563eb;
-  font-weight: 700;
-}
-
-nav {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr));
-  gap: 16px;
-  margin-top: 32px;
-}
-
-a {
-  display: flex;
-  min-height: 96px;
-  padding: 20px;
-  flex-direction: column;
-  gap: 8px;
-  border: 1px solid #dbeafe;
-  border-radius: 16px;
-  color: inherit;
-  text-decoration: none;
-}
-
-a:hover {
-  border-color: #60a5fa;
-}
-
-span {
-  color: #475569;
-}
-</style>
+<style src="./styles/tokens.css"></style>
+<style src="./styles/layout.css"></style>
+<style src="./styles/content.css"></style>
+<style src="./styles/responsive.css"></style>

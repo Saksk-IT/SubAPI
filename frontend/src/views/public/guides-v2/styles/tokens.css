@@ -1,0 +1,47 @@
+.guide-v2-theme {
+  --guide-v2-bg: #f5f8fc;
+  --guide-v2-surface: #ffffff;
+  --guide-v2-surface-soft: #f8fbff;
+  --guide-v2-text: #13213a;
+  --guide-v2-muted: #5d6b82;
+  --guide-v2-subtle: #8490a3;
+  --guide-v2-border: #dfe7f2;
+  --guide-v2-border-strong: #c8d6e8;
+  --guide-v2-primary: #2563eb;
+  --guide-v2-primary-strong: #1d4ed8;
+  --guide-v2-primary-soft: #eaf2ff;
+  --guide-v2-success: #16835b;
+  --guide-v2-warning: #a75b09;
+  --guide-v2-danger: #bd3c47;
+  --guide-v2-code: #101b30;
+  --guide-v2-shadow: 0 20px 55px rgb(50 82 125 / 10%);
+  --guide-v2-radius-sm: 12px;
+  --guide-v2-radius: 18px;
+  --guide-v2-radius-lg: 24px;
+  --guide-v2-max: 1180px;
+  min-height: 100vh;
+  background: var(--guide-v2-bg);
+  color: var(--guide-v2-text);
+  font-family: Inter, "SF Pro Display", "PingFang SC", "Microsoft YaHei", sans-serif;
+  line-height: 1.7;
+}
+
+.guide-v2-theme *,
+.guide-v2-theme *::before,
+.guide-v2-theme *::after {
+  box-sizing: border-box;
+}
+
+.guide-v2-theme a {
+  color: var(--guide-v2-primary-strong);
+}
+
+.guide-v2-theme button,
+.guide-v2-theme a {
+  -webkit-tap-highlight-color: transparent;
+}
+
+.guide-v2-theme :focus-visible {
+  outline: 3px solid rgb(37 99 235 / 38%);
+  outline-offset: 3px;
+}
