@@ -23,7 +23,6 @@ import {
 
 const route = useRoute()
 const appStore = useAppStore()
-const previousDocumentTitle = document.title
 const guide = ref<ParsedGuideV2>()
 const loadError = ref('')
 const loading = ref(false)
@@ -52,7 +51,7 @@ const selectedPlatform = computed(() => {
 const visibility = computed(() =>
   guide.value
     ? deriveGuideV2Visibility(guide.value, selectedPlatform.value)
-    : { blocks: [], toc: [], platformByAnchor: new Map<string, string>() },
+    : { blocks: [], toc: [], platformByAnchor: Object.freeze(Object.create(null)) },
 )
 
 const currentSlug = (): GuideV2Slug | null => entry.value?.meta.slug ?? null
@@ -63,7 +62,6 @@ const syncProgress = (): void => {
 const unsubscribe = progressStore.subscribe(syncProgress)
 onBeforeUnmount(() => {
   unsubscribe()
-  document.title = previousDocumentTitle
 })
 
 const markdownBody = (source: string): string => {
@@ -81,7 +79,7 @@ const scrollToAnchor = async (anchor: string, updateHash = false): Promise<void>
     const requiredPlatform = deriveGuideV2Visibility(
       currentGuide,
       selectedPlatform.value,
-    ).platformByAnchor.get(anchor)
+    ).platformByAnchor[anchor]
     if (requiredPlatform && requiredPlatform !== selectedPlatform.value) {
       try {
         progressStore.setPlatform(current, requiredPlatform)

@@ -34,6 +34,13 @@ const guide: ParsedGuideV2 = Object.freeze({
     }),
     Object.freeze({ type: 'code' as const, language: 'toml', code: 'model = "example"' }),
     Object.freeze({
+      type: 'media' as const,
+      id: 'codex/config',
+      path: '/img/guides/v2/codex/config.webp',
+      alt: '配置示意',
+      title: '复制当前值',
+    }),
+    Object.freeze({
       type: 'heading' as const,
       level: 3 as const,
       text: 'Windows',
@@ -49,13 +56,6 @@ const guide: ParsedGuideV2 = Object.freeze({
       platform: 'macOS',
     }),
     Object.freeze({ type: 'paragraph' as const, html: '<p>macOS 路径</p>' }),
-    Object.freeze({
-      type: 'media' as const,
-      id: 'codex/config',
-      path: '/img/guides/v2/codex/config.webp',
-      alt: '配置示意',
-      title: '复制当前值',
-    }),
   ]),
 })
 

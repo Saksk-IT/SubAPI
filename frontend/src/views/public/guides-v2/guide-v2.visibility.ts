@@ -9,7 +9,7 @@ const ANCHOR_PATTERN = /^[a-z][a-z0-9-]*$/
 export interface GuideV2Visibility {
   readonly blocks: readonly GuideV2Block[]
   readonly toc: readonly GuideV2TocItem[]
-  readonly platformByAnchor: ReadonlyMap<string, string>
+  readonly platformByAnchor: Readonly<Record<string, string>>
 }
 
 export const decodeGuideV2Hash = (hash: string): string | null => {
@@ -27,17 +27,22 @@ export const deriveGuideV2Visibility = (
   selectedPlatform: string,
 ): GuideV2Visibility => {
   let platformScope: string | null = null
-  const platformByAnchor = new Map<string, string>()
+  const platformEntries = guide.blocks.flatMap((block) =>
+    block.type === 'heading' && block.platform && block.anchor
+      ? [[block.anchor, block.platform] as const]
+      : [],
+  )
+  const platformByAnchor = Object.freeze(
+    Object.create(
+      null,
+      Object.getOwnPropertyDescriptors(Object.fromEntries(platformEntries)),
+    ) as Record<string, string>,
+  )
   const blocks = guide.blocks.filter((block) => {
     if (block.type === 'heading') {
       if (block.level <= 2) platformScope = null
-      if (block.level === 3 && block.platform) {
-        platformScope = block.platform
-        if (block.anchor) platformByAnchor.set(block.anchor, block.platform)
-      }
+      if (block.level === 3) platformScope = block.platform ?? null
     }
-    // 媒体是跨平台文字步骤的等价说明，不继承最后一个平台小节的可见性。
-    if (block.type === 'media') return true
     return platformScope === null || platformScope === selectedPlatform
   })
   const visibleAnchors = new Set(

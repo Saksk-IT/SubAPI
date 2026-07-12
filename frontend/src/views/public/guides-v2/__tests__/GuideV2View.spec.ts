@@ -62,8 +62,9 @@ describe('GuideV2View', () => {
     expect(document.title).toBe('Codex API 配置 · 蓝图测试站')
     await router.push('/guides/v2/claude-code')
     await vi.waitFor(() => expect(document.title).toBe('Claude Code 配置 · 蓝图测试站'))
+    document.title = '目标页面标题'
     wrapper.unmount()
-    expect(document.title).toBe('原始标题')
+    expect(document.title).toBe('目标页面标题')
   })
 
   it('平台切换同步过滤正文、桌面目录和移动目录，同时保留共享步骤', async () => {
