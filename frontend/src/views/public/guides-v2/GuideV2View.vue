@@ -2,6 +2,7 @@
 import { computed, nextTick, onBeforeUnmount, ref, shallowRef, watch } from 'vue'
 import { RouterLink, useRoute } from 'vue-router'
 
+import { useAppStore } from '@/stores/app'
 import mediaManifest from '../../../content/guides-v2/media-manifest.json'
 import GuideV2Header from './components/GuideV2Header.vue'
 import GuideV2Hero from './components/GuideV2Hero.vue'
@@ -14,8 +15,15 @@ import GuideV2NotFoundView from './GuideV2NotFoundView.vue'
 import { parseGuideMarkdown } from './guide-v2.parser'
 import { getGuideV2Entry, getGuideV2Navigation } from './guide-v2.registry'
 import type { GuideV2Media, GuideV2Slug, ParsedGuideV2 } from './guide-v2.types'
+import {
+  decodeGuideV2Hash,
+  deriveGuideV2Visibility,
+  isGuideV2TocAnchor,
+} from './guide-v2.visibility'
 
 const route = useRoute()
+const appStore = useAppStore()
+const previousDocumentTitle = document.title
 const guide = ref<ParsedGuideV2>()
 const loadError = ref('')
 const loading = ref(false)
@@ -41,6 +49,11 @@ const selectedPlatform = computed(() => {
     ? progress.value.platform
     : (platforms[0] ?? '')
 })
+const visibility = computed(() =>
+  guide.value
+    ? deriveGuideV2Visibility(guide.value, selectedPlatform.value)
+    : { blocks: [], toc: [], platformByAnchor: new Map<string, string>() },
+)
 
 const currentSlug = (): GuideV2Slug | null => entry.value?.meta.slug ?? null
 const syncProgress = (): void => {
@@ -48,7 +61,10 @@ const syncProgress = (): void => {
   if (value) progress.value = progressStore.get(value)
 }
 const unsubscribe = progressStore.subscribe(syncProgress)
-onBeforeUnmount(unsubscribe)
+onBeforeUnmount(() => {
+  unsubscribe()
+  document.title = previousDocumentTitle
+})
 
 const markdownBody = (source: string): string => {
   const match = /^---\r?\n[\s\S]*?\r?\n---\r?\n/.exec(source)
@@ -57,15 +73,58 @@ const markdownBody = (source: string): string => {
 }
 
 const scrollToAnchor = async (anchor: string, updateHash = false): Promise<void> => {
-  activeAnchor.value = anchor
-  const current = currentSlug()
-  if (current) progressStore.setLastAnchor(current, anchor)
-  await nextTick()
-  document.getElementById(anchor)?.scrollIntoView({
-    behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth',
-    block: 'start',
-  })
-  if (updateHash && route.hash !== `#${anchor}`) window.history.replaceState(null, '', `#${anchor}`)
+  try {
+    const currentGuide = guide.value
+    const current = currentSlug()
+    if (!currentGuide || !current || !isGuideV2TocAnchor(currentGuide, anchor)) return
+
+    const requiredPlatform = deriveGuideV2Visibility(
+      currentGuide,
+      selectedPlatform.value,
+    ).platformByAnchor.get(anchor)
+    if (requiredPlatform && requiredPlatform !== selectedPlatform.value) {
+      try {
+        progressStore.setPlatform(current, requiredPlatform)
+      } catch {
+        return
+      }
+    }
+
+    await nextTick()
+    const currentVisibility = deriveGuideV2Visibility(currentGuide, selectedPlatform.value)
+    if (!currentVisibility.toc.some((item) => item.anchor === anchor)) return
+    const target = document.getElementById(anchor)
+    if (!target) return
+
+    activeAnchor.value = anchor
+    try {
+      progressStore.setLastAnchor(current, anchor)
+    } catch {
+      // 本地存储或进度状态异常时仍允许用户继续阅读。
+    }
+    try {
+      target.scrollIntoView({
+        behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth',
+        block: 'start',
+      })
+    } catch {
+      // 不支持 scrollIntoView 的环境保持当前页面可用。
+    }
+    if (updateHash && route.hash !== `#${anchor}`) {
+      try {
+        window.history.replaceState(null, '', `#${anchor}`)
+      } catch {
+        // 浏览器限制 history API 时仅跳过地址栏同步。
+      }
+    }
+  } catch {
+    // 所有导航输入都来自 URL 或渐进增强控件，异常不得中断页面。
+  }
+}
+
+const scrollToRouteHash = (hash: string): void => {
+  const anchor = decodeGuideV2Hash(hash)
+  if (anchor) void scrollToAnchor(anchor)
 }
 
 const loadGuide = async (): Promise<void> => {
@@ -92,7 +151,8 @@ const loadGuide = async (): Promise<void> => {
     })
     if (sequence === loadSequence) {
       guide.value = parsed
-      const initialAnchor = route.hash.slice(1) || progress.value.lastAnchor
+      const routeAnchor = decodeGuideV2Hash(route.hash)
+      const initialAnchor = routeAnchor ?? progress.value.lastAnchor
       if (initialAnchor) void scrollToAnchor(initialAnchor)
     }
   } catch (error) {
@@ -139,11 +199,15 @@ const startGuide = (): void => {
 
 watch(slug, loadGuide, { immediate: true })
 watch(
-  () => route.hash,
-  (hash) => {
-    const anchor = hash.slice(1)
-    if (anchor && guide.value) void scrollToAnchor(anchor)
+  [() => guide.value?.meta.title, () => appStore.siteName],
+  ([title, siteName]) => {
+    if (title) document.title = `${title} · ${siteName}`
   },
+  { immediate: true },
+)
+watch(
+  () => route.hash,
+  (hash) => guide.value && scrollToRouteHash(hash),
 )
 </script>
 
@@ -160,13 +224,13 @@ watch(
       <template v-else-if="guide">
         <GuideV2Hero :meta="guide.meta" @start="startGuide" />
         <GuideV2MobileToc
-          :toc="guide.toc"
+          :toc="visibility.toc"
           :completed-step-ids="progress.completedStepIds"
           @navigate="scrollToAnchor($event, true)"
         />
         <div class="guide-v2-detail-grid">
           <GuideV2Sidebar
-            :toc="guide.toc"
+            :toc="visibility.toc"
             :completed-step-ids="progress.completedStepIds"
             :active-anchor="activeAnchor"
             @navigate="scrollToAnchor($event)"

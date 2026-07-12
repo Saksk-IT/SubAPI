@@ -13,6 +13,7 @@ const emit = defineEmits<{ navigate: [anchor: string] }>()
 const open = ref(false)
 const trigger = ref<HTMLButtonElement>()
 const closeButton = ref<HTMLButtonElement>()
+const dialog = ref<HTMLElement>()
 
 const show = async (): Promise<void> => {
   open.value = true
@@ -26,15 +27,38 @@ const close = async (): Promise<void> => {
   trigger.value?.focus()
 }
 
-const navigate = (anchor: string): void => {
+const navigate = async (anchor: string): Promise<void> => {
+  open.value = false
   emit('navigate', anchor)
-  void close()
+  await nextTick()
+  const target = document.getElementById(anchor)
+  if (!target) return
+  if (!target.hasAttribute('tabindex')) target.setAttribute('tabindex', '-1')
+  target.focus({ preventScroll: true })
 }
 
 const onKeydown = (event: KeyboardEvent): void => {
   if (event.key === 'Escape') {
     event.preventDefault()
     void close()
+    return
+  }
+  if (event.key !== 'Tab' || !dialog.value) return
+
+  const focusable = Array.from(
+    dialog.value.querySelectorAll<HTMLElement>(
+      'button:not([disabled]), a[href], [tabindex]:not([tabindex="-1"])',
+    ),
+  )
+  if (focusable.length === 0) return
+  const first = focusable[0]
+  const last = focusable.at(-1)!
+  if (event.shiftKey && document.activeElement === first) {
+    event.preventDefault()
+    last.focus()
+  } else if (!event.shiftKey && document.activeElement === last) {
+    event.preventDefault()
+    first.focus()
   }
 }
 </script>
@@ -62,6 +86,7 @@ const onKeydown = (event: KeyboardEvent): void => {
       @click.self="close"
     >
       <section
+        ref="dialog"
         class="guide-v2-mobile-toc__dialog"
         role="dialog"
         aria-modal="true"
@@ -81,7 +106,7 @@ const onKeydown = (event: KeyboardEvent): void => {
             :key="item.anchor"
             :href="`#${item.anchor}`"
             :class="`guide-v2-mobile-toc__link guide-v2-mobile-toc__link--level-${item.level}`"
-            @click="navigate(item.anchor)"
+            @click.prevent="navigate(item.anchor)"
           >
             <Icon
               :name="completedStepIds.includes(item.anchor) ? 'checkCircle' : 'chevronRight'"

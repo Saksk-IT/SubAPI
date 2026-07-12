@@ -77,9 +77,12 @@ describe('GuideV2Renderer', () => {
       props: { guide, completedStepIds: [], selectedPlatform: 'Windows' },
     })
     const tabs = wrapper.findAll('[role="tab"]')
+    const panel = wrapper.get('[role="tabpanel"]')
 
     expect(wrapper.text()).toContain('Windows 路径')
     expect(wrapper.text()).not.toContain('macOS 路径')
+    expect(tabs[0].attributes('aria-controls')).toBe(panel.attributes('id'))
+    expect(panel.attributes('aria-labelledby')).toBe(tabs[0].attributes('id'))
     await tabs[0].trigger('keydown', { key: 'ArrowRight' })
     await tabs[1].trigger('keydown', { key: 'Enter' })
     expect(wrapper.emitted('select-platform')).toContainEqual(['macOS'])

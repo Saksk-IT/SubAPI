@@ -3,6 +3,7 @@ import { computed, nextTick, ref } from 'vue'
 
 import mediaManifest from '../../../../content/guides-v2/media-manifest.json'
 import type { GuideV2Block, ParsedGuideV2 } from '../guide-v2.types'
+import { deriveGuideV2Visibility } from '../guide-v2.visibility'
 import GuideV2CodeBlock from './GuideV2CodeBlock.vue'
 import GuideV2Media from './GuideV2Media.vue'
 import GuideV2Notice from './GuideV2Notice.vue'
@@ -22,18 +23,11 @@ const emit = defineEmits<{
 
 const tabRefs = ref<HTMLElement[]>([])
 
-const visibleBlocks = computed(() => {
-  let platformScope: string | null = null
-  return props.guide.blocks.filter((block) => {
-    if (block.type === 'heading') {
-      if (block.level <= 2) platformScope = null
-      if (block.level === 3 && block.platform) platformScope = block.platform
-    }
-    // 教程媒体是所有平台共用的等价说明，不能被最后一个平台小节意外吞掉。
-    if (block.type === 'media') return true
-    return platformScope === null || platformScope === props.selectedPlatform
-  })
-})
+const visibility = computed(() => deriveGuideV2Visibility(props.guide, props.selectedPlatform))
+const panelId = computed(() => `guide-v2-platform-panel-${props.guide.meta.slug}`)
+const platformId = (platform: string): string =>
+  `guide-v2-platform-tab-${props.guide.meta.slug}-${platform.toLowerCase()}`
+const selectedTabId = computed(() => platformId(props.selectedPlatform))
 
 const mediaMeta = (id: string) =>
   mediaManifest.media.find((candidate) => candidate.id === id)
@@ -93,6 +87,8 @@ const onTabKeydown = async (event: KeyboardEvent, platform: string, index: numbe
           :ref="(element) => setTabRef(element, index)"
           type="button"
           role="tab"
+          :id="platformId(platform)"
+          :aria-controls="panelId"
           :aria-selected="selectedPlatform === platform"
           :tabindex="selectedPlatform === platform ? 0 : -1"
           @click="emit('select-platform', platform)"
@@ -103,47 +99,54 @@ const onTabKeydown = async (event: KeyboardEvent, platform: string, index: numbe
       </div>
     </section>
 
-    <template v-for="(block, index) in visibleBlocks" :key="`${block.type}-${index}`">
-      <GuideV2Step
-        v-if="block.type === 'heading' && block.stepNumber && block.anchor"
-        :number="block.stepNumber"
-        :title="block.text"
-        :anchor="block.anchor"
-        :completed="completedStepIds.includes(block.anchor)"
-        @toggle="emit('toggle-step', block.anchor)"
-      />
-      <component
-        :is="`h${block.level}`"
-        v-else-if="block.type === 'heading' && block.level > 1"
-        :id="block.anchor"
-        :class="`guide-v2-heading guide-v2-heading--${block.level}`"
-      >
-        {{ block.text }}
-      </component>
-      <GuideV2Notice
-        v-else-if="notice(block)"
-        :tone="notice(block)!.tone"
-        :html="notice(block)!.html"
-      />
-      <GuideV2SafeHtml
-        v-else-if="block.type === 'paragraph' || block.type === 'table'"
-        :html="block.html"
-      />
-      <GuideV2CodeBlock
-        v-else-if="block.type === 'code'"
-        :language="block.language"
-        :code="block.code"
-      />
-      <GuideV2Media
-        v-else-if="block.type === 'media'"
-        kind="image"
-        :src="block.path"
-        :fallback-src="pngFallback(block.path)"
-        :alt="block.alt"
-        :caption="block.title"
-        :width="mediaMeta(block.id)?.width ?? 1280"
-        :height="mediaMeta(block.id)?.height ?? 720"
-      />
-    </template>
+    <div
+      :id="panelId"
+      :role="guide.platforms.length > 1 ? 'tabpanel' : undefined"
+      :aria-labelledby="guide.platforms.length > 1 ? selectedTabId : undefined"
+      class="guide-v2-platform-panel"
+    >
+      <template v-for="(block, index) in visibility.blocks" :key="`${block.type}-${index}`">
+        <GuideV2Step
+          v-if="block.type === 'heading' && block.stepNumber && block.anchor"
+          :number="block.stepNumber"
+          :title="block.text"
+          :anchor="block.anchor"
+          :completed="completedStepIds.includes(block.anchor)"
+          @toggle="emit('toggle-step', block.anchor)"
+        />
+        <component
+          :is="`h${block.level}`"
+          v-else-if="block.type === 'heading' && block.level > 1"
+          :id="block.anchor"
+          :class="`guide-v2-heading guide-v2-heading--${block.level}`"
+        >
+          {{ block.text }}
+        </component>
+        <GuideV2Notice
+          v-else-if="notice(block)"
+          :tone="notice(block)!.tone"
+          :html="notice(block)!.html"
+        />
+        <GuideV2SafeHtml
+          v-else-if="block.type === 'paragraph' || block.type === 'table'"
+          :html="block.html"
+        />
+        <GuideV2CodeBlock
+          v-else-if="block.type === 'code'"
+          :language="block.language"
+          :code="block.code"
+        />
+        <GuideV2Media
+          v-else-if="block.type === 'media'"
+          kind="image"
+          :src="block.path"
+          :fallback-src="pngFallback(block.path)"
+          :alt="block.alt"
+          :caption="block.title"
+          :width="mediaMeta(block.id)?.width ?? 1280"
+          :height="mediaMeta(block.id)?.height ?? 720"
+        />
+      </template>
+    </div>
   </div>
 </template>
