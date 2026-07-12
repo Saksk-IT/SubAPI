@@ -28,6 +28,9 @@ const (
 	AirwallexDemoStaticDomain = "https://static-demo.airwallex.com"
 	// AirwallexDemoCheckoutDomain 是 Airwallex 沙箱环境收银台元素和 iframe 域名。
 	AirwallexDemoCheckoutDomain = "https://checkout-demo.airwallex.com"
+	// ImagePlaygroundCSPPolicy keeps the embedded playground on the same origin
+	// while preventing it from sending credentials or image data to third parties.
+	ImagePlaygroundCSPPolicy = "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' data: blob:; frame-src 'none'; frame-ancestors 'self'; object-src 'none'; worker-src 'none'; manifest-src 'self'; base-uri 'self'; form-action 'none'"
 )
 
 var requiredCSPDirectiveValues = []struct {
@@ -80,6 +83,13 @@ func SecurityHeaders(cfg config.CSPConfig, getFrameSrcOrigins func() []string) g
 
 	// Enhance policy with required directives (nonce placeholder and Cloudflare Insights)
 	policy = enhanceCSPPolicy(policy)
+	if !directiveHasValue(policy, "frame-src", "'self'") {
+		if strings.Contains(policy, "frame-src ") {
+			policy = addToDirective(policy, "frame-src", "'self'")
+		} else {
+			policy = strings.TrimSuffix(policy, ";") + "; frame-src 'self'"
+		}
+	}
 
 	return func(c *gin.Context) {
 		finalPolicy := policy
@@ -92,6 +102,13 @@ func SecurityHeaders(cfg config.CSPConfig, getFrameSrcOrigins func() []string) g
 		}
 
 		c.Header("X-Content-Type-Options", "nosniff")
+		if isImagePlaygroundRoutePath(c) {
+			c.Header("X-Frame-Options", "SAMEORIGIN")
+			c.Header("Referrer-Policy", "no-referrer")
+			c.Header("Content-Security-Policy", ImagePlaygroundCSPPolicy)
+			c.Next()
+			return
+		}
 		c.Header("X-Frame-Options", "DENY")
 		c.Header("Referrer-Policy", "strict-origin-when-cross-origin")
 		if isAPIRoutePath(c) {
@@ -113,6 +130,14 @@ func SecurityHeaders(cfg config.CSPConfig, getFrameSrcOrigins func() []string) g
 		}
 		c.Next()
 	}
+}
+
+func isImagePlaygroundRoutePath(c *gin.Context) bool {
+	if c == nil || c.Request == nil || c.Request.URL == nil {
+		return false
+	}
+	path := c.Request.URL.Path
+	return path == "/image-playground" || strings.HasPrefix(path, "/image-playground/")
 }
 
 func isAPIRoutePath(c *gin.Context) bool {

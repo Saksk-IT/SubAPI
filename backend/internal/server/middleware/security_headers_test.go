@@ -82,6 +82,68 @@ func TestGetNonceFromContext(t *testing.T) {
 }
 
 func TestSecurityHeaders(t *testing.T) {
+	t.Run("default_policy_explicitly_allows_same_origin_frames", func(t *testing.T) {
+		assert.True(t, directiveHasValue(config.DefaultCSPPolicy, "frame-src", "'self'"))
+	})
+
+	t.Run("main_app_allows_same_origin_image_playground_frame", func(t *testing.T) {
+		legacyPolicy := strings.Replace(config.DefaultCSPPolicy, "frame-src 'self'", "frame-src", 1)
+		middleware := SecurityHeaders(config.CSPConfig{
+			Enabled: true,
+			Policy:  legacyPolicy,
+		}, nil)
+
+		w := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(w)
+		c.Request = httptest.NewRequest(http.MethodGet, "/dashboard", nil)
+
+		middleware(c)
+
+		assert.Equal(t, "DENY", w.Header().Get("X-Frame-Options"))
+		assert.Equal(t, "strict-origin-when-cross-origin", w.Header().Get("Referrer-Policy"))
+		csp := w.Header().Get("Content-Security-Policy")
+		assert.True(t, directiveHasValue(csp, "frame-src", "'self'"))
+		assert.Contains(t, csp, "frame-ancestors 'none'")
+	})
+
+	t.Run("image_playground_uses_same_origin_embedding_policy", func(t *testing.T) {
+		middleware := SecurityHeaders(config.CSPConfig{
+			Enabled: true,
+			Policy:  config.DefaultCSPPolicy,
+		}, nil)
+
+		w := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(w)
+		c.Request = httptest.NewRequest(http.MethodGet, "/image-playground/index.html", nil)
+
+		middleware(c)
+
+		assert.Equal(t, "SAMEORIGIN", w.Header().Get("X-Frame-Options"))
+		assert.Equal(t, "no-referrer", w.Header().Get("Referrer-Policy"))
+		csp := w.Header().Get("Content-Security-Policy")
+		assert.Contains(t, csp, "connect-src 'self' data: blob:")
+		assert.NotContains(t, csp, "connect-src 'self' https:")
+		assert.Contains(t, csp, "img-src 'self' data: blob:")
+		assert.NotContains(t, csp, "img-src 'self' data: https:")
+		assert.Contains(t, csp, "object-src 'none'")
+		assert.Contains(t, csp, "frame-ancestors 'self'")
+		assert.NotContains(t, csp, "frame-ancestors 'none'")
+	})
+
+	t.Run("image_playground_keeps_strict_policy_when_general_csp_is_disabled", func(t *testing.T) {
+		middleware := SecurityHeaders(config.CSPConfig{Enabled: false}, nil)
+
+		w := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(w)
+		c.Request = httptest.NewRequest(http.MethodGet, "/image-playground/assets/app.js", nil)
+
+		middleware(c)
+
+		assert.Equal(t, "SAMEORIGIN", w.Header().Get("X-Frame-Options"))
+		assert.Equal(t, "no-referrer", w.Header().Get("Referrer-Policy"))
+		assert.Equal(t, ImagePlaygroundCSPPolicy, w.Header().Get("Content-Security-Policy"))
+	})
+
 	t.Run("sets_basic_security_headers", func(t *testing.T) {
 		cfg := config.CSPConfig{Enabled: false}
 		middleware := SecurityHeaders(cfg, nil)

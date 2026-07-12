@@ -13,7 +13,7 @@
     >
       <!-- Header -->
       <AppHeader />
-      <FirstRechargeBanner />
+      <FirstRechargeBanner v-if="!hideFirstRechargeBanner" />
 
       <!-- Main Content -->
       <main class="p-4 md:p-6 lg:p-8">
@@ -33,6 +33,12 @@ import { useOnboardingStore } from '@/stores/onboarding'
 import AppSidebar from './AppSidebar.vue'
 import AppHeader from './AppHeader.vue'
 import FirstRechargeBanner from '@/components/common/FirstRechargeBanner.vue'
+
+withDefaults(defineProps<{
+  hideFirstRechargeBanner?: boolean
+}>(), {
+  hideFirstRechargeBanner: false,
+})
 
 const appStore = useAppStore()
 const authStore = useAuthStore()

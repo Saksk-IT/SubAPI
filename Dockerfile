@@ -25,15 +25,20 @@ ARG NPM_CONFIG_REGISTRY
 ARG PNPM_VERSION
 
 WORKDIR /app/frontend
+ENV NODE_OPTIONS=--max-old-space-size=1536
 
 # Install pnpm (pinned to v9 to match CI and keep builds reproducible)
 RUN npm install -g --no-audit --no-fund pnpm@${PNPM_VERSION} && pnpm --version
 
 # Install dependencies first (better caching)
 COPY frontend/package.json frontend/pnpm-lock.yaml frontend/.npmrc ./
+COPY frontend/image-playground/package.json frontend/image-playground/package-lock.json ./image-playground/
 RUN --mount=type=cache,id=sub2api-pnpm-store,target=/root/.local/share/pnpm/store \
     if [ -n "${NPM_CONFIG_REGISTRY}" ]; then pnpm config set registry "${NPM_CONFIG_REGISTRY}"; fi && \
     pnpm install --frozen-lockfile --prefer-offline
+RUN --mount=type=cache,id=sub2api-npm-cache,target=/root/.npm \
+    if [ -n "${NPM_CONFIG_REGISTRY}" ]; then npm config set registry "${NPM_CONFIG_REGISTRY}"; fi && \
+    npm --prefix image-playground ci
 
 # Copy frontend source and build.
 # LegalDocumentView.vue (admin-compliance gate) build-time imports

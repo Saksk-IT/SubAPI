@@ -47,6 +47,18 @@ describe('AppSidebar v0.1.149 merge', () => {
     expect(componentSource).not.toMatch(/^(<<<<<<<|=======|>>>>>>>)/m)
   })
 
+  it('adds a gated image generation entry without replacing batch image', () => {
+    expect(componentSource).toContain("import { useImageGenerationAccess } from '@/composables/useImageGenerationAccess'")
+    expect(componentSource).toContain("{ path: '/image-generation', label: t('nav.imageGeneration'), icon: ImageGenerationIcon")
+    expect(componentSource).toContain('featureFlag: flagImageGenerationAccess')
+    expect(componentSource).toContain('refreshImageGenerationAccess(true)')
+    expect(componentSource).toContain("{ path: '/batch-image', label: t('nav.batchImage'), icon: BatchImageIcon")
+
+    expect(componentSource.indexOf("path: '/image-generation'")).toBeLessThan(
+      componentSource.indexOf("path: '/batch-image'")
+    )
+  })
+
   it('adds the upstream batch image entry behind its access gate', () => {
     expect(componentSource).toContain("import { useBatchImageAccess } from '@/composables/useBatchImageAccess'")
     expect(componentSource).toContain('const { canUseBatchImage, refreshBatchImageAccess } = useBatchImageAccess()')

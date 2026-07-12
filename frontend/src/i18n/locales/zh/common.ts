@@ -150,6 +150,7 @@ export default {
     dashboard: '仪表盘',
     announcements: '公告',
     apiKeys: 'API 密钥',
+    imageGeneration: '生图',
     batchImage: '批量生图',
     usage: '使用记录',
     redeem: '兑换',
@@ -190,6 +191,24 @@ export default {
     channelMonitor: '渠道监控',
     channelStatus: '渠道状态',
     riskControl: '风控中心',
+  },
+
+  imageGeneration: {
+    title: '生图',
+    subtitle: '使用已授权的 OpenAI API 密钥进入生图工作区。',
+    keyLabel: 'API 密钥',
+    loading: '正在加载生图权限…',
+    loadError: '加载 API 密钥失败',
+    noKeyTitle: '暂无可用的生图密钥',
+    noKeyDescription: '请先创建已启用生图权限的 OpenAI API 密钥。',
+    manageKeys: '管理 API 密钥',
+    retry: '重试',
+    waiting: '正在连接生图工作区…',
+    timeoutTitle: '生图工作区连接超时',
+    timeoutDescription: '工作区未能及时建立安全连接，请重试。',
+    connectionErrorTitle: '无法连接生图工作区',
+    connectionErrorDescription: '安全连接建立失败，请重试。',
+    frameTitle: '生图工作区',
   },
 
   // Auth

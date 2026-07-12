@@ -69,13 +69,22 @@ jobs:
           cache: 'pnpm'
           cache-dependency-path: frontend/pnpm-lock.yaml
 
-      - name: Install dependencies
+      - name: Install Vue dependencies
         run: pnpm install --frozen-lockfile
         working-directory: frontend
 
-      - name: Build frontend
-        run: pnpm run build
-        working-directory: frontend
+      - name: Install image playground dependencies
+        run: npm ci
+        working-directory: frontend/image-playground
+
+      - name: Test both frontends
+        run: make test-frontend
+
+      - name: Audit both frontend production dependency trees
+        run: make audit-frontend
+
+      - name: Build Vue then React frontends
+        run: make build-frontend
 
       - name: Upload frontend artifact
         uses: actions/upload-artifact@v7

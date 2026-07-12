@@ -10,6 +10,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"math"
 	"mime"
 	"mime/multipart"
 	"net/http"
@@ -39,6 +40,10 @@ const (
 	openAIImageBackendUserAgent    = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
 	openAIImageMaxDownloadBytes    = 20 << 20 // 20MB per image download
 	openAIImageMaxUploadPartSize   = 20 << 20 // 20MB per multipart upload part
+	openAIImageMaxOutputCount      = 10
+	openAIImageMaxPartialImages    = 3
+	openAIImageMaxCompression      = 100
+	openAIImageMaxReferenceImages  = 16
 	openAIImagesResponsesMainModel = "gpt-5.4-mini"
 )
 
@@ -215,6 +220,9 @@ func (s *OpenAIGatewayService) ParseOpenAIImagesRequest(c *gin.Context, body []b
 	}
 
 	applyOpenAIImagesDefaults(req)
+	if err := validateOpenAIImagesParameters(req); err != nil {
+		return nil, err
+	}
 	if err := validateOpenAIImagesModel(req.Model); err != nil {
 		return nil, err
 	}
@@ -238,10 +246,11 @@ func parseOpenAIImagesJSONRequest(body []byte, req *OpenAIImagesRequest) error {
 	}
 
 	if nResult := gjson.GetBytes(body, "n"); nResult.Exists() {
-		if nResult.Type != gjson.Number {
-			return fmt.Errorf("invalid n field type")
+		n, err := parseOpenAIImagesJSONInteger(nResult, "n")
+		if err != nil {
+			return err
 		}
-		req.N = int(nResult.Int())
+		req.N = n
 		if req.N <= 0 {
 			return fmt.Errorf("n must be greater than 0")
 		}
@@ -260,17 +269,17 @@ func parseOpenAIImagesJSONRequest(body []byte, req *OpenAIImagesRequest) error {
 	req.Style = strings.TrimSpace(gjson.GetBytes(body, "style").String())
 	req.HasMask = gjson.GetBytes(body, "mask").Exists()
 	if outputCompression := gjson.GetBytes(body, "output_compression"); outputCompression.Exists() {
-		if outputCompression.Type != gjson.Number {
-			return fmt.Errorf("invalid output_compression field type")
+		v, err := parseOpenAIImagesJSONInteger(outputCompression, "output_compression")
+		if err != nil {
+			return err
 		}
-		v := int(outputCompression.Int())
 		req.OutputCompression = &v
 	}
 	if partialImages := gjson.GetBytes(body, "partial_images"); partialImages.Exists() {
-		if partialImages.Type != gjson.Number {
-			return fmt.Errorf("invalid partial_images field type")
+		v, err := parseOpenAIImagesJSONInteger(partialImages, "partial_images")
+		if err != nil {
+			return err
 		}
-		v := int(partialImages.Int())
 		req.PartialImages = &v
 	}
 	if req.IsEdits() {
@@ -306,6 +315,25 @@ func parseOpenAIImagesJSONRequest(body []byte, req *OpenAIImagesRequest) error {
 	return nil
 }
 
+func parseOpenAIImagesJSONInteger(result gjson.Result, field string) (int, error) {
+	const maxSafeJSONInteger = float64(1<<53 - 1)
+	if result.Type != gjson.Number ||
+		math.IsNaN(result.Num) ||
+		math.IsInf(result.Num, 0) ||
+		result.Num != math.Trunc(result.Num) ||
+		math.Abs(result.Num) > maxSafeJSONInteger {
+		return 0, fmt.Errorf("invalid %s field type", field)
+	}
+
+	value := result.Int()
+	maxInt := int64(^uint(0) >> 1)
+	minInt := -maxInt - 1
+	if value < minInt || value > maxInt {
+		return 0, fmt.Errorf("invalid %s field type", field)
+	}
+	return int(value), nil
+}
+
 func parseOpenAIImagesMultipartRequest(body []byte, contentType string, req *OpenAIImagesRequest) error {
 	_, params, err := mime.ParseMediaType(contentType)
 	if err != nil {
@@ -331,10 +359,13 @@ func parseOpenAIImagesMultipartRequest(body []byte, contentType string, req *Ope
 			continue
 		}
 
-		data, err := io.ReadAll(io.LimitReader(part, openAIImageMaxUploadPartSize))
+		data, err := io.ReadAll(io.LimitReader(part, openAIImageMaxUploadPartSize+1))
 		_ = part.Close()
 		if err != nil {
 			return fmt.Errorf("read multipart field %s: %w", name, err)
+		}
+		if len(data) > openAIImageMaxUploadPartSize {
+			return fmt.Errorf("multipart field %s exceeds 20MB limit", name)
 		}
 
 		fileName := strings.TrimSpace(part.FileName())
@@ -452,6 +483,25 @@ func applyOpenAIImagesDefaults(req *OpenAIImagesRequest) {
 		return
 	}
 	req.Model = "gpt-image-2"
+}
+
+func validateOpenAIImagesParameters(req *OpenAIImagesRequest) error {
+	if req == nil {
+		return nil
+	}
+	if req.N > openAIImageMaxOutputCount {
+		return fmt.Errorf("n must be between 1 and %d", openAIImageMaxOutputCount)
+	}
+	if req.PartialImages != nil && (*req.PartialImages < 0 || *req.PartialImages > openAIImageMaxPartialImages) {
+		return fmt.Errorf("partial_images must be between 0 and %d", openAIImageMaxPartialImages)
+	}
+	if req.OutputCompression != nil && (*req.OutputCompression < 0 || *req.OutputCompression > openAIImageMaxCompression) {
+		return fmt.Errorf("output_compression must be between 0 and %d", openAIImageMaxCompression)
+	}
+	if len(req.InputImageURLs)+len(req.Uploads) > openAIImageMaxReferenceImages {
+		return fmt.Errorf("images must contain at most %d reference images", openAIImageMaxReferenceImages)
+	}
+	return nil
 }
 
 func isOpenAIImageGenerationModel(model string) bool {

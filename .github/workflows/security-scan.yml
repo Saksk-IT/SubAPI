@@ -47,6 +47,9 @@ jobs:
       - name: Install dependencies
         working-directory: frontend
         run: pnpm install --frozen-lockfile
+      - name: Install image playground dependencies
+        working-directory: frontend/image-playground
+        run: npm ci
       - name: Run pnpm audit
         working-directory: frontend
         run: |
@@ -56,3 +59,6 @@ jobs:
           python tools/check_pnpm_audit_exceptions.py \
             --audit frontend/audit.json \
             --exceptions .github/audit-exceptions.yml
+      - name: Run image playground npm audit
+        working-directory: frontend/image-playground
+        run: npm audit --omit=dev --audit-level=high

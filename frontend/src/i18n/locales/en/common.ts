@@ -150,6 +150,7 @@ export default {
     dashboard: 'Dashboard',
     announcements: 'Announcements',
     apiKeys: 'API Keys',
+    imageGeneration: 'Image Generation',
     batchImage: 'Batch Images',
     usage: 'Usage',
     redeem: 'Redeem',
@@ -190,6 +191,24 @@ export default {
     channelMonitor: 'Channel Monitor',
     channelStatus: 'Channel Status',
     riskControl: 'Risk Control',
+  },
+
+  imageGeneration: {
+    title: 'Image Generation',
+    subtitle: 'Open the image workspace with an authorized OpenAI API key.',
+    keyLabel: 'API Key',
+    loading: 'Loading image generation access…',
+    loadError: 'Failed to load API keys',
+    noKeyTitle: 'No image generation key available',
+    noKeyDescription: 'Create an OpenAI API key with image generation enabled first.',
+    manageKeys: 'Manage API Keys',
+    retry: 'Retry',
+    waiting: 'Connecting to the image workspace…',
+    timeoutTitle: 'Image workspace connection timed out',
+    timeoutDescription: 'The workspace did not establish a secure connection in time. Please retry.',
+    connectionErrorTitle: 'Unable to connect to the image workspace',
+    connectionErrorDescription: 'The secure connection could not be established. Please retry.',
+    frameTitle: 'Image Workspace',
   },
 
   // Auth

@@ -469,14 +469,14 @@ cd SubAPI
 # 2. Install pnpm (if not already installed)
 npm install -g pnpm
 
-# 3. Build frontend
-cd frontend
-pnpm install
-pnpm run build
-# Output will be in ../backend/internal/web/dist/
+# 3. Install and build both frontend applications
+pnpm --dir frontend install
+npm --prefix frontend/image-playground ci
+make build-frontend
+# Output will be in backend/internal/web/dist/ (including image-playground/)
 
 # 4. Build backend with embedded frontend
-cd ../backend
+cd backend
 VERSION="$(./scripts/resolve-version.sh)"
 go build -tags embed -ldflags="-X main.Version=${VERSION}" -o sub2api ./cmd/server
 
@@ -611,8 +611,8 @@ cd backend
 go run ./cmd/server
 
 # Frontend (with hot reload)
-cd frontend
-pnpm run dev
+# Starts both the Vue site and the React image playground.
+make dev-frontend
 ```
 
 #### Code Generation

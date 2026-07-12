@@ -45,8 +45,15 @@ jobs:
       - name: Install frontend dependencies
         working-directory: frontend
         run: pnpm install --frozen-lockfile
-      - name: Frontend typecheck and critical vitest
+      - name: Install image playground dependencies
+        working-directory: frontend/image-playground
+        run: npm ci
+      - name: Test both frontends
         run: make test-frontend
+      - name: Audit both frontend production dependency trees
+        run: make audit-frontend
+      - name: Build Vue then React frontends
+        run: make build-frontend
 
   golangci-lint:
     runs-on: ubuntu-latest

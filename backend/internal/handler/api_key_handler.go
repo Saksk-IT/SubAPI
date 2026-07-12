@@ -65,6 +65,7 @@ type UpdateAPIKeyRequest struct {
 // List handles listing user's API keys with pagination
 // GET /api/v1/api-keys
 func (h *APIKeyHandler) List(c *gin.Context) {
+	c.Header("Cache-Control", "private, no-store")
 	subject, ok := middleware2.GetAuthSubjectFromContext(c)
 	if !ok {
 		response.Unauthorized(c, "User not authenticated")

@@ -42,6 +42,7 @@ export default defineConfig(({ mode }) => {
   // 加载环境变量
   const env = loadEnv(mode, process.cwd(), '')
   const backendUrl = env.VITE_DEV_PROXY_TARGET || 'http://localhost:8080'
+  const imagePlaygroundDevTarget = env.VITE_IMAGE_PLAYGROUND_DEV_TARGET || 'http://127.0.0.1:5174'
   const devPort = Number(env.VITE_DEV_PORT || 3000)
 
   return {
@@ -114,6 +115,11 @@ export default defineConfig(({ mode }) => {
       host: '0.0.0.0',
       port: devPort,
       proxy: {
+        '/image-playground': {
+          target: imagePlaygroundDevTarget,
+          changeOrigin: true,
+          ws: true
+        },
         '/api': {
           target: backendUrl,
           changeOrigin: true
