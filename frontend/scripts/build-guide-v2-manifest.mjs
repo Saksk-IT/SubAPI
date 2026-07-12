@@ -31,11 +31,17 @@ const HEADING_ANCHOR_PATTERN = /\s+\{#([a-z][a-z0-9-]*)\}$/
 const DANGEROUS_PROTOCOL_PATTERN = /^(?:javascript|data|vbscript):/i
 const EVENT_ATTRIBUTE_PATTERN = /\son[a-z0-9_-]+\s*=/i
 const SCRIPT_ELEMENT_PATTERN = /<\s*\/?\s*script\b/i
-const VISUAL_WIDTH = 128
-const VISUAL_HEIGHT = 72
+const VISUAL_WIDTH = 512
+const VISUAL_HEIGHT = 288
 const MAX_VISUAL_MAE = 4
 const MIN_INK_JACCARD = 0.6
 const INK_LUMINANCE_THRESHOLD = 246
+const TILE_COLUMNS = 16
+const TILE_ROWS = 9
+const PIXEL_CHANGE_THRESHOLD = 24
+const MAX_TILE_MAE = 28
+const MAX_TILE_CHANGED_PIXEL_RATIO = 0.4
+const MAX_TILE_INK_MISMATCH_RATIO = 0.2
 
 const scriptDirectory = dirname(fileURLToPath(import.meta.url))
 const defaultContentDir = join(scriptDirectory, '../src/content/guides-v2')
@@ -209,6 +215,55 @@ const visualDifference = (sourcePixels, outputPixels) => {
   }
 }
 
+const tileDifference = (sourcePixels, outputPixels, tileIndex) => {
+  const tileWidth = VISUAL_WIDTH / TILE_COLUMNS
+  const tileHeight = VISUAL_HEIGHT / TILE_ROWS
+  const tileX = tileIndex % TILE_COLUMNS
+  const tileY = Math.floor(tileIndex / TILE_COLUMNS)
+  let absoluteDifference = 0
+  let changedPixels = 0
+  let inkMismatches = 0
+
+  for (let y = tileY * tileHeight; y < (tileY + 1) * tileHeight; y += 1) {
+    for (let x = tileX * tileWidth; x < (tileX + 1) * tileWidth; x += 1) {
+      const pixelIndex = (y * VISUAL_WIDTH + x) * 3
+      const channelDifferences = [0, 1, 2].map((channel) =>
+        Math.abs(sourcePixels[pixelIndex + channel] - outputPixels[pixelIndex + channel]))
+      absoluteDifference += channelDifferences.reduce((sum, difference) => sum + difference, 0)
+      if (Math.max(...channelDifferences) >= PIXEL_CHANGE_THRESHOLD) changedPixels += 1
+      const sourceLuminance = channelDifferences.reduce(
+        (sum, _difference, channel) => sum + sourcePixels[pixelIndex + channel],
+        0,
+      ) / 3
+      const outputLuminance = channelDifferences.reduce(
+        (sum, _difference, channel) => sum + outputPixels[pixelIndex + channel],
+        0,
+      ) / 3
+      if ((sourceLuminance < INK_LUMINANCE_THRESHOLD) !==
+          (outputLuminance < INK_LUMINANCE_THRESHOLD)) inkMismatches += 1
+    }
+  }
+
+  const pixelCount = tileWidth * tileHeight
+  return {
+    meanAbsoluteError: absoluteDifference / (pixelCount * 3),
+    changedPixelRatio: changedPixels / pixelCount,
+    inkMismatchRatio: inkMismatches / pixelCount,
+  }
+}
+
+const localVisualDifference = (sourcePixels, outputPixels) => {
+  const tiles = Array.from(
+    { length: TILE_COLUMNS * TILE_ROWS },
+    (_value, tileIndex) => tileDifference(sourcePixels, outputPixels, tileIndex),
+  )
+  return {
+    maximumTileMae: Math.max(...tiles.map((tile) => tile.meanAbsoluteError)),
+    maximumChangedPixelRatio: Math.max(...tiles.map((tile) => tile.changedPixelRatio)),
+    maximumInkMismatchRatio: Math.max(...tiles.map((tile) => tile.inkMismatchRatio)),
+  }
+}
+
 const assertVisualMatch = async (sourceFile, outputFile, source, label) => {
   let sourcePixels
   let outputPixels
@@ -221,6 +276,17 @@ const assertVisualMatch = async (sourceFile, outputFile, source, label) => {
     outputPixels = pixels[1]
   } catch (error) {
     return fail(source, `${label} 无法进行跨平台视觉解码: ${error.message}`)
+  }
+  const localDifference = localVisualDifference(sourcePixels, outputPixels)
+  if (
+    localDifference.maximumTileMae > MAX_TILE_MAE ||
+    localDifference.maximumChangedPixelRatio > MAX_TILE_CHANGED_PIXEL_RATIO ||
+    localDifference.maximumInkMismatchRatio > MAX_TILE_INK_MISMATCH_RATIO
+  ) {
+    return fail(
+      source,
+      `${label} 视觉内容局部分块不一致（最大 tile 指标：MAE=${localDifference.maximumTileMae.toFixed(3)}, changed=${localDifference.maximumChangedPixelRatio.toFixed(3)}, ink=${localDifference.maximumInkMismatchRatio.toFixed(3)}）`,
+    )
   }
   const { meanAbsoluteError, inkJaccard } = visualDifference(sourcePixels, outputPixels)
   if (meanAbsoluteError > MAX_VISUAL_MAE || inkJaccard < MIN_INK_JACCARD) {

@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
+import sharp from 'sharp'
 import { afterEach, describe, expect, it } from 'vitest'
 
 import { buildManifest } from '../../../../../scripts/build-guide-v2-manifest.mjs'
@@ -25,6 +26,17 @@ const frontendDirectory = resolve(dirname(fileURLToPath(import.meta.url)), '../.
 
 const sha256 = (value: string | Buffer): string =>
   createHash('sha256').update(value).digest('hex')
+
+const compositeTamper = async (
+  pngPath: string,
+  overlay: string,
+  left: number,
+  top: number,
+): Promise<Buffer> =>
+  sharp(pngPath)
+    .composite([{ input: Buffer.from(overlay), left, top }])
+    .png()
+    .toBuffer()
 
 const markdownFor = (slug: (typeof slugs)[number], extra = '') => `---
 title: ${slug} 指南
@@ -257,6 +269,57 @@ describe('buildManifest', () => {
     )
 
     await expect(buildManifest(fixture)).rejects.toThrow(/media-manifest\.json.*PNG.*视觉/i)
+  })
+
+  it('局部覆盖错误账户面板并同步哈希后仍拒绝分块视觉错配', async () => {
+    const fixture = await createFixture()
+    const media = await createVerifiedMedia(fixture)
+    const tamperedPng = await compositeTamper(
+      media.pngPath,
+      `<svg xmlns="http://www.w3.org/2000/svg" width="500" height="180">
+        <rect width="500" height="180" rx="18" fill="#7f1d1d"/>
+        <text x="28" y="72" font-family="Arial,sans-serif" font-size="42" font-weight="700" fill="#fff">WRONG ACCOUNT</text>
+        <text x="28" y="132" font-family="Arial,sans-serif" font-size="36" fill="#fecaca">Balance: $9999</text>
+      </svg>`,
+      390,
+      270,
+    )
+    const tamperedEntry = { ...media.entry, pngSha256: sha256(tamperedPng) }
+    await writeFile(media.pngPath, tamperedPng)
+    await writeFile(
+      join(fixture.contentDir, 'media-manifest.json'),
+      JSON.stringify({ version: 'v2', media: [tamperedEntry] }),
+      'utf8',
+    )
+
+    await expect(buildManifest(fixture)).rejects.toThrow(
+      /media-manifest\.json.*PNG.*局部分块不一致.*最大.*tile/i,
+    )
+  })
+
+  it('局部覆盖可读假 API Key 横幅并同步哈希后仍拒绝分块视觉错配', async () => {
+    const fixture = await createFixture()
+    const media = await createVerifiedMedia(fixture)
+    const tamperedPng = await compositeTamper(
+      media.pngPath,
+      `<svg xmlns="http://www.w3.org/2000/svg" width="700" height="64">
+        <rect width="700" height="64" rx="8" fill="#fef2f2" stroke="#dc2626" stroke-width="4"/>
+        <text x="20" y="42" font-family="monospace" font-size="27" font-weight="700" fill="#991b1b">API Key: sk-fake-9999-DO-NOT-USE</text>
+      </svg>`,
+      290,
+      40,
+    )
+    const tamperedEntry = { ...media.entry, pngSha256: sha256(tamperedPng) }
+    await writeFile(media.pngPath, tamperedPng)
+    await writeFile(
+      join(fixture.contentDir, 'media-manifest.json'),
+      JSON.stringify({ version: 'v2', media: [tamperedEntry] }),
+      'utf8',
+    )
+
+    await expect(buildManifest(fixture)).rejects.toThrow(
+      /media-manifest\.json.*PNG.*局部分块不一致.*最大.*tile/i,
+    )
   })
 
   it('拒绝 reference-style link 指向不存在的跨页 fragment', async () => {
