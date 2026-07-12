@@ -43,34 +43,70 @@ vi.mock('@/composables/useRoutePrefetch', () => ({
 }))
 
 describe('static guide routes', () => {
-  it('registers the registration and API key parent guide as a public route', async () => {
+  it('freezes the seven public V1 guide routes on the shared guide view', async () => {
     const { default: router } = await import('@/router')
-    const route = router.getRoutes().find((record) => record.name === 'RegistrationKeyGuide')
-
-    expect(route).toMatchObject({
-      path: '/registration-key-guide',
-      meta: {
-        requiresAuth: false,
-        title: '中转注册、兑换与 API 密钥配置教程',
+    const { default: ClientGuideView } = await import('@/views/public/ClientGuideView.vue')
+    const expectedRoutes = [
+      {
+        name: 'RegistrationKeyGuide',
+        path: '/registration-key-guide',
         guideKey: 'registration',
+        requiresAuth: false,
       },
-    })
-  })
+      {
+        name: 'CodexGuide',
+        path: '/codex-guide',
+        guideKey: 'codex',
+        requiresAuth: false,
+      },
+      {
+        name: 'ClaudeCodeGuide',
+        path: '/claude-code-guide',
+        guideKey: 'claude',
+        requiresAuth: false,
+      },
+      {
+        name: 'OpenCodeGuide',
+        path: '/open-code-guide',
+        guideKey: 'openCode',
+        requiresAuth: false,
+      },
+      {
+        name: 'OpenClawGuide',
+        path: '/open-claw-guide',
+        guideKey: 'openClaw',
+        requiresAuth: false,
+      },
+      {
+        name: 'MobileGuide',
+        path: '/mobile-guide',
+        guideKey: 'mobile',
+        requiresAuth: false,
+      },
+      {
+        name: 'ImageGuide',
+        path: '/image-guide',
+        guideKey: 'image',
+        requiresAuth: false,
+      },
+    ]
 
-  it('keeps all six client guide routes on the shared guide view', async () => {
-    const { default: router } = await import('@/router')
-    const expectedRoutes = new Map([
-      ['CodexGuide', 'codex'],
-      ['ClaudeCodeGuide', 'claude'],
-      ['OpenCodeGuide', 'openCode'],
-      ['OpenClawGuide', 'openClaw'],
-      ['MobileGuide', 'mobile'],
-      ['ImageGuide', 'image'],
-    ])
+    for (const expectedRoute of expectedRoutes) {
+      const route = router.getRoutes().find((record) => record.name === expectedRoute.name)
 
-    for (const [name, guideKey] of expectedRoutes) {
-      const route = router.getRoutes().find((record) => record.name === name)
-      expect(route?.meta.guideKey).toBe(guideKey)
+      expect(route).toBeDefined()
+      expect({
+        name: route?.name,
+        path: route?.path,
+        guideKey: route?.meta.guideKey,
+        requiresAuth: route?.meta.requiresAuth,
+      }).toEqual(expectedRoute)
+
+      const componentLoader = route?.components?.default as () => Promise<{
+        default: unknown
+      }>
+      const componentModule = await componentLoader()
+      expect(componentModule.default).toBe(ClientGuideView)
     }
   })
 })

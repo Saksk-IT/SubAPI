@@ -2,6 +2,32 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { setActivePinia, createPinia } from 'pinia'
 import { resolveCompletedSetupRedirectPath } from '@/router/setupRedirect'
 
+const routerAuthStore = vi.hoisted(() => ({
+  checkAuth: vi.fn(),
+  isAuthenticated: false,
+  isAdmin: false,
+  isSimpleMode: false,
+  hasPendingAuthSession: false,
+}))
+
+const routerAppStore = vi.hoisted(() => ({
+  siteName: 'Sub2API',
+  backendModeEnabled: true,
+  cachedPublicSettings: null as null | Record<string, unknown>,
+}))
+
+vi.mock('@/stores/auth', () => ({
+  useAuthStore: () => routerAuthStore,
+}))
+
+vi.mock('@/stores/app', () => ({
+  useAppStore: () => routerAppStore,
+}))
+
+vi.mock('@/stores/adminSettings', () => ({
+  useAdminSettingsStore: () => ({ customMenuItems: [] }),
+}))
+
 // Mock 导航加载状态
 vi.mock('@/composables/useNavigationLoading', () => {
   const mockStart = vi.fn()
@@ -181,6 +207,7 @@ function simulateGuard(
 describe('路由守卫逻辑', () => {
   beforeEach(() => {
     setActivePinia(createPinia())
+    vi.stubGlobal('scrollTo', vi.fn())
   })
 
   // --- 未认证用户 ---
@@ -396,47 +423,20 @@ describe('路由守卫逻辑', () => {
       expect(redirect).toBeNull()
     })
 
-    it('unauthenticated: /codex-guide is allowed', () => {
-      const authState: MockAuthState = {
-        isAuthenticated: false,
-        isAdmin: false,
-        isSimpleMode: false,
-        backendModeEnabled: true,
-        hasPendingAuthSession: false,
-      }
-      const redirect = simulateGuard('/codex-guide', { requiresAuth: false }, authState)
-      expect(redirect).toBeNull()
-    })
+    it.each([
+      '/registration-key-guide',
+      '/codex-guide',
+      '/claude-code-guide',
+      '/open-code-guide',
+      '/open-claw-guide',
+      '/mobile-guide',
+      '/image-guide',
+    ])('unauthenticated: %s is allowed by the production guard', async (path) => {
+      const { default: router } = await import('@/router')
 
-    it('unauthenticated: /registration-key-guide is allowed', () => {
-      const authState: MockAuthState = {
-        isAuthenticated: false,
-        isAdmin: false,
-        isSimpleMode: false,
-        backendModeEnabled: true,
-        hasPendingAuthSession: false,
-      }
-      const redirect = simulateGuard(
-        '/registration-key-guide',
-        { requiresAuth: false },
-        authState
-      )
-      expect(redirect).toBeNull()
-    })
+      await router.push(path)
 
-    it('unauthenticated: client guide pages are allowed', () => {
-      const authState: MockAuthState = {
-        isAuthenticated: false,
-        isAdmin: false,
-        isSimpleMode: false,
-        backendModeEnabled: true,
-        hasPendingAuthSession: false,
-      }
-
-      for (const path of ['/claude-code-guide', '/open-code-guide', '/open-claw-guide', '/mobile-guide', '/image-guide']) {
-        const redirect = simulateGuard(path, { requiresAuth: false }, authState)
-        expect(redirect).toBeNull()
-      }
+      expect(router.currentRoute.value.path).toBe(path)
     })
 
     it('unauthenticated: /setup is allowed', () => {
