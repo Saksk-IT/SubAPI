@@ -140,6 +140,21 @@
   font-weight: 700;
 }
 
+.guide-v2-meta-list ul {
+  display: flex;
+  margin: 0;
+  padding: 0;
+  flex-wrap: wrap;
+  gap: 3px 8px;
+  list-style: none;
+}
+
+.guide-v2-meta-list li + li::before {
+  margin-right: 8px;
+  color: var(--guide-v2-border-strong);
+  content: "·";
+}
+
 .guide-v2-button {
   display: inline-flex;
   min-height: 48px;

@@ -12,6 +12,13 @@ defineProps<{
 const emit = defineEmits<{ navigate: [anchor: string] }>()
 const open = ref(false)
 const trigger = ref<HTMLButtonElement>()
+const closeButton = ref<HTMLButtonElement>()
+
+const show = async (): Promise<void> => {
+  open.value = true
+  await nextTick()
+  closeButton.value?.focus()
+}
 
 const close = async (): Promise<void> => {
   open.value = false
@@ -41,7 +48,7 @@ const onKeydown = (event: KeyboardEvent): void => {
       data-mobile-toc-trigger
       :aria-expanded="open"
       aria-controls="guide-v2-mobile-toc-panel"
-      @click="open = true"
+      @click="show"
     >
       <Icon name="menu" size="sm" aria-hidden="true" />
       查看本篇步骤
@@ -64,7 +71,7 @@ const onKeydown = (event: KeyboardEvent): void => {
       >
         <header>
           <h2 id="guide-v2-mobile-toc-title">本篇步骤</h2>
-          <button type="button" aria-label="关闭目录" @click="close">
+          <button ref="closeButton" type="button" aria-label="关闭目录" @click="close">
             <Icon name="x" size="sm" aria-hidden="true" />
           </button>
         </header>

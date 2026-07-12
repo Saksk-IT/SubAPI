@@ -26,6 +26,14 @@ defineEmits<{ start: [] }>()
         <dt><Icon name="badge" size="sm" aria-hidden="true" /> 难度</dt>
         <dd>{{ meta.difficulty }}</dd>
       </div>
+      <div data-guide-platforms role="group" aria-label="支持平台">
+        <dt><Icon name="globe" size="sm" aria-hidden="true" /> 支持平台</dt>
+        <dd>
+          <ul>
+            <li v-for="platform in meta.platforms" :key="platform">{{ platform }}</li>
+          </ul>
+        </dd>
+      </div>
       <div>
         <dt><Icon name="calendar" size="sm" aria-hidden="true" /> 最后核验</dt>
         <dd>{{ meta.updatedAt }}</dd>

@@ -33,6 +33,10 @@ describe('GuideV2View', () => {
     const { wrapper } = await mountAt()
 
     expect(wrapper.findAll('h1')).toHaveLength(1)
+    const platforms = wrapper.get('[data-guide-platforms]')
+    expect(platforms.text()).toMatch(/Windows.*macOS.*Linux/s)
+    expect(platforms.attributes('aria-label')).toBe('支持平台')
+    expect(platforms.attributes('role')).toBe('group')
     expect(wrapper.get('[data-guide-v2-hero]').element.nextElementSibling).toBe(
       wrapper.get('[data-guide-v2-mobile-toc]').element,
     )

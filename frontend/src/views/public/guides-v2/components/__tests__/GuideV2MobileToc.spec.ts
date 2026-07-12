@@ -17,9 +17,15 @@ describe('GuideV2MobileToc', () => {
     const trigger = wrapper.get('[data-mobile-toc-trigger]')
 
     await trigger.trigger('click')
-    expect(wrapper.get('[role="dialog"]').attributes('aria-modal')).toBe('true')
+    const dialog = wrapper.get('[role="dialog"]')
+    const closeButton = wrapper.get('button[aria-label="关闭目录"]')
+    expect(dialog.attributes('aria-modal')).toBe('true')
+    expect(document.activeElement).toBe(closeButton.element)
 
-    await wrapper.get('[role="dialog"]').trigger('keydown', { key: 'Escape' })
+    document.activeElement?.dispatchEvent(
+      new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }),
+    )
+    await wrapper.vm.$nextTick()
     expect(wrapper.find('[role="dialog"]').exists()).toBe(false)
     expect(document.activeElement).toBe(trigger.element)
     wrapper.unmount()
