@@ -1,4 +1,4 @@
-import { readonly, shallowRef } from 'vue'
+import { getCurrentScope, onScopeDispose, readonly, shallowRef } from 'vue'
 
 import { GUIDE_V2_SLUGS, type GuideV2Slug } from '../guide-v2.types'
 
@@ -29,6 +29,7 @@ export interface GuideV2ProgressStore {
   readonly setLastAnchor: (guide: GuideV2Slug, anchor: string | null) => GuideProgress
   readonly clear: (guide: GuideV2Slug) => GuideProgress
   readonly clearAll: () => void
+  readonly subscribe: (listener: () => void) => () => void
 }
 
 type Clock = () => string
@@ -43,9 +44,6 @@ const createEmptyProgress = (): GuideProgress =>
 
 const createEmptyEnvelope = (): ProgressEnvelope =>
   Object.freeze({ version: SCHEMA_VERSION, guides: Object.freeze({}) })
-
-let memoryEnvelope = createEmptyEnvelope()
-const failedStorages = new WeakSet<Storage>()
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null && !Array.isArray(value)
@@ -123,18 +121,66 @@ const getDefaultStorage = (): Storage | undefined => {
 }
 
 const loadEnvelope = (storage: Storage | undefined): ProgressEnvelope => {
-  if (!storage) return memoryEnvelope
-  if (failedStorages.has(storage)) return memoryEnvelope
-
+  if (!storage) return createEmptyEnvelope()
   try {
     const raw = storage.getItem(GUIDE_V2_PROGRESS_STORAGE_KEY)
-    const loaded = raw === null ? createEmptyEnvelope() : (parseEnvelope(raw) ?? createEmptyEnvelope())
-    memoryEnvelope = loaded
-    return loaded
+    return raw === null ? createEmptyEnvelope() : (parseEnvelope(raw) ?? createEmptyEnvelope())
   } catch {
-    failedStorages.add(storage)
-    return memoryEnvelope
+    return createEmptyEnvelope()
   }
+}
+
+interface ProgressChannel {
+  readonly current: () => ProgressEnvelope
+  readonly write: (next: ProgressEnvelope) => void
+  readonly clear: () => void
+  readonly subscribe: (listener: () => void) => () => void
+}
+
+const createProgressChannel = (storage?: Storage): ProgressChannel => {
+  let envelope = loadEnvelope(storage)
+  const listeners = new Set<() => void>()
+  const notify = (): void => [...listeners].forEach((listener) => listener())
+
+  const write = (next: ProgressEnvelope): void => {
+    envelope = next
+    try {
+      storage?.setItem(GUIDE_V2_PROGRESS_STORAGE_KEY, JSON.stringify(next))
+    } catch {
+      // The channel keeps the immutable snapshot when browser storage is disabled.
+    }
+    notify()
+  }
+
+  const clear = (): void => {
+    envelope = createEmptyEnvelope()
+    try {
+      storage?.removeItem(GUIDE_V2_PROGRESS_STORAGE_KEY)
+    } catch {
+      // The channel snapshot is already cleared.
+    }
+    notify()
+  }
+
+  const subscribe = (listener: () => void): (() => void) => {
+    listeners.add(listener)
+    return () => listeners.delete(listener)
+  }
+
+  return Object.freeze({ current: () => envelope, write, clear, subscribe })
+}
+
+const storageChannels = new WeakMap<Storage, ProgressChannel>()
+const memoryOnlyChannel = createProgressChannel()
+
+const getProgressChannel = (storage: Storage | null | undefined): ProgressChannel => {
+  if (!storage) return memoryOnlyChannel
+  const existing = storageChannels.get(storage)
+  if (existing) return existing
+
+  const created = createProgressChannel(storage)
+  storageChannels.set(storage, created)
+  return created
 }
 
 function assertGuide(guide: string): asserts guide is GuideV2Slug {
@@ -160,26 +206,14 @@ const readNow = (now: Clock): string => {
 }
 
 export const createGuideV2Progress = (
-  storage: Storage | undefined = getDefaultStorage(),
+  storage: Storage | null | undefined = getDefaultStorage(),
   now: Clock = () => new Date().toISOString(),
 ): GuideV2ProgressStore => {
-  let envelope = loadEnvelope(storage)
-
-  const persist = (next: ProgressEnvelope): void => {
-    envelope = next
-    memoryEnvelope = next
-    try {
-      storage?.setItem(GUIDE_V2_PROGRESS_STORAGE_KEY, JSON.stringify(next))
-      if (storage) failedStorages.delete(storage)
-    } catch {
-      if (storage) failedStorages.add(storage)
-      // The immutable module snapshot remains available when browser storage is disabled.
-    }
-  }
+  const channel = getProgressChannel(storage)
 
   const get = (guide: GuideV2Slug): GuideProgress => {
     assertGuide(guide)
-    return envelope.guides[guide] ?? createEmptyProgress()
+    return channel.current().guides[guide] ?? createEmptyProgress()
   }
 
   const update = (
@@ -187,12 +221,13 @@ export const createGuideV2Progress = (
     updater: (current: GuideProgress) => Omit<GuideProgress, 'updatedAt'>,
   ): GuideProgress => {
     assertGuide(guide)
+    const envelope = channel.current()
     const nextProgress = freezeProgress({ ...updater(get(guide)), updatedAt: readNow(now) })
     const nextEnvelope = Object.freeze({
       version: SCHEMA_VERSION,
       guides: Object.freeze({ ...envelope.guides, [guide]: nextProgress }),
     })
-    persist(nextEnvelope)
+    channel.write(nextEnvelope)
     return nextProgress
   }
 
@@ -226,26 +261,17 @@ export const createGuideV2Progress = (
 
   const clear = (guide: GuideV2Slug): GuideProgress => {
     assertGuide(guide)
+    const envelope = channel.current()
     const { [guide]: _removed, ...remainingGuides } = envelope.guides
     const nextEnvelope = Object.freeze({
       version: SCHEMA_VERSION,
       guides: Object.freeze(remainingGuides),
     })
-    persist(nextEnvelope)
+    channel.write(nextEnvelope)
     return createEmptyProgress()
   }
 
-  const clearAll = (): void => {
-    envelope = createEmptyEnvelope()
-    memoryEnvelope = envelope
-    try {
-      storage?.removeItem(GUIDE_V2_PROGRESS_STORAGE_KEY)
-      if (storage) failedStorages.delete(storage)
-    } catch {
-      if (storage) failedStorages.add(storage)
-      // The in-memory snapshot is already cleared.
-    }
-  }
+  const clearAll = (): void => channel.clear()
 
   return Object.freeze({
     get,
@@ -255,6 +281,7 @@ export const createGuideV2Progress = (
     setLastAnchor,
     clear,
     clearAll,
+    subscribe: channel.subscribe,
   })
 }
 
@@ -265,17 +292,19 @@ export const useGuideV2Progress = (
 ) => {
   const store = createGuideV2Progress(storage, now)
   const progress = shallowRef(store.get(guide))
-  const sync = (next: GuideProgress): GuideProgress => {
-    progress.value = next
-    return next
+  const sync = (): void => {
+    progress.value = store.get(guide)
   }
+  const unsubscribe = store.subscribe(sync)
+  if (getCurrentScope()) onScopeDispose(unsubscribe)
 
   return Object.freeze({
     progress: readonly(progress),
-    completeStep: (stepId: string) => sync(store.completeStep(guide, stepId)),
-    uncompleteStep: (stepId: string) => sync(store.uncompleteStep(guide, stepId)),
-    setPlatform: (platform: string | null) => sync(store.setPlatform(guide, platform)),
-    setLastAnchor: (anchor: string | null) => sync(store.setLastAnchor(guide, anchor)),
-    clear: () => sync(store.clear(guide)),
+    completeStep: (stepId: string) => store.completeStep(guide, stepId),
+    uncompleteStep: (stepId: string) => store.uncompleteStep(guide, stepId),
+    setPlatform: (platform: string | null) => store.setPlatform(guide, platform),
+    setLastAnchor: (anchor: string | null) => store.setLastAnchor(guide, anchor),
+    clear: () => store.clear(guide),
+    clearAll: store.clearAll,
   })
 }

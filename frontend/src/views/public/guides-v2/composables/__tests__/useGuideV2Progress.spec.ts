@@ -1,3 +1,4 @@
+import { effectScope } from 'vue'
 import { describe, expect, it, vi } from 'vitest'
 
 import {
@@ -67,6 +68,53 @@ describe('createGuideV2Progress', () => {
     expect(refreshed.get('claude-code').completedStepIds).toEqual([])
   })
 
+  it('merges writes from sibling stores for the same guide', () => {
+    const storage = createStorage()
+    const first = createGuideV2Progress(storage, now)
+    const second = createGuideV2Progress(storage, now)
+
+    first.completeStep('codex', 'initialize')
+    second.setPlatform('codex', 'macOS')
+
+    expect(first.get('codex')).toMatchObject({
+      completedStepIds: ['initialize'],
+      platform: 'macOS',
+    })
+    expect(second.get('codex')).toMatchObject({
+      completedStepIds: ['initialize'],
+      platform: 'macOS',
+    })
+  })
+
+  it('preserves different guides written from sibling stores', () => {
+    const storage = createStorage()
+    const first = createGuideV2Progress(storage, now)
+    const second = createGuideV2Progress(storage, now)
+
+    first.completeStep('codex', 'initialize')
+    second.completeStep('opencode', 'install')
+
+    const refreshed = createGuideV2Progress(storage, now)
+    expect(refreshed.get('codex').completedStepIds).toEqual(['initialize'])
+    expect(refreshed.get('opencode').completedStepIds).toEqual(['install'])
+  })
+
+  it('does not let a stale sibling store revive data after clearAll', () => {
+    const storage = createStorage()
+    const first = createGuideV2Progress(storage, now)
+    first.completeStep('codex', 'initialize')
+    const staleSibling = createGuideV2Progress(storage, now)
+
+    first.clearAll()
+    staleSibling.setPlatform('codex', 'macOS')
+
+    expect(staleSibling.get('codex')).toMatchObject({
+      completedStepIds: [],
+      platform: 'macOS',
+    })
+    expect(createGuideV2Progress(storage, now).get('codex').completedStepIds).toEqual([])
+  })
+
   it.each([
     ['broken JSON', '{not-json'],
     ['wrong schema version', JSON.stringify({ version: 2, guides: {} })],
@@ -87,6 +135,66 @@ describe('createGuideV2Progress', () => {
     [
       'invalid guide collection',
       JSON.stringify({ version: 1, guides: ['codex'] }),
+    ],
+    [
+      'non-object guide progress',
+      JSON.stringify({ version: 1, guides: { codex: [] } }),
+    ],
+    [
+      'duplicate completed steps',
+      JSON.stringify({
+        version: 1,
+        guides: {
+          codex: {
+            completedStepIds: ['initialize', 'initialize'],
+            platform: null,
+            lastAnchor: null,
+            updatedAt: null,
+          },
+        },
+      }),
+    ],
+    [
+      'invalid platform field',
+      JSON.stringify({
+        version: 1,
+        guides: {
+          codex: {
+            completedStepIds: [],
+            platform: 3,
+            lastAnchor: null,
+            updatedAt: null,
+          },
+        },
+      }),
+    ],
+    [
+      'invalid anchor field',
+      JSON.stringify({
+        version: 1,
+        guides: {
+          codex: {
+            completedStepIds: [],
+            platform: null,
+            lastAnchor: 'Bad Anchor',
+            updatedAt: null,
+          },
+        },
+      }),
+    ],
+    [
+      'invalid timestamp field',
+      JSON.stringify({
+        version: 1,
+        guides: {
+          codex: {
+            completedStepIds: [],
+            platform: null,
+            lastAnchor: null,
+            updatedAt: 'not-a-date',
+          },
+        },
+      }),
     ],
   ])('safely falls back for %s', (_label, storedValue) => {
     const storage = createStorage({ [GUIDE_V2_PROGRESS_STORAGE_KEY]: storedValue })
@@ -127,6 +235,32 @@ describe('createGuideV2Progress', () => {
     expect(createGuideV2Progress(storage, now).get('codex').completedStepIds).toEqual([
       'initialize',
     ])
+  })
+
+  it('isolates fallback snapshots for different Storage instances', () => {
+    const storageA = createStorage()
+    storageA.setItem = vi.fn(() => {
+      throw new Error('A write denied')
+    })
+    const storageB = createStorage()
+
+    createGuideV2Progress(storageA, now).completeStep('codex', 'initialize')
+    createGuideV2Progress(storageB, now).completeStep('opencode', 'install')
+
+    const restoredA = createGuideV2Progress(storageA, now)
+    expect(restoredA.get('codex').completedStepIds).toEqual(['initialize'])
+    expect(restoredA.get('opencode').completedStepIds).toEqual([])
+  })
+
+  it('shares a dedicated memory-only channel when no Storage is supplied', () => {
+    const first = createGuideV2Progress(null, now)
+    first.clearAll()
+    const second = createGuideV2Progress(null, now)
+
+    first.completeStep('codex', 'initialize')
+
+    expect(second.get('codex').completedStepIds).toEqual(['initialize'])
+    second.clearAll()
   })
 
   it('sets platform, anchor, and deterministic update timestamps', () => {
@@ -197,6 +331,14 @@ describe('createGuideV2Progress', () => {
     expect(() => progress.completeStep(guide as 'codex', step)).toThrow()
   })
 
+  it('rejects invalid setter values and clocks at the boundary', () => {
+    const progress = createGuideV2Progress(createStorage(), () => 'not-a-date')
+
+    expect(() => progress.setPlatform('codex', '' as 'macOS')).toThrow('平台')
+    expect(() => progress.setLastAnchor('codex', 'Bad Anchor')).toThrow('最后锚点')
+    expect(() => progress.completeStep('codex', 'initialize')).toThrow('时钟')
+  })
+
   it('rejects dangerous persisted guide keys instead of merging them', () => {
     const malicious = `{"version":1,"guides":{"__proto__":{"completedStepIds":[],"platform":null,"lastAnchor":null,"updatedAt":null}}}`
     const storage = createStorage({ [GUIDE_V2_PROGRESS_STORAGE_KEY]: malicious })
@@ -226,5 +368,31 @@ describe('useGuideV2Progress', () => {
     expect(guide.progress.value.completedStepIds).toEqual([])
     guide.clear()
     expect(guide.progress.value.updatedAt).toBeNull()
+  })
+
+  it('synchronizes sibling refs and exposes clearAll', () => {
+    const storage = createStorage()
+    const first = useGuideV2Progress('codex', storage, now)
+    const second = useGuideV2Progress('codex', storage, now)
+
+    first.completeStep('initialize')
+    expect(second.progress.value.completedStepIds).toEqual(['initialize'])
+
+    second.clearAll()
+    expect(first.progress.value.completedStepIds).toEqual([])
+    expect(second.progress.value.completedStepIds).toEqual([])
+  })
+
+  it('unsubscribes a wrapper when its Vue effect scope stops', () => {
+    const storage = createStorage()
+    const scope = effectScope()
+    const scoped = scope.run(() => useGuideV2Progress('codex', storage, now))!
+    const active = useGuideV2Progress('codex', storage, now)
+
+    scope.stop()
+    active.completeStep('initialize')
+
+    expect(scoped.progress.value.completedStepIds).toEqual([])
+    expect(active.progress.value.completedStepIds).toEqual(['initialize'])
   })
 })
