@@ -69,9 +69,6 @@ importers:
       xlsx:
         specifier: ^0.18.5
         version: 0.18.5
-      yaml:
-        specifier: ^2.9.0
-        version: 2.9.0
     devDependencies:
       '@types/dompurify':
         specifier: ^3.0.5
@@ -136,6 +133,9 @@ importers:
       vue-tsc:
         specifier: ^2.2.0
         version: 2.2.12(typescript@5.6.3)
+      yaml:
+        specifier: ^2.9.0
+        version: 2.9.0
 
 packages:
 

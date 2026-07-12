@@ -1,4 +1,4 @@
-import { mkdtemp, readFile, stat, writeFile } from 'node:fs/promises'
+import { mkdtemp, readFile, stat, symlink, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
@@ -188,5 +188,81 @@ describe('buildManifest', () => {
     )
 
     await expect(buildManifest(fixture)).resolves.toMatchObject({ entries: { length: 9 } })
+  })
+
+  it.each([
+    ['Windows 反斜杠绝对路径', String.raw`C:\secrets\image.png`],
+    ['Windows 正斜杠绝对路径', 'C:/secrets/image.png'],
+    ['Windows drive-relative 路径', 'C:secrets/image.png'],
+    ['UNC 路径', String.raw`\\server\share\image.png`],
+  ])('跨平台拒绝%s', async (_label, invalidSource) => {
+    const fixture = await createFixture()
+    await writeFile(
+      join(fixture.contentDir, 'media-manifest.json'),
+      JSON.stringify({
+        version: 'v2',
+        media: [{
+          id: 'unsafe-source',
+          webPath: '/img/guides/v2/image.webp',
+          exportPath: 'public/img/guides/v2/image.webp',
+          alt: '图片',
+          source: invalidSource,
+        }],
+      }),
+      'utf8',
+    )
+
+    await expect(buildManifest(fixture)).rejects.toThrow(
+      /media-manifest\.json.*source.*(?:绝对|盘符|UNC)/i,
+    )
+  })
+
+  it('拒绝 guide Markdown 符号链接逃逸 contentDir', async () => {
+    const fixture = await createFixture()
+    const outsideDir = await mkdtemp(join(tmpdir(), 'guide-v2-outside-'))
+    tempDirs.push(outsideDir)
+    const outsideGuide = join(outsideDir, 'codex.md')
+    await writeFile(outsideGuide, markdownFor('codex'), 'utf8')
+    const { rm } = await import('node:fs/promises')
+    await rm(join(fixture.contentDir, 'codex.md'))
+    await symlink(outsideGuide, join(fixture.contentDir, 'codex.md'))
+
+    await expect(buildManifest(fixture)).rejects.toThrow(/codex\.md.*符号链接/i)
+  })
+
+  it('拒绝 media-manifest.json 符号链接逃逸 contentDir', async () => {
+    const fixture = await createFixture()
+    const outsideDir = await mkdtemp(join(tmpdir(), 'guide-v2-media-outside-'))
+    tempDirs.push(outsideDir)
+    const outsideManifest = join(outsideDir, 'media-manifest.json')
+    await writeFile(
+      outsideManifest,
+      JSON.stringify({ version: 'v2', media: [] }),
+      'utf8',
+    )
+    const { rm } = await import('node:fs/promises')
+    await rm(join(fixture.contentDir, 'media-manifest.json'))
+    await symlink(outsideManifest, join(fixture.contentDir, 'media-manifest.json'))
+
+    await expect(buildManifest(fixture)).rejects.toThrow(
+      /media-manifest\.json.*符号链接/i,
+    )
+  })
+
+  it('拒绝通过符号链接输出父目录写出 contentDir', async () => {
+    const fixture = await createFixture()
+    const outsideDir = await mkdtemp(join(tmpdir(), 'guide-v2-output-outside-'))
+    tempDirs.push(outsideDir)
+    const linkedOutputDir = join(fixture.contentDir, 'linked-output')
+    const escapedOutput = join(outsideDir, 'manifest.generated.json')
+    await symlink(outsideDir, linkedOutputDir, 'dir')
+
+    await expect(
+      buildManifest({
+        contentDir: fixture.contentDir,
+        outputPath: join(linkedOutputDir, 'manifest.generated.json'),
+      }),
+    ).rejects.toThrow(/linked-output.*符号链接/i)
+    await expect(stat(escapedOutput)).rejects.toMatchObject({ code: 'ENOENT' })
   })
 })

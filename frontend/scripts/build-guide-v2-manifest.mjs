@@ -1,6 +1,6 @@
 import { createHash, randomUUID } from 'node:crypto'
-import { mkdir, readFile, readdir, rename, rm, writeFile } from 'node:fs/promises'
-import { dirname, isAbsolute, join, relative, sep } from 'node:path'
+import { lstat, mkdir, readFile, readdir, realpath, rename, rm, writeFile } from 'node:fs/promises'
+import { dirname, isAbsolute, join, relative, resolve, sep, win32 } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 
 import { marked } from 'marked'
@@ -103,7 +103,15 @@ const validateRelativePath = (pathValue, field, sourceName) => {
   if (typeof pathValue !== 'string' || pathValue.trim() === '') {
     return fail(sourceName, `${field} 必须是非空相对路径`)
   }
-  if (isAbsolute(pathValue)) return fail(sourceName, `${field} 拒绝绝对路径: ${pathValue}`)
+  if (/^(?:\\\\|\/\/)/.test(pathValue)) {
+    return fail(sourceName, `${field} 拒绝 UNC 路径: ${pathValue}`)
+  }
+  if (/^[a-z]:/i.test(pathValue)) {
+    return fail(sourceName, `${field} 拒绝 Windows 盘符路径: ${pathValue}`)
+  }
+  if (isAbsolute(pathValue) || win32.isAbsolute(pathValue)) {
+    return fail(sourceName, `${field} 拒绝绝对路径: ${pathValue}`)
+  }
   if (pathValue.split(/[\\/]+/).includes('..')) {
     return fail(sourceName, `${field} 拒绝目录穿越: ${pathValue}`)
   }
@@ -113,11 +121,85 @@ const validateRelativePath = (pathValue, field, sourceName) => {
 const validateRelativeSource = (sourceValue, sourceName) =>
   validateRelativePath(sourceValue, 'source', sourceName)
 
-const loadMediaManifest = async (contentDir) => {
+const assertInsideContentDir = (contentDirReal, targetReal, source, description) => {
+  const relativePath = relative(contentDirReal, targetReal)
+  if (relativePath === '..' || relativePath.startsWith(`..${sep}`) || isAbsolute(relativePath)) {
+    return fail(source, `${description}的真实路径逃逸 contentDir: ${targetReal}`)
+  }
+}
+
+const assertSafeInputFile = async (contentDirReal, absolutePath, source) => {
+  let fileStat
+  try {
+    fileStat = await lstat(absolutePath)
+  } catch (error) {
+    return fail(source, `无法检查输入文件: ${error.message}`)
+  }
+  if (fileStat.isSymbolicLink()) return fail(source, `拒绝符号链接: ${absolutePath}`)
+  if (!fileStat.isFile()) return fail(source, `输入必须是普通文件: ${absolutePath}`)
+  const fileReal = await realpath(absolutePath)
+  assertInsideContentDir(contentDirReal, fileReal, source, '输入文件')
+  return fileReal
+}
+
+const inspectOutputSegments = async (currentPath, segments, source) => {
+  if (segments.length === 0) return
+  const [segment, ...remaining] = segments
+  const nextPath = join(currentPath, segment)
+  let pathStat
+  try {
+    pathStat = await lstat(nextPath)
+  } catch (error) {
+    if (error.code === 'ENOENT') return
+    return fail(source, `无法检查输出父目录: ${error.message}`)
+  }
+  if (pathStat.isSymbolicLink()) return fail(source, `输出父目录包含符号链接: ${nextPath}`)
+  if (!pathStat.isDirectory()) return fail(source, `输出父路径不是目录: ${nextPath}`)
+  return inspectOutputSegments(nextPath, remaining, source)
+}
+
+const assertSafeOutputPath = async ({ contentDir, contentDirReal, outputPath, createParent }) => {
+  const source = outputPath
+  const contentDirAbsolute = resolve(contentDir)
+  const outputAbsolute = resolve(outputPath)
+  const outputParent = dirname(outputAbsolute)
+  const relativeParent = relative(contentDirAbsolute, outputParent)
+  if (
+    relativeParent === '..' ||
+    relativeParent.startsWith(`..${sep}`) ||
+    isAbsolute(relativeParent)
+  ) {
+    return fail(source, '输出父目录必须位于 contentDir 内')
+  }
+  const segments = relativeParent === '' ? [] : relativeParent.split(sep)
+  await inspectOutputSegments(contentDirAbsolute, segments, source)
+  if (createParent) await mkdir(outputParent, { recursive: true })
+
+  let outputParentReal
+  try {
+    outputParentReal = await realpath(outputParent)
+  } catch (error) {
+    if (!createParent && error.code === 'ENOENT') return
+    return fail(source, `无法解析输出父目录: ${error.message}`)
+  }
+  assertInsideContentDir(contentDirReal, outputParentReal, source, '输出父目录')
+
+  try {
+    const outputStat = await lstat(outputAbsolute)
+    if (outputStat.isSymbolicLink()) return fail(source, `拒绝输出符号链接: ${outputAbsolute}`)
+    if (!outputStat.isFile()) return fail(source, `输出必须是普通文件: ${outputAbsolute}`)
+  } catch (error) {
+    if (error.code !== 'ENOENT') throw error
+  }
+}
+
+const loadMediaManifest = async (contentDir, contentDirReal) => {
   const source = 'media-manifest.json'
   let parsed
   try {
-    parsed = JSON.parse(await readFile(join(contentDir, source), 'utf8'))
+    const manifestPath = join(contentDir, source)
+    await assertSafeInputFile(contentDirReal, manifestPath, source)
+    parsed = JSON.parse(await readFile(manifestPath, 'utf8'))
   } catch (error) {
     return fail(source, `读取或解析失败: ${error.message}`)
   }
@@ -255,8 +337,15 @@ export const buildManifest = async ({
   outputPath = join(contentDir, 'manifest.generated.json'),
   check = false,
 } = {}) => {
+  let contentDirReal
+  try {
+    contentDirReal = await realpath(contentDir)
+  } catch (error) {
+    return fail(contentDir, `无法解析 contentDir: ${error.message}`)
+  }
   await assertExactGuideFiles(contentDir)
-  const media = await loadMediaManifest(contentDir)
+  await assertSafeOutputPath({ contentDir, contentDirReal, outputPath, createParent: !check })
+  const media = await loadMediaManifest(contentDir, contentDirReal)
   const entries = await Promise.all(
     GUIDE_SLUGS.map(async (slug) => {
       const source = validateRelativeSource(`${slug}.md`, `${slug}.md`)
@@ -265,6 +354,7 @@ export const buildManifest = async ({
       if (relativeSource.startsWith('..') || isAbsolute(relativeSource)) {
         return fail(source, '拒绝 source 逃逸 contentDir')
       }
+      await assertSafeInputFile(contentDirReal, absoluteSource, source)
       const sourceText = await readFile(absoluteSource, 'utf8')
       const { metadata: rawMetadata, body } = splitFrontmatter(sourceText, source)
       const meta = validateMetadata(rawMetadata, slug, source)

@@ -380,6 +380,11 @@ export const parseGuideMarkdown = (input: ParseGuideMarkdownInput): ParsedGuideV
   const tokens = marked.lexer(body)
   const allTokens = walkTokens(tokens)
 
+  tokens.forEach((token) => {
+    if (token.type !== 'paragraph' && walkTokens([token]).some(isImage)) {
+      fail(sourceName, '图片必须独立成段，不能放在列表、引用、表格或标题中')
+    }
+  })
   allTokens.forEach((token) => {
     if (isLink(token)) validateLink(token.href, sourceName)
     if (isImage(token)) registeredMedia(token, media, sourceName)

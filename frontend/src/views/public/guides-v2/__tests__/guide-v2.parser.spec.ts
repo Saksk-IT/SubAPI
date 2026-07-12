@@ -267,4 +267,22 @@ describe('parseGuideMarkdown', () => {
       }),
     ).toThrow(/missing-media\.md.*媒体/i)
   })
+
+  it.each([
+    ['列表', '- ![列表图片](/img/guides/v2/install-screen.webp)'],
+    ['引用', '> ![引用图片](/img/guides/v2/install-screen.webp)'],
+    [
+      '表格',
+      '| 图片 |\n| --- |\n| ![表格图片](/img/guides/v2/install-screen.webp) |',
+    ],
+  ])('拒绝%s中的图片，避免净化时静默丢失', (_context, fragment) => {
+    expect(() =>
+      parseGuideMarkdown({
+        sourceName: 'nested-context.md',
+        body: `${validBody}\n\n${fragment}`,
+        metadata,
+        media,
+      }),
+    ).toThrow(/nested-context\.md.*图片必须独立成段/i)
+  })
 })
