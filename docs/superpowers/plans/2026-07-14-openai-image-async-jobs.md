@@ -15,12 +15,13 @@
 - `POST /v1/images/generations/jobs` and `POST /v1/images/edits/jobs` accept the same body and content type as the corresponding OpenAI endpoint.
 - Submission requires `Idempotency-Key`; the managed app uses its local `TaskRecord.id`.
 - Idempotency is unique by `(user_id, idempotency_key)`. Repeating the same request returns the same job; reusing the key with another request returns `409`.
-- `GET /v1/images/jobs/:id` and `POST /v1/images/jobs/:id/cancel` are authorized by `user_id`, not the selected API-key ID. The creation key ID remains immutable for execution, billing, and audit.
+- `GET /v1/images/jobs/:id` and `POST /v1/images/jobs/:id/cancel` use identity-only API-key authentication and are authorized by `user_id`, not the selected API-key ID. They continue working when the selected key is expired/quota-exhausted or the generation exhausted the user's balance. The creation key ID remains immutable for execution, billing, and audit.
 - Public states are `queued`, `running`, `completed`, `failed`, and `cancelled`.
 - A completed status response contains the original OpenAI JSON beneath `result`; terminal errors contain `{code,message}` beneath `error`.
 - Queued cancellation is final and never calls the upstream. Running cancellation is best effort; if the upstream still returns a billable image, completion wins and the result is retained.
-- A worker crash after dispatch is reported as `failed_unknown` after the lease expires and is never automatically resubmitted. This avoids duplicate images and duplicate upstream cost.
-- The job ID is injected as the client request ID during execution so the existing usage-billing uniqueness rules remain stable.
+- A worker crash, timeout, or cancellation after dispatch without a verified response is reported as `failed_unknown` after the lease expires and is never automatically resubmitted. This avoids duplicate images and duplicate upstream cost.
+- The job ID is injected as the client request ID during execution so the existing usage-billing uniqueness rules remain stable. Async-job execution uses a synchronous billing barrier; the job is not published as completed while its usage record is merely waiting in the in-memory usage queue.
+- Every heartbeat returns the persisted `cancel_requested` flag so the lease-owning worker observes cancellation even when the cancel HTTP request lands on another application instance.
 - Terminal request payloads are cleared promptly; completed result payloads expire after the configured retention window; metadata is retained longer for diagnosis.
 - No raw API key, bearer token, or upstream access token is stored in the job table.
 - Direct page refresh still requires reopening from the Sub2API sidebar and choosing a key because the secure popup handoff intentionally destroys the opener capability. The server job itself continues, and reopening under any key owned by the same user resumes it from IndexedDB.
@@ -58,7 +59,7 @@ Define repository operations for:
 CreateOrGet(ctx, params) (*OpenAIImageJob, bool, error)
 GetForUser(ctx, userID, jobID) (*OpenAIImageJob, error)
 ClaimNext(ctx, workerID, leaseUntil) (*OpenAIImageJob, error)
-Heartbeat(ctx, jobID, workerID, leaseUntil) error
+Heartbeat(ctx, jobID, workerID, leaseUntil) (cancelRequested bool, err error)
 Complete(ctx, jobID, workerID, response) error
 Fail(ctx, jobID, workerID, code, message, unknown bool) error
 CancelForUser(ctx, userID, jobID) (*OpenAIImageJob, error)
@@ -123,7 +124,7 @@ Expected: FAIL because the routes and handler do not exist.
 
 **Step 2: Implement fast submission and polling handlers**
 
-Read the already body-limited request, parse it with the existing OpenAI Images parser for early validation, reject streaming jobs, hash endpoint/content type/body, and persist without calling account selection or the upstream. Return `Retry-After: 1` while non-terminal.
+Read the already body-limited request, parse it with the existing OpenAI Images parser for early validation, reject streaming jobs, create a semantic request fingerprint (canonical JSON; boundary-independent multipart parts), and persist without calling account selection or the upstream. Normalize and hash the idempotency key before persistence. Return `Retry-After: 1` while non-terminal.
 
 **Step 3: Write failing worker tests**
 
@@ -131,7 +132,7 @@ Use fake repository/executor implementations to prove:
 
 - returning `202`/cancelling the submission context does not stop execution;
 - only one worker owns a claimed job;
-- heartbeats continue while execution runs;
+- heartbeats continue while execution runs and propagate a cross-instance cancellation flag;
 - queued cancellation never invokes the executor;
 - a running cancellation invokes best-effort cancellation;
 - success wins a cancellation race;
@@ -153,13 +154,15 @@ Start the configured number of polling workers from one runtime object. Give eac
 
 **Step 5: Implement the fresh-context executor**
 
-Load the creation API key by ID, re-authenticate it through the existing auth path, and build a brand-new Gin request/context from the persisted endpoint, content type, body, client address, and safe headers. Inject `ClientRequestID=job_id` and `RequestID=job_id/attempt`, then invoke the existing Images pipeline and capture its non-stream response. Never retain or use the original request's `*gin.Context` across goroutines.
+Load the creation API key by ID, re-authenticate it through the existing full auth path, verify the current key owner still matches the job owner, and build a brand-new Gin request/context from the persisted endpoint, content type, body, trusted client address, and bounded User-Agent. Inject `ClientRequestID=job_id` and `RequestID=job_id/attempt`, then invoke the existing Images pipeline and capture its non-stream response. Never retain or use the original request's `*gin.Context` across goroutines, and never persist or replay an Authorization header.
+
+For async jobs only, execute image usage recording synchronously (with the stable job ID and bounded retry) and surface a billing failure to the worker. A recorder's default empty `200` is not success: completion requires a real 2xx JSON response containing an image result.
 
 Tests must prove key/user/group disablement is rechecked and the stable job ID reaches usage recording. The adapter is deliberately internal so the synchronous API remains unchanged.
 
 **Step 6: Add routes, config defaults, Wire providers, and cleanup**
 
-Defaults: enabled, 2 workers, 1-second poll, 10-second heartbeat, 2-minute stale lease, 15-minute execution timeout, 72-hour result retention, 30-day metadata retention, hourly cleanup. Register the five job routes under the existing `/v1` authenticated group.
+Defaults: enabled, 2 workers, 1-second poll, 10-second heartbeat, 2-minute stale lease, 15-minute execution timeout, 72-hour result retention, 30-day metadata retention, hourly cleanup, plus bounded per-user/global active-job counts. Register the two submit routes under the existing fully billed `/v1` group. Register status and cancel with identity-only authentication and without a group-assignment gate so an already accepted result remains retrievable after balance/quota exhaustion or a same-user key change.
 
 Regenerate Wire:
 
