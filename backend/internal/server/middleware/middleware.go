@@ -29,7 +29,27 @@ const (
 	// apiKey 已加载但尚未写入 ContextKeyAPIKey；该键让 Ops 错误日志仍能取到
 	// user/group/platform。仅供 Ops 错误日志读取，不代表请求已通过鉴权。
 	ContextKeyOpsFallbackAPIKey ContextKey = "ops_fallback_api_key"
+	// ContextKeyAPIKeyIdentityOnly 标识只验证 API Key 持有人身份的受控路由。
+	// 该标记只能由 APIKeyIdentityOnly 中间件设置，不能从请求头或查询参数读取。
+	ContextKeyAPIKeyIdentityOnly ContextKey = "api_key_identity_only"
 )
+
+// APIKeyIdentityOnly marks a route as identity-only before API key
+// authentication runs. Identity-only routes still validate the key, its IP
+// ACL, and its owning user, but do not require the key to remain eligible for
+// a new billed generation request.
+func APIKeyIdentityOnly() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		c.Set(string(ContextKeyAPIKeyIdentityOnly), true)
+		c.Next()
+	}
+}
+
+func isAPIKeyIdentityOnly(c *gin.Context) bool {
+	value, exists := c.Get(string(ContextKeyAPIKeyIdentityOnly))
+	identityOnly, ok := value.(bool)
+	return exists && ok && identityOnly
+}
 
 // ForcePlatform 返回设置强制平台的中间件
 // 同时设置 request.Context（供 Service 使用）和 gin.Context（供 Handler 快速检查）

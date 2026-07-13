@@ -120,6 +120,25 @@ func apiKeyAuthWithSubscription(apiKeyService *service.APIKeyService, subscripti
 			AbortWithError(c, 401, "USER_INACTIVE", "User account is not active")
 			return
 		}
+
+		// Identity-only routes retrieve or cancel work that was accepted earlier.
+		// They authenticate the current key owner but deliberately do not reapply
+		// eligibility checks for creating a new billed request. In particular, do
+		// not validate or publish group/subscription context here.
+		if isAPIKeyIdentityOnly(c) {
+			ctx := context.WithValue(c.Request.Context(), ctxkey.UserID, apiKey.User.ID)
+			c.Request = c.Request.WithContext(ctx)
+			c.Set(string(ContextKeyAPIKey), apiKey)
+			c.Set(string(ContextKeyUser), AuthSubject{
+				UserID:      apiKey.User.ID,
+				Concurrency: apiKey.User.Concurrency,
+			})
+			c.Set(string(ContextKeyUserRole), apiKey.User.Role)
+			_ = apiKeyService.TouchLastUsed(c.Request.Context(), apiKey.ID)
+			c.Next()
+			return
+		}
+
 		if abortIfAPIKeyGroupUnavailable(c, apiKey) {
 			return
 		}
