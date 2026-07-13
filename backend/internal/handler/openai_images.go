@@ -348,8 +348,8 @@ func (h *OpenAIGatewayHandler) Images(c *gin.Context) {
 		if result != nil {
 			upstreamModel = result.UpstreamModel
 		}
-		h.submitMandatoryUsageRecordTask(c.Request.Context(), func(ctx context.Context) {
-			if err := h.gatewayService.RecordUsage(ctx, &service.OpenAIRecordUsageInput{
+		h.submitOpenAIImageUsageRecordTask(c.Request.Context(), func(ctx context.Context) error {
+			err := h.gatewayService.RecordUsage(ctx, &service.OpenAIRecordUsageInput{
 				Result:             result,
 				APIKey:             apiKey,
 				User:               apiKey.User,
@@ -363,7 +363,8 @@ func (h *OpenAIGatewayHandler) Images(c *gin.Context) {
 				APIKeyService:      h.apiKeyService,
 				QuotaPlatform:      quotaPlatform,
 				ChannelUsageFields: channelMapping.ToUsageFields(requestModel, upstreamModel),
-			}); err != nil {
+			})
+			if err != nil {
 				logger.L().With(
 					zap.String("component", "handler.openai_gateway.images"),
 					zap.Int64("user_id", subject.UserID),
@@ -373,6 +374,7 @@ func (h *OpenAIGatewayHandler) Images(c *gin.Context) {
 					zap.Int64("account_id", account.ID),
 				).Error("openai.images.record_usage_failed", zap.Error(err))
 			}
+			return err
 		})
 
 		reqLog.Debug("openai.images.request_completed",
