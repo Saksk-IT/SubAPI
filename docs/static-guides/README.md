@@ -2,6 +2,33 @@
 
 本目录保留教程的可编辑 Markdown 源稿，并生成飞书上传成品。源稿本身已经按“一个父教程 + 六个子教程”整理完成，不再依赖导出脚本切割或改写正文。由于飞书导入 Markdown 时无法稳定识别 `data:` 图片，当前**优先使用 Word 成品**；每张教程截图都直接存放在 `.docx` 文件内部的 `word/media/`，无需额外上传图片目录。
 
+导出工具支持 `--edition v1|v2`，默认仍为 `v1`，因此原有命令、七份成品和目录保持不变。V2 网站与导出成品共同读取 `frontend/src/content/guides-v2/` 下的九份 Markdown；导出前会校验正文 SHA-256 与 `manifest.generated.json` 一致。
+
+## V2 推荐维护流程
+
+1. 修改 `frontend/src/content/guides-v2/` 中的 Markdown 或媒体清单。
+2. 执行 `pnpm --dir frontend guides:v2:manifest` 更新并校验内容 manifest。
+3. 使用 Codex 捆绑文档运行时生成九份 Word 成品：
+
+   ```bash
+   /Users/sak/.cache/codex-runtimes/codex-primary-runtime/dependencies/python/bin/python3 tools/export_word_guides.py --edition v2
+   /Users/sak/.cache/codex-runtimes/codex-primary-runtime/dependencies/python/bin/python3 tools/export_word_guides.py --edition v2 --check
+   ```
+
+4. 如需自包含 Markdown 归档，执行：
+
+   ```bash
+   /Users/sak/.cache/codex-runtimes/codex-primary-runtime/dependencies/python/bin/python3 tools/export_feishu_guides.py --edition v2
+   /Users/sak/.cache/codex-runtimes/codex-primary-runtime/dependencies/python/bin/python3 tools/export_feishu_guides.py --edition v2 --check
+   ```
+
+V2 默认生成目录为：
+
+- `feishu-v2/02-AI客户端使用指南/`
+- `feishu-word-v2/02-AI客户端使用指南/`
+
+两套目录都固定包含 `00-教程中心`、`01-快速开始`、`02-Codex`、`03-Claude-Code`、`04-OpenCode`、`05-OpenClaw`、`06-Chatbox-移动端`、`07-Cherry-Studio-生图`、`08-公共排错中心`。Markdown 使用对应 PNG fallback 的 Base64 data URI；Word 图片全部内嵌，不存在外部图片关系。V2 导出品牌固定为“AI 客户端使用指南”，不写网站运行时品牌。
+
 ## 推荐维护流程（Word）
 
 1. 修改本目录中的 Markdown 源稿。

@@ -187,6 +187,20 @@ class FeishuGuideExportTests(unittest.TestCase):
                 EXPECTED_OUTPUT_PATHS,
             )
 
+    def test_explicit_v1_edition_matches_the_default_output(self) -> None:
+        with tempfile.TemporaryDirectory() as default_directory, tempfile.TemporaryDirectory() as v1_directory:
+            default_output = Path(default_directory)
+            v1_output = Path(v1_directory)
+            default_result = self.run_export(default_output)
+            v1_result = self.run_export(v1_output, "--edition", "v1")
+            self.assertEqual(default_result.returncode, 0, default_result.stderr)
+            self.assertEqual(v1_result.returncode, 0, v1_result.stderr)
+            for relative_path in EXPECTED_OUTPUT_PATHS:
+                self.assertEqual(
+                    (default_output / relative_path).read_bytes(),
+                    (v1_output / relative_path).read_bytes(),
+                )
+
     def test_removes_website_only_metadata_and_internal_routes(self) -> None:
         with tempfile.TemporaryDirectory() as temporary_directory:
             output_dir = Path(temporary_directory)

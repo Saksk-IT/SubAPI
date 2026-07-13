@@ -12,6 +12,11 @@ import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 
+if __package__:
+    from . import export_guides_v2
+else:
+    import export_guides_v2
+
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 SOURCE_DIR = REPO_ROOT / "docs" / "static-guides"
@@ -227,8 +232,14 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--output-dir",
         type=Path,
-        default=DEFAULT_OUTPUT_DIR,
-        help="输出目录（默认：docs/static-guides/feishu）",
+        default=None,
+        help="输出目录（默认随 edition 选择 V1 或 V2 成品目录）",
+    )
+    parser.add_argument(
+        "--edition",
+        choices=("v1", "v2"),
+        default="v1",
+        help="导出版本（默认：v1）",
     )
     parser.add_argument(
         "--check",
@@ -240,8 +251,27 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> int:
     args = parse_args()
-    output_dir = args.output_dir.resolve()
+    default_output = (
+        export_guides_v2.DEFAULT_MARKDOWN_OUTPUT_DIR
+        if args.edition == "v2"
+        else DEFAULT_OUTPUT_DIR
+    )
+    output_dir = (args.output_dir or default_output)
     try:
+        if args.edition == "v2":
+            exports = export_guides_v2.rendered_markdown_exports()
+            if args.check:
+                errors = export_guides_v2.check_export_tree(output_dir, exports)
+                if errors:
+                    print("\n".join(errors), file=sys.stderr)
+                    return 1
+                print(f"校验通过：{len(exports)} 份 V2 飞书 Markdown 与源稿一致。")
+                return 0
+            export_guides_v2.atomic_export_tree(output_dir, exports)
+            print(f"已生成 {len(exports)} 份 V2 飞书 Markdown：{output_dir}")
+            return 0
+
+        output_dir = output_dir.resolve()
         exports = rendered_guides()
         if args.check:
             errors = check_guides(output_dir, exports)

@@ -4,11 +4,10 @@
 from __future__ import annotations
 
 import argparse
+import base64
 import io
-import os
 import re
 import sys
-import tempfile
 import zipfile
 from datetime import datetime, timezone
 from pathlib import Path
@@ -30,8 +29,22 @@ except ImportError as error:  # pragma: no cover - 命令行环境缺依赖时�
 
 if __package__:
     from . import export_feishu_guides as markdown_exporter
+    from . import export_guides_v2
+    from . import export_word_guides_v2 as word_v2
+    from .export_word_guides_io import (
+        check_documents,
+        export_documents,
+        validated_docx_path,
+    )
 else:
     import export_feishu_guides as markdown_exporter
+    import export_guides_v2
+    import export_word_guides_v2 as word_v2
+    from export_word_guides_io import (
+        check_documents,
+        export_documents,
+        validated_docx_path,
+    )
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -68,8 +81,14 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--output-dir",
         type=Path,
-        default=DEFAULT_OUTPUT_DIR,
-        help="输出目录（默认：docs/static-guides/feishu-word）",
+        default=None,
+        help="输出目录（默认随 edition 选择 V1 或 V2 成品目录）",
+    )
+    parser.add_argument(
+        "--edition",
+        choices=("v1", "v2"),
+        default="v1",
+        help="导出版本（默认：v1）",
     )
     parser.add_argument(
         "--check",
@@ -77,18 +96,6 @@ def parse_args() -> argparse.Namespace:
         help="只校验现有 Word 产物是否与当前源稿一致",
     )
     return parser.parse_args()
-
-
-def validated_docx_path(relative_path: str) -> Path:
-    path = Path(relative_path)
-    if (
-        path.is_absolute()
-        or path.suffix.lower() != ".docx"
-        or not path.parts
-        or any(part in {"", ".", ".."} for part in path.parts)
-    ):
-        raise ValueError(f"Word 输出路径无效: {relative_path}")
-    return path
 
 
 def set_run_font(
@@ -536,10 +543,31 @@ def add_code_block(doc: Document, code: str) -> None:
     )
 
 
-def add_image(doc: Document, source_path: Path, target: str, alt_text: str) -> None:
-    image_path = markdown_exporter.image_path_from_target(source_path, target)
-    image = Image.from_file(str(image_path))
-    max_width = Inches(6.15)
+def add_image(
+    doc: Document,
+    source_path: Path,
+    target: str,
+    alt_text: str,
+    *,
+    max_width_inches: float = 6.15,
+) -> None:
+    if target.startswith("data:image/png;base64,"):
+        try:
+            image_bytes = base64.b64decode(target.split(",", 1)[1], validate=True)
+        except (ValueError, base64.binascii.Error) as error:
+            raise ValueError("Word 图片包含无效 Base64") from error
+        if not image_bytes.startswith(export_guides_v2.PNG_SIGNATURE):
+            raise ValueError("Word 图片数据不是 PNG")
+        image_source = io.BytesIO(image_bytes)
+        image = Image.from_file(image_source)
+        picture_source = io.BytesIO(image_bytes)
+        image_name = "embedded-v2-image"
+    else:
+        image_path = markdown_exporter.image_path_from_target(source_path, target)
+        image = Image.from_file(str(image_path))
+        picture_source = str(image_path)
+        image_name = image_path.stem
+    max_width = Inches(max_width_inches)
     max_height = Inches(7.15)
     width = image.width
     height = image.height
@@ -550,11 +578,11 @@ def add_image(doc: Document, source_path: Path, target: str, alt_text: str) -> N
     paragraph.paragraph_format.space_after = Pt(2)
     paragraph.paragraph_format.keep_with_next = True
     shape = paragraph.add_run().add_picture(
-        str(image_path),
+        picture_source,
         width=int(width * scale),
         height=int(height * scale),
     )
-    description = alt_text or image_path.stem
+    description = alt_text or image_name
     shape._inline.docPr.set("descr", description)
     shape._inline.docPr.set("title", description)
 
@@ -579,6 +607,8 @@ def render_markdown_to_document(
     source_path: Path,
     *,
     is_parent: bool,
+    edition: str = "v1",
+    metadata: dict | None = None,
 ) -> Document:
     lines = markdown.splitlines()
     title_match = next(
@@ -589,8 +619,17 @@ def render_markdown_to_document(
         raise ValueError(f"教程缺少一级标题: {source_path.name}")
     title = title_match.group(2)
     doc = Document()
-    configure_document(doc, title, is_parent)
-    add_cover(doc, title, is_parent)
+    if edition == "v2":
+        word_v2.configure_document(doc, title, sys.modules[__name__])
+        word_v2.add_editorial_opening(
+            doc,
+            title,
+            metadata or {},
+            sys.modules[__name__],
+        )
+    else:
+        configure_document(doc, title, is_parent)
+        add_cover(doc, title, is_parent)
 
     index = 0
     skipped_title = False
@@ -627,7 +666,13 @@ def render_markdown_to_document(
 
         image_match = IMAGE_PATTERN.match(stripped)
         if image_match:
-            add_image(doc, source_path, image_match.group(2), image_match.group(1))
+            add_image(
+                doc,
+                source_path,
+                image_match.group(2),
+                image_match.group(1),
+                max_width_inches=5.0 if edition == "v2" else 6.15,
+            )
             index += 1
             continue
 
@@ -694,7 +739,12 @@ def render_markdown_to_document(
     return doc
 
 
-def normalize_docx_package(raw_docx: bytes) -> bytes:
+def normalize_docx_package(
+    raw_docx: bytes,
+    *,
+    body_font: str | None = None,
+    east_asia_font: str | None = None,
+) -> bytes:
     source_buffer = io.BytesIO(raw_docx)
     destination_buffer = io.BytesIO()
     with zipfile.ZipFile(source_buffer) as source_archive, zipfile.ZipFile(
@@ -708,7 +758,15 @@ def normalize_docx_package(raw_docx: bytes) -> bytes:
             normalized_info.compress_type = zipfile.ZIP_DEFLATED
             normalized_info.create_system = 3
             normalized_info.external_attr = source_info.external_attr
-            destination_archive.writestr(normalized_info, source_archive.read(source_info.filename))
+            payload = source_archive.read(source_info.filename)
+            if body_font and source_info.filename.endswith(".xml"):
+                payload = payload.replace(BODY_FONT.encode(), body_font.encode())
+            if east_asia_font and source_info.filename.endswith(".xml"):
+                payload = payload.replace(
+                    EAST_ASIA_FONT.encode(),
+                    east_asia_font.encode(),
+                )
+            destination_archive.writestr(normalized_info, payload)
     return destination_buffer.getvalue()
 
 
@@ -731,80 +789,33 @@ def rendered_documents() -> tuple[tuple[str, bytes], ...]:
     )
 
 
-def atomic_write_bytes(destination: Path, content: bytes) -> None:
-    temporary_path: Path | None = None
-    try:
-        with tempfile.NamedTemporaryFile(
-            mode="wb",
-            dir=destination.parent,
-            prefix=f".{destination.name}.",
-            suffix=".tmp",
-            delete=False,
-        ) as temporary_file:
-            temporary_path = Path(temporary_file.name)
-            temporary_file.write(content)
-            temporary_file.flush()
-            os.fsync(temporary_file.fileno())
-        temporary_path.chmod(0o644)
-        os.replace(temporary_path, destination)
-    finally:
-        if temporary_path is not None and temporary_path.exists():
-            temporary_path.unlink()
-
-
-def safe_output_destination(output_dir: Path, relative_path: Path) -> Path:
-    output_root = output_dir.resolve()
-    destination = output_root / relative_path
-    destination.parent.mkdir(parents=True, exist_ok=True)
-    resolved_parent = destination.parent.resolve()
-    try:
-        resolved_parent.relative_to(output_root)
-    except ValueError as error:
-        raise ValueError(f"Word 输出目录超出允许范围: {relative_path}") from error
-    return resolved_parent / destination.name
-
-
-def export_documents(
-    output_dir: Path,
-    exports: tuple[tuple[str, bytes], ...],
-) -> None:
-    output_dir.mkdir(parents=True, exist_ok=True)
-    for output_name, content in exports:
-        destination = safe_output_destination(
-            output_dir,
-            validated_docx_path(output_name),
-        )
-        atomic_write_bytes(destination, content)
-
-
-def check_documents(
-    output_dir: Path,
-    exports: tuple[tuple[str, bytes], ...],
-) -> list[str]:
-    errors: list[str] = []
-    expected_names = {output_name for output_name, _ in exports}
-    existing_names = {
-        path.relative_to(output_dir).as_posix()
-        for path in output_dir.rglob("*.docx")
-    }
-    for missing_name in sorted(expected_names - existing_names):
-        errors.append(f"缺少生成文件: {missing_name}")
-    for extra_name in sorted(existing_names - expected_names):
-        errors.append(f"存在多余生成文件: {extra_name}")
-    for output_name, expected_content in exports:
-        output_path = output_dir / validated_docx_path(output_name)
-        if output_path.is_symlink() or (output_path.exists() and not output_path.is_file()):
-            errors.append(f"生成路径不是普通文件: {output_name}")
-            continue
-        if output_path.is_file() and output_path.read_bytes() != expected_content:
-            errors.append(f"生成文件已过期: {output_name}")
-    return errors
+def rendered_v2_documents() -> tuple[tuple[str, bytes], ...]:
+    return word_v2.rendered_documents(sys.modules[__name__])
 
 
 def main() -> int:
     args = parse_args()
-    output_dir = args.output_dir.resolve()
+    default_output = (
+        export_guides_v2.DEFAULT_WORD_OUTPUT_DIR
+        if args.edition == "v2"
+        else DEFAULT_OUTPUT_DIR
+    )
+    output_dir = args.output_dir or default_output
     try:
+        if args.edition == "v2":
+            exports = rendered_v2_documents()
+            if args.check:
+                errors = export_guides_v2.check_export_tree(output_dir, exports)
+                if errors:
+                    print("\n".join(errors), file=sys.stderr)
+                    return 1
+                print(f"校验通过：{len(exports)} 份 V2 Word 教程与源稿一致。")
+                return 0
+            export_guides_v2.atomic_export_tree(output_dir, exports)
+            print(f"已生成 {len(exports)} 份图片内嵌 V2 Word 教程：{output_dir}")
+            return 0
+
+        output_dir = output_dir.resolve()
         exports = rendered_documents()
         if args.check:
             errors = check_documents(output_dir, exports)
