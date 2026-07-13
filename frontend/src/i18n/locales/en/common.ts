@@ -196,6 +196,8 @@ export default {
   imageGeneration: {
     title: 'Image Generation',
     subtitle: 'Open the image workspace with an authorized OpenAI API key.',
+    launcherTitle: 'Choose an image generation key',
+    launcherDescription: 'Choose an eligible OpenAI API key and open the image workspace in a new tab.',
     keyLabel: 'API Key',
     loading: 'Loading image generation access…',
     loadError: 'Failed to load API keys',
@@ -209,6 +211,14 @@ export default {
     connectionErrorTitle: 'Unable to connect to the image workspace',
     connectionErrorDescription: 'The secure connection could not be established. Please retry.',
     frameTitle: 'Image Workspace',
+    openNewTab: 'Open in new tab',
+    opening: 'Opening…',
+    disabled: 'Image generation has been disabled by an administrator.',
+    userChanged: 'The account changed. Open image generation again.',
+    popupBlocked: 'The browser blocked the new tab. Allow popups and retry.',
+    popupClosed: 'The image workspace tab was closed. Please retry.',
+    connectionTimeout: 'The image workspace connection timed out. Please retry.',
+    configurationFailed: 'The image workspace could not be configured. Please retry.',
   },
 
   // Auth

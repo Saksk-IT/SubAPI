@@ -196,6 +196,8 @@ export default {
   imageGeneration: {
     title: '生图',
     subtitle: '使用已授权的 OpenAI API 密钥进入生图工作区。',
+    launcherTitle: '选择生图密钥',
+    launcherDescription: '选择一个可用的 OpenAI API 密钥，在新标签页打开生图工作区。',
     keyLabel: 'API 密钥',
     loading: '正在加载生图权限…',
     loadError: '加载 API 密钥失败',
@@ -209,6 +211,14 @@ export default {
     connectionErrorTitle: '无法连接生图工作区',
     connectionErrorDescription: '安全连接建立失败，请重试。',
     frameTitle: '生图工作区',
+    openNewTab: '在新标签页打开',
+    opening: '正在打开…',
+    disabled: '管理员已关闭生图入口。',
+    userChanged: '账号已切换，请重新打开生图入口。',
+    popupBlocked: '浏览器拦截了新标签页，请允许弹窗后重试。',
+    popupClosed: '生图标签页已关闭，请重试。',
+    connectionTimeout: '生图工作区连接超时，请重试。',
+    configurationFailed: '生图工作区配置失败，请重试。',
   },
 
   // Auth
