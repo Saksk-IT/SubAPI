@@ -185,6 +185,113 @@ func TestOpenAIImageJobRepositoryCreateRecomputesCallerRequestHash(t *testing.T)
 	}
 }
 
+func TestOpenAIImageJobRepositoryCreateWithLimitsReturnsReplayBeforeCounting(t *testing.T) {
+	t.Parallel()
+
+	_, mock, repo := newOpenAIImageJobRepositoryMock(t)
+	now := time.Date(2026, time.July, 14, 10, 0, 0, 0, time.UTC)
+	params := openAIImageJobCreateParams("imgjob_replay", "ignored")
+	params.MaxActivePerUser = 3
+	params.MaxActiveGlobal = 20
+	actualHash := service.HashOpenAIImageJobRequest(params.Endpoint, params.ContentType, params.RequestBody)
+
+	mock.ExpectBegin()
+	mock.ExpectQuery(`SELECT pg_advisory_xact_lock\(\$1\)`).
+		WithArgs(openAIImageJobCreateLockKey).
+		WillReturnRows(sqlmock.NewRows([]string{"pg_advisory_xact_lock"}).AddRow(nil))
+	mock.ExpectQuery(`(?s)FROM openai_image_jobs\s+WHERE user_id = \$1 AND idempotency_key_hash = \$2`).
+		WithArgs(params.UserID, service.HashIdempotencyKey(params.IdempotencyKey)).
+		WillReturnRows(openAIImageJobRows().AddRow(openAIImageJobRowValues(
+			"imgjob_existing", params.UserID, params.APIKeyID, service.OpenAIImageJobStatusRunning,
+			actualHash, service.HashIdempotencyKey(params.IdempotencyKey), now,
+		)...))
+	mock.ExpectCommit()
+
+	job, created, err := repo.CreateOrGet(context.Background(), params)
+	if err != nil {
+		t.Fatalf("create replay: %v", err)
+	}
+	if created || job.JobID != "imgjob_existing" {
+		t.Fatalf("created=%v job=%#v, want existing replay", created, job)
+	}
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestOpenAIImageJobRepositoryCreateWithLimitsRejectsUserCapacityAtomically(t *testing.T) {
+	t.Parallel()
+
+	_, mock, repo := newOpenAIImageJobRepositoryMock(t)
+	params := openAIImageJobCreateParams("imgjob_limited", "ignored")
+	params.MaxActivePerUser = 3
+	params.MaxActiveGlobal = 20
+
+	mock.ExpectBegin()
+	mock.ExpectQuery(`SELECT pg_advisory_xact_lock\(\$1\)`).
+		WithArgs(openAIImageJobCreateLockKey).
+		WillReturnRows(sqlmock.NewRows([]string{"pg_advisory_xact_lock"}).AddRow(nil))
+	mock.ExpectQuery(`(?s)FROM openai_image_jobs\s+WHERE user_id = \$1 AND idempotency_key_hash = \$2`).
+		WithArgs(params.UserID, service.HashIdempotencyKey(params.IdempotencyKey)).
+		WillReturnRows(openAIImageJobRows())
+	mock.ExpectQuery(`(?s)COUNT\(\*\) FILTER \(WHERE user_id = \$1\).*COUNT\(\*\).*status IN \(\$2, \$3\)`).
+		WithArgs(params.UserID, service.OpenAIImageJobStatusQueued, service.OpenAIImageJobStatusRunning).
+		WillReturnRows(sqlmock.NewRows([]string{"user_active", "global_active"}).AddRow(3, 9))
+	mock.ExpectRollback()
+
+	job, created, err := repo.CreateOrGet(context.Background(), params)
+	if job != nil || created || !errors.Is(err, service.ErrOpenAIImageJobUserActiveLimit) {
+		t.Fatalf("job=%#v created=%v error=%v, want user active limit", job, created, err)
+	}
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestOpenAIImageJobRepositoryCreateWithLimitsInsertsInsideSerializedTransaction(t *testing.T) {
+	t.Parallel()
+
+	_, mock, repo := newOpenAIImageJobRepositoryMock(t)
+	now := time.Date(2026, time.July, 14, 10, 0, 0, 0, time.UTC)
+	params := openAIImageJobCreateParams("imgjob_limited_ok", "ignored")
+	params.MaxActivePerUser = 3
+	params.MaxActiveGlobal = 20
+	actualHash := service.HashOpenAIImageJobRequest(params.Endpoint, params.ContentType, params.RequestBody)
+
+	mock.ExpectBegin()
+	mock.ExpectQuery(`SELECT pg_advisory_xact_lock\(\$1\)`).
+		WithArgs(openAIImageJobCreateLockKey).
+		WillReturnRows(sqlmock.NewRows([]string{"pg_advisory_xact_lock"}).AddRow(nil))
+	mock.ExpectQuery(`(?s)FROM openai_image_jobs\s+WHERE user_id = \$1 AND idempotency_key_hash = \$2`).
+		WithArgs(params.UserID, service.HashIdempotencyKey(params.IdempotencyKey)).
+		WillReturnRows(openAIImageJobRows())
+	mock.ExpectQuery(`(?s)COUNT\(\*\) FILTER \(WHERE user_id = \$1\).*COUNT\(\*\).*status IN \(\$2, \$3\)`).
+		WithArgs(params.UserID, service.OpenAIImageJobStatusQueued, service.OpenAIImageJobStatusRunning).
+		WillReturnRows(sqlmock.NewRows([]string{"user_active", "global_active"}).AddRow(2, 19))
+	mock.ExpectQuery(`(?s)INSERT INTO openai_image_jobs`).
+		WithArgs(
+			params.JobID, params.UserID, params.APIKeyID, params.Endpoint, params.Model,
+			params.ContentType, params.RequestBody, actualHash, service.HashIdempotencyKey(params.IdempotencyKey),
+			params.ClientIP, params.UserAgent, service.OpenAIImageJobStatusQueued,
+		).
+		WillReturnRows(openAIImageJobRows().AddRow(openAIImageJobRowValues(
+			params.JobID, params.UserID, params.APIKeyID, service.OpenAIImageJobStatusQueued,
+			actualHash, service.HashIdempotencyKey(params.IdempotencyKey), now,
+		)...))
+	mock.ExpectCommit()
+
+	job, created, err := repo.CreateOrGet(context.Background(), params)
+	if err != nil {
+		t.Fatalf("create within limits: %v", err)
+	}
+	if !created || job.JobID != params.JobID {
+		t.Fatalf("created=%v job=%#v, want new job", created, job)
+	}
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestOpenAIImageJobRepositoryTerminalWritesRequireWorkerOwnership(t *testing.T) {
 	t.Parallel()
 

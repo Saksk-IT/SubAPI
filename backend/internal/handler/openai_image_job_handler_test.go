@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Wei-Shaw/sub2api/internal/config"
 	"github.com/Wei-Shaw/sub2api/internal/server/middleware"
 	"github.com/Wei-Shaw/sub2api/internal/service"
 	"github.com/gin-gonic/gin"
@@ -78,7 +79,7 @@ func TestOpenAIImageJobHandlerSubmitGenerationReturnsImmediatelyAndReplays(t *te
 			}, false, nil
 		},
 	}
-	h := NewOpenAIImageJobHandler(repo, &service.OpenAIGatewayService{})
+	h := NewOpenAIImageJobHandler(repo, &service.OpenAIGatewayService{}, openAIImageJobHandlerTestConfig())
 	body := []byte(`{"model":"gpt-image-2","prompt":"draw a cat","stream":false}`)
 	c, recorder := newOpenAIImageJobHandlerContext(http.MethodPost, "/v1/images/generations/jobs", body, "application/json")
 	c.Request.Header.Set("Idempotency-Key", "  local-task-123  ")
@@ -96,6 +97,8 @@ func TestOpenAIImageJobHandlerSubmitGenerationReturnsImmediatelyAndReplays(t *te
 	require.Equal(t, body, captured.RequestBody)
 	require.Equal(t, "application/json", captured.ContentType)
 	require.Equal(t, "203.0.113.5", captured.ClientIP)
+	require.Equal(t, 10, captured.MaxActivePerUser)
+	require.Equal(t, 1000, captured.MaxActiveGlobal)
 	require.NotContains(t, string(captured.RequestBody), "secret-key")
 	require.JSONEq(t, `{"id":"imgjob_123","object":"image_generation.job","status":"queued","created_at":"2026-07-14T01:02:03Z"}`, recorder.Body.String())
 }
@@ -119,7 +122,7 @@ func TestOpenAIImageJobHandlerSubmitMultipartEdit(t *testing.T) {
 			return &service.OpenAIImageJob{JobID: "imgjob_edit", Status: service.OpenAIImageJobStatusQueued, CreatedAt: time.Now()}, true, nil
 		},
 	}
-	h := NewOpenAIImageJobHandler(repo, &service.OpenAIGatewayService{})
+	h := NewOpenAIImageJobHandler(repo, &service.OpenAIGatewayService{}, openAIImageJobHandlerTestConfig())
 	c, recorder := newOpenAIImageJobHandlerContext(http.MethodPost, "/v1/images/edits/jobs", body.Bytes(), writer.FormDataContentType())
 	c.Request.Header.Set("Idempotency-Key", "edit-task")
 
@@ -153,7 +156,7 @@ func TestOpenAIImageJobHandlerSubmitValidatesRequestBeforePersistence(t *testing
 					return nil, false, nil
 				},
 			}
-			h := NewOpenAIImageJobHandler(repo, &service.OpenAIGatewayService{})
+			h := NewOpenAIImageJobHandler(repo, &service.OpenAIGatewayService{}, openAIImageJobHandlerTestConfig())
 			c, recorder := newOpenAIImageJobHandlerContext(http.MethodPost, "/v1/images/generations/jobs", []byte(tt.body), "application/json")
 			if tt.idempotencyKey != "" {
 				c.Request.Header.Set("Idempotency-Key", tt.idempotencyKey)
@@ -191,7 +194,7 @@ func TestOpenAIImageJobHandlerStatusIsUserScopedAndNoStore(t *testing.T) {
 			}, nil
 		},
 	}
-	h := NewOpenAIImageJobHandler(repo, &service.OpenAIGatewayService{})
+	h := NewOpenAIImageJobHandler(repo, &service.OpenAIGatewayService{}, openAIImageJobHandlerTestConfig())
 	c, recorder := newOpenAIImageJobHandlerContext(http.MethodGet, "/v1/images/jobs/imgjob_status", nil, "")
 	c.Params = gin.Params{{Key: "id", Value: "imgjob_status"}}
 
@@ -223,7 +226,7 @@ func TestOpenAIImageJobHandlerStatusCompletedEmbedsOriginalResult(t *testing.T) 
 			}, nil
 		},
 	}
-	h := NewOpenAIImageJobHandler(repo, &service.OpenAIGatewayService{})
+	h := NewOpenAIImageJobHandler(repo, &service.OpenAIGatewayService{}, openAIImageJobHandlerTestConfig())
 	c, recorder := newOpenAIImageJobHandlerContext(http.MethodGet, "/v1/images/jobs/imgjob_done", nil, "")
 	c.Params = gin.Params{{Key: "id", Value: "imgjob_done"}}
 
@@ -251,7 +254,7 @@ func TestOpenAIImageJobHandlerCancelUsesAuthenticatedUserAndIsIdempotent(t *test
 			}, nil
 		},
 	}
-	h := NewOpenAIImageJobHandler(repo, &service.OpenAIGatewayService{})
+	h := NewOpenAIImageJobHandler(repo, &service.OpenAIGatewayService{}, openAIImageJobHandlerTestConfig())
 	c, recorder := newOpenAIImageJobHandlerContext(http.MethodPost, "/v1/images/jobs/imgjob_cancel/cancel", nil, "")
 	c.Params = gin.Params{{Key: "id", Value: "imgjob_cancel"}}
 
@@ -273,7 +276,7 @@ func TestOpenAIImageJobHandlerHidesCrossUserJobsAsNotFound(t *testing.T) {
 			return nil, service.ErrOpenAIImageJobNotFound
 		},
 	}
-	h := NewOpenAIImageJobHandler(repo, &service.OpenAIGatewayService{})
+	h := NewOpenAIImageJobHandler(repo, &service.OpenAIGatewayService{}, openAIImageJobHandlerTestConfig())
 	c, recorder := newOpenAIImageJobHandlerContext(http.MethodGet, "/v1/images/jobs/other-user-job", nil, "")
 	c.Params = gin.Params{{Key: "id", Value: "other-user-job"}}
 
@@ -300,4 +303,12 @@ func newOpenAIImageJobHandlerContext(method, path string, body []byte, contentTy
 	c.Set(string(middleware.ContextKeyAPIKey), apiKey)
 	c.Set(string(middleware.ContextKeyUser), middleware.AuthSubject{UserID: user.ID, Concurrency: 2})
 	return c, recorder
+}
+
+func openAIImageJobHandlerTestConfig() *config.Config {
+	return &config.Config{OpenAIImageJobs: config.OpenAIImageJobsConfig{
+		Enabled:          true,
+		MaxActivePerUser: 10,
+		MaxActiveGlobal:  1000,
+	}}
 }

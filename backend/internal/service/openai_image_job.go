@@ -58,6 +58,16 @@ var (
 		"OPENAI_IMAGE_JOB_RESULT_EXPIRY_REQUIRED",
 		"completed image generation job requires a result expiry",
 	)
+	ErrOpenAIImageJobUserActiveLimit = infraerrors.New(
+		http.StatusTooManyRequests,
+		"OPENAI_IMAGE_JOB_USER_ACTIVE_LIMIT",
+		"too many active image generation jobs for this user",
+	)
+	ErrOpenAIImageJobGlobalActiveLimit = infraerrors.New(
+		http.StatusServiceUnavailable,
+		"OPENAI_IMAGE_JOB_GLOBAL_ACTIVE_LIMIT",
+		"image generation queue is currently full",
+	)
 )
 
 // OpenAIImageJob contains the complete durable execution state for one Images
@@ -114,6 +124,11 @@ type CreateOpenAIImageJobParams struct {
 	IdempotencyKey string
 	ClientIP       string
 	UserAgent      string
+	// Positive limits enable an atomic, cross-instance admission check. The
+	// repository serializes the short count-and-insert transaction so bursts
+	// cannot race past the configured queue bounds.
+	MaxActivePerUser int
+	MaxActiveGlobal  int
 }
 
 type OpenAIImageJobResponse struct {

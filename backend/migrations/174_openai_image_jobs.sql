@@ -48,6 +48,9 @@ CREATE UNIQUE INDEX IF NOT EXISTS openai_image_jobs_user_idempotency_uq
     ON openai_image_jobs (user_id, idempotency_key_hash);
 CREATE INDEX IF NOT EXISTS openai_image_jobs_queue_claim_idx
     ON openai_image_jobs (status, created_at);
+CREATE INDEX IF NOT EXISTS openai_image_jobs_active_user_idx
+    ON openai_image_jobs (user_id, status)
+    WHERE status IN ('queued', 'running');
 CREATE INDEX IF NOT EXISTS openai_image_jobs_running_lease_idx
     ON openai_image_jobs (lease_expires_at)
     WHERE status = 'running';

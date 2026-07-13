@@ -15,6 +15,12 @@ type openAIImageJobRepository struct {
 	db *sql.DB
 }
 
+const openAIImageJobCreateLockKey int64 = -708202607140001
+
+type openAIImageJobQueryer interface {
+	QueryRowContext(context.Context, string, ...any) *sql.Row
+}
+
 var _ service.OpenAIImageJobRepository = (*openAIImageJobRepository)(nil)
 
 var openAIImageJobColumns = []string{
@@ -73,30 +79,11 @@ func (r *openAIImageJobRepository) CreateOrGet(ctx context.Context, params servi
 		params.JobID = jobID
 	}
 	params.RequestHash = service.HashOpenAIImageJobRequest(params.Endpoint, params.ContentType, params.RequestBody)
+	if params.MaxActivePerUser > 0 || params.MaxActiveGlobal > 0 {
+		return r.createOrGetWithLimits(ctx, params, idempotencyKeyHash)
+	}
 
-	query := `
-		INSERT INTO openai_image_jobs (
-			job_id, user_id, api_key_id, endpoint, model, content_type,
-			request_body, request_hash, idempotency_key_hash, client_ip, user_agent, status
-		)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
-		RETURNING ` + openAIImageJobColumnList("")
-	job, err := scanOpenAIImageJob(r.db.QueryRowContext(
-		ctx,
-		query,
-		params.JobID,
-		params.UserID,
-		params.APIKeyID,
-		params.Endpoint,
-		params.Model,
-		params.ContentType,
-		params.RequestBody,
-		params.RequestHash,
-		idempotencyKeyHash,
-		params.ClientIP,
-		params.UserAgent,
-		service.OpenAIImageJobStatusQueued,
-	))
+	job, err := insertOpenAIImageJob(ctx, r.db, params, idempotencyKeyHash)
 	if err == nil {
 		return job, true, nil
 	}
@@ -119,6 +106,99 @@ func (r *openAIImageJobRepository) CreateOrGet(ctx context.Context, params servi
 	return existing, false, nil
 }
 
+func (r *openAIImageJobRepository) createOrGetWithLimits(
+	ctx context.Context,
+	params service.CreateOpenAIImageJobParams,
+	idempotencyKeyHash string,
+) (*service.OpenAIImageJob, bool, error) {
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return nil, false, err
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	// This short global transaction lock makes replay-check, active counts and
+	// insertion one admission decision across all application instances. A
+	// status transition may only reduce the count concurrently, so the bound is
+	// exact without locking every active row.
+	var ignored any
+	if err := tx.QueryRowContext(ctx, `SELECT pg_advisory_xact_lock($1)`, openAIImageJobCreateLockKey).Scan(&ignored); err != nil {
+		return nil, false, err
+	}
+
+	existing, err := getOpenAIImageJobByIdempotencyKeyHash(ctx, tx, params.UserID, idempotencyKeyHash)
+	if err == nil {
+		if err := service.ValidateOpenAIImageJobIdempotency(existing, params.RequestHash); err != nil {
+			return nil, false, err
+		}
+		if err := tx.Commit(); err != nil {
+			return nil, false, err
+		}
+		return existing, false, nil
+	}
+	if !errors.Is(err, service.ErrOpenAIImageJobNotFound) {
+		return nil, false, err
+	}
+
+	var userActive, globalActive int
+	if err := tx.QueryRowContext(ctx, `
+		SELECT COUNT(*) FILTER (WHERE user_id = $1), COUNT(*)
+		FROM openai_image_jobs
+		WHERE status IN ($2, $3)`,
+		params.UserID,
+		service.OpenAIImageJobStatusQueued,
+		service.OpenAIImageJobStatusRunning,
+	).Scan(&userActive, &globalActive); err != nil {
+		return nil, false, err
+	}
+	if params.MaxActivePerUser > 0 && userActive >= params.MaxActivePerUser {
+		return nil, false, service.ErrOpenAIImageJobUserActiveLimit
+	}
+	if params.MaxActiveGlobal > 0 && globalActive >= params.MaxActiveGlobal {
+		return nil, false, service.ErrOpenAIImageJobGlobalActiveLimit
+	}
+
+	job, err := insertOpenAIImageJob(ctx, tx, params, idempotencyKeyHash)
+	if err != nil {
+		return nil, false, err
+	}
+	if err := tx.Commit(); err != nil {
+		return nil, false, err
+	}
+	return job, true, nil
+}
+
+func insertOpenAIImageJob(
+	ctx context.Context,
+	queryer openAIImageJobQueryer,
+	params service.CreateOpenAIImageJobParams,
+	idempotencyKeyHash string,
+) (*service.OpenAIImageJob, error) {
+	query := `
+		INSERT INTO openai_image_jobs (
+			job_id, user_id, api_key_id, endpoint, model, content_type,
+			request_body, request_hash, idempotency_key_hash, client_ip, user_agent, status
+		)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+		RETURNING ` + openAIImageJobColumnList("")
+	return scanOpenAIImageJob(queryer.QueryRowContext(
+		ctx,
+		query,
+		params.JobID,
+		params.UserID,
+		params.APIKeyID,
+		params.Endpoint,
+		params.Model,
+		params.ContentType,
+		params.RequestBody,
+		params.RequestHash,
+		idempotencyKeyHash,
+		params.ClientIP,
+		params.UserAgent,
+		service.OpenAIImageJobStatusQueued,
+	))
+}
+
 func (r *openAIImageJobRepository) GetForUser(ctx context.Context, userID int64, jobID string) (*service.OpenAIImageJob, error) {
 	query := `SELECT ` + openAIImageJobStatusColumnList("") + `
 		FROM openai_image_jobs
@@ -131,10 +211,14 @@ func (r *openAIImageJobRepository) GetForUser(ctx context.Context, userID int64,
 }
 
 func (r *openAIImageJobRepository) getByIdempotencyKeyHash(ctx context.Context, userID int64, idempotencyKeyHash string) (*service.OpenAIImageJob, error) {
+	return getOpenAIImageJobByIdempotencyKeyHash(ctx, r.db, userID, idempotencyKeyHash)
+}
+
+func getOpenAIImageJobByIdempotencyKeyHash(ctx context.Context, queryer openAIImageJobQueryer, userID int64, idempotencyKeyHash string) (*service.OpenAIImageJob, error) {
 	query := `SELECT ` + openAIImageJobStatusColumnList("") + `
 		FROM openai_image_jobs
 		WHERE user_id = $1 AND idempotency_key_hash = $2`
-	job, err := scanOpenAIImageJob(r.db.QueryRowContext(ctx, query, userID, idempotencyKeyHash))
+	job, err := scanOpenAIImageJob(queryer.QueryRowContext(ctx, query, userID, idempotencyKeyHash))
 	if err != nil {
 		return nil, translatePersistenceError(err, service.ErrOpenAIImageJobNotFound, nil)
 	}

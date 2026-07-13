@@ -6,9 +6,9 @@ import (
 	"strings"
 	"unicode/utf8"
 
+	"github.com/Wei-Shaw/sub2api/internal/config"
 	infraerrors "github.com/Wei-Shaw/sub2api/internal/pkg/errors"
 	pkghttputil "github.com/Wei-Shaw/sub2api/internal/pkg/httputil"
-	"github.com/Wei-Shaw/sub2api/internal/pkg/ip"
 	"github.com/Wei-Shaw/sub2api/internal/server/middleware"
 	"github.com/Wei-Shaw/sub2api/internal/service"
 	"github.com/gin-gonic/gin"
@@ -25,15 +25,18 @@ const (
 type OpenAIImageJobHandler struct {
 	repository     service.OpenAIImageJobRepository
 	gatewayService *service.OpenAIGatewayService
+	config         *config.Config
 }
 
 func NewOpenAIImageJobHandler(
 	repository service.OpenAIImageJobRepository,
 	gatewayService *service.OpenAIGatewayService,
+	cfg *config.Config,
 ) *OpenAIImageJobHandler {
 	return &OpenAIImageJobHandler{
 		repository:     repository,
 		gatewayService: gatewayService,
+		config:         cfg,
 	}
 }
 
@@ -48,6 +51,10 @@ func (h *OpenAIImageJobHandler) Submit(c *gin.Context) {
 	subject, ok := middleware.GetAuthSubjectFromContext(c)
 	if !ok || subject.UserID <= 0 || subject.UserID != apiKey.UserID {
 		openAIImageJobWriteError(c, infraerrors.New(http.StatusUnauthorized, "INVALID_API_KEY", "Invalid API key"))
+		return
+	}
+	if h == nil || h.config == nil || !h.config.OpenAIImageJobs.Enabled {
+		openAIImageJobWriteTypedError(c, http.StatusServiceUnavailable, "api_error", "IMAGE_JOBS_DISABLED", "asynchronous image generation jobs are disabled")
 		return
 	}
 	if !service.GroupAllowsImageGeneration(apiKey.Group) {
@@ -94,15 +101,17 @@ func (h *OpenAIImageJobHandler) Submit(c *gin.Context) {
 	}
 
 	job, _, err := h.repository.CreateOrGet(c.Request.Context(), service.CreateOpenAIImageJobParams{
-		UserID:         subject.UserID,
-		APIKeyID:       apiKey.ID,
-		Endpoint:       parsed.Endpoint,
-		Model:          parsed.Model,
-		ContentType:    strings.TrimSpace(c.GetHeader("Content-Type")),
-		RequestBody:    body,
-		IdempotencyKey: idempotencyKey,
-		ClientIP:       truncateValidUTF8(ip.GetClientIP(c), openAIImageJobMaxClientIPBytes),
-		UserAgent:      truncateValidUTF8(c.GetHeader("User-Agent"), openAIImageJobMaxUserAgentBytes),
+		UserID:           subject.UserID,
+		APIKeyID:         apiKey.ID,
+		Endpoint:         parsed.Endpoint,
+		Model:            parsed.Model,
+		ContentType:      strings.TrimSpace(c.GetHeader("Content-Type")),
+		RequestBody:      body,
+		IdempotencyKey:   idempotencyKey,
+		ClientIP:         truncateValidUTF8(middleware.APIKeyACLClientIP(c, h.config), openAIImageJobMaxClientIPBytes),
+		UserAgent:        truncateValidUTF8(c.GetHeader("User-Agent"), openAIImageJobMaxUserAgentBytes),
+		MaxActivePerUser: h.config.OpenAIImageJobs.MaxActivePerUser,
+		MaxActiveGlobal:  h.config.OpenAIImageJobs.MaxActiveGlobal,
 	})
 	if err != nil {
 		openAIImageJobWriteError(c, err)
