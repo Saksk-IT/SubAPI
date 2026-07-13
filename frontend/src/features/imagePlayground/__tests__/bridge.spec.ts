@@ -3,10 +3,14 @@ import { describe, expect, it } from 'vitest'
 import {
   IMAGE_PLAYGROUND_PROTOCOL,
   IMAGE_PLAYGROUND_PROTOCOL_VERSION,
+  buildConfigurationErrorAckMessage,
+  buildConnectedMessage,
   buildConfigureMessage,
   buildConnectMessage,
   buildManagedProfiles,
   createFrameName,
+  isConfigurationErrorAckMessage,
+  isConnectedMessage,
   isConfiguredAckMessage,
   isTrustedReadyEvent,
 } from '../bridge'
@@ -75,6 +79,76 @@ describe('image playground bridge protocol', () => {
     expect(isConfiguredAckMessage({ ...ack, status: 'cleared' }, NONCE, 2)).toBe(false)
     expect(isConfiguredAckMessage({ ...ack, status: 'error' }, NONCE, 2)).toBe(false)
     expect(isConfiguredAckMessage({ ...ack, unexpected: true }, NONCE, 2)).toBe(false)
+  })
+
+  it('builds and accepts only an exact connected message for the current nonce', () => {
+    const connected = buildConnectedMessage(NONCE)
+
+    expect(connected).toEqual({
+      protocol: IMAGE_PLAYGROUND_PROTOCOL,
+      version: IMAGE_PLAYGROUND_PROTOCOL_VERSION,
+      type: 'connected',
+      nonce: NONCE,
+    })
+    expect(Object.isFrozen(connected)).toBe(true)
+    expect(isConnectedMessage(connected, NONCE)).toBe(true)
+    expect(isConnectedMessage({ ...connected, nonce: 'wrong' }, NONCE)).toBe(false)
+    expect(isConnectedMessage({ ...connected, version: 2 }, NONCE)).toBe(false)
+    expect(isConnectedMessage({ ...connected, type: 'ready' }, NONCE)).toBe(false)
+    expect(isConnectedMessage({ ...connected, unexpected: true }, NONCE)).toBe(false)
+  })
+
+  it('builds and accepts only an exact bounded configuration error acknowledgement', () => {
+    const errorAck = buildConfigurationErrorAckMessage({
+      nonce: NONCE,
+      requestId: 2,
+      errorCode: 'invalid_configuration',
+      errorMessage: 'The profile could not be configured.',
+    })
+
+    expect(errorAck).toEqual({
+      protocol: IMAGE_PLAYGROUND_PROTOCOL,
+      version: IMAGE_PLAYGROUND_PROTOCOL_VERSION,
+      type: 'ack',
+      nonce: NONCE,
+      status: 'error',
+      requestId: 2,
+      error: {
+        code: 'invalid_configuration',
+        message: 'The profile could not be configured.',
+      },
+    })
+    expect(Object.isFrozen(errorAck)).toBe(true)
+    expect(Object.isFrozen(errorAck.error)).toBe(true)
+    expect(isConfigurationErrorAckMessage(errorAck, NONCE, 2)).toBe(true)
+    expect(isConfigurationErrorAckMessage({ ...errorAck, requestId: 3 }, NONCE, 2)).toBe(false)
+    expect(isConfigurationErrorAckMessage({ ...errorAck, nonce: 'wrong' }, NONCE, 2)).toBe(false)
+    expect(isConfigurationErrorAckMessage({ ...errorAck, status: 'configured' }, NONCE, 2)).toBe(false)
+    expect(isConfigurationErrorAckMessage({ ...errorAck, unexpected: true }, NONCE, 2)).toBe(false)
+    expect(isConfigurationErrorAckMessage({
+      ...errorAck,
+      error: { ...errorAck.error, unexpected: true },
+    }, NONCE, 2)).toBe(false)
+    expect(isConfigurationErrorAckMessage({
+      ...errorAck,
+      error: { code: 'x'.repeat(65), message: 'bounded' },
+    }, NONCE, 2)).toBe(false)
+    expect(isConfigurationErrorAckMessage({
+      ...errorAck,
+      error: { code: 'invalid_configuration', message: 'x'.repeat(257) },
+    }, NONCE, 2)).toBe(false)
+    expect(() => buildConfigurationErrorAckMessage({
+      nonce: NONCE,
+      requestId: 2,
+      errorCode: 'x'.repeat(65),
+      errorMessage: 'bounded',
+    })).toThrow('errorCode')
+    expect(() => buildConfigurationErrorAckMessage({
+      nonce: NONCE,
+      requestId: 2,
+      errorCode: 'invalid_configuration',
+      errorMessage: 'x'.repeat(257),
+    })).toThrow('errorMessage')
   })
 
   it('builds immutable Images and Responses profiles on the same-origin gateway', () => {

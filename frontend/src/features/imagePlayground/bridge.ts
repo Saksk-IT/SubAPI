@@ -27,6 +27,13 @@ export interface ConfigureMessageInput {
   theme?: ImagePlaygroundTheme
 }
 
+export interface ConfigurationErrorAckInput {
+  nonce: string
+  requestId: number
+  errorCode: string
+  errorMessage: string
+}
+
 interface ReadyEventOptions {
   expectedOrigin: string
   expectedSource: MessageEventSource | null
@@ -58,6 +65,10 @@ function assertBoundedString(value: string, field: string, maxLength: number): v
   if (typeof value !== 'string' || value.length < 1 || value.length > maxLength) {
     throw new Error(`${field} must contain between 1 and ${maxLength} characters`)
   }
+}
+
+function isBoundedString(value: unknown, maxLength: number): value is string {
+  return typeof value === 'string' && value.length >= 1 && value.length <= maxLength
 }
 
 function hasExactKeys(value: object, expectedKeys: readonly string[]): boolean {
@@ -123,6 +134,64 @@ export function isConfiguredAckMessage(
     message.requestId === expectedRequestId
 }
 
+export function isConnectedMessage(data: unknown, expectedNonce: string): boolean {
+  if (!data || typeof data !== 'object' || Array.isArray(data)) {
+    return false
+  }
+
+  const message = data as Record<string, unknown>
+  if (!hasExactKeys(message, ['protocol', 'version', 'type', 'nonce'])) {
+    return false
+  }
+
+  return message.protocol === IMAGE_PLAYGROUND_PROTOCOL &&
+    message.version === IMAGE_PLAYGROUND_PROTOCOL_VERSION &&
+    message.type === 'connected' &&
+    message.nonce === expectedNonce
+}
+
+export function isConfigurationErrorAckMessage(
+  data: unknown,
+  expectedNonce: string,
+  expectedRequestId: number,
+): boolean {
+  if (!data || typeof data !== 'object' || Array.isArray(data)) {
+    return false
+  }
+
+  const message = data as Record<string, unknown>
+  if (!hasExactKeys(message, [
+    'protocol',
+    'version',
+    'type',
+    'nonce',
+    'status',
+    'requestId',
+    'error',
+  ])) {
+    return false
+  }
+  if (!message.error || typeof message.error !== 'object' || Array.isArray(message.error)) {
+    return false
+  }
+
+  const error = message.error as Record<string, unknown>
+  if (!hasExactKeys(error, ['code', 'message'])) {
+    return false
+  }
+
+  return message.protocol === IMAGE_PLAYGROUND_PROTOCOL &&
+    message.version === IMAGE_PLAYGROUND_PROTOCOL_VERSION &&
+    message.type === 'ack' &&
+    message.nonce === expectedNonce &&
+    message.status === 'error' &&
+    Number.isSafeInteger(message.requestId) &&
+    Number(message.requestId) > 0 &&
+    message.requestId === expectedRequestId &&
+    isBoundedString(error.code, 64) &&
+    isBoundedString(error.message, 256)
+}
+
 export function buildConnectMessage(nonce: string) {
   assertNonce(nonce)
   return Object.freeze({
@@ -130,6 +199,38 @@ export function buildConnectMessage(nonce: string) {
     version: IMAGE_PLAYGROUND_PROTOCOL_VERSION,
     type: 'connect' as const,
     nonce,
+  })
+}
+
+export function buildConnectedMessage(nonce: string) {
+  assertNonce(nonce)
+  return Object.freeze({
+    protocol: IMAGE_PLAYGROUND_PROTOCOL,
+    version: IMAGE_PLAYGROUND_PROTOCOL_VERSION,
+    type: 'connected' as const,
+    nonce,
+  })
+}
+
+export function buildConfigurationErrorAckMessage(input: ConfigurationErrorAckInput) {
+  assertNonce(input.nonce)
+  if (!Number.isSafeInteger(input.requestId) || input.requestId <= 0) {
+    throw new Error('requestId must be a positive integer')
+  }
+  assertBoundedString(input.errorCode, 'errorCode', 64)
+  assertBoundedString(input.errorMessage, 'errorMessage', 256)
+
+  return Object.freeze({
+    protocol: IMAGE_PLAYGROUND_PROTOCOL,
+    version: IMAGE_PLAYGROUND_PROTOCOL_VERSION,
+    type: 'ack' as const,
+    nonce: input.nonce,
+    status: 'error' as const,
+    requestId: input.requestId,
+    error: Object.freeze({
+      code: input.errorCode,
+      message: input.errorMessage,
+    }),
   })
 }
 
