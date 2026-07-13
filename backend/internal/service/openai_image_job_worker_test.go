@@ -95,7 +95,7 @@ func TestOpenAIImageJobWorkerHeartbeatsWhileExecutionRuns(t *testing.T) {
 
 func TestOpenAIImageJobWorkerCrossInstanceCancellationCancelsExecutionBeforeDispatch(t *testing.T) {
 	repo := newOpenAIImageJobWorkerRepositoryFake(&OpenAIImageJob{JobID: "imgjob_cross_cancel", Status: OpenAIImageJobStatusRunning})
-	repo.heartbeatResults = []openAIImageJobHeartbeatResult{{}, {cancelRequested: true}}
+	repo.heartbeatResults = []openAIImageJobHeartbeatResult{{}, {}, {cancelRequested: true}}
 	executorStarted := make(chan struct{})
 	executor := openAIImageJobExecutorFunc(func(ctx context.Context, _ *OpenAIImageJob, _ OpenAIImageJobExecutionObserver) OpenAIImageJobExecutionResult {
 		close(executorStarted)
@@ -123,9 +123,173 @@ func TestOpenAIImageJobWorkerCrossInstanceCancellationCancelsExecutionBeforeDisp
 	}
 }
 
+func TestOpenAIImageJobWorkerRequestCancelImmediatelyCancelsLocalExecutionAndUnregisters(t *testing.T) {
+	repo := newOpenAIImageJobWorkerRepositoryFake(&OpenAIImageJob{JobID: "imgjob_local_cancel", Status: OpenAIImageJobStatusRunning})
+	executorStarted := make(chan struct{})
+	executor := openAIImageJobExecutorFunc(func(ctx context.Context, _ *OpenAIImageJob, _ OpenAIImageJobExecutionObserver) OpenAIImageJobExecutionResult {
+		close(executorStarted)
+		<-ctx.Done()
+		return OpenAIImageJobExecutionResult{Outcome: OpenAIImageJobExecutionInterrupted}
+	})
+	worker := newTestOpenAIImageJobWorker(repo, executor, time.Now())
+	worker.opts.HeartbeatInterval = time.Hour // Prove this does not wait for a database heartbeat.
+
+	done := make(chan error, 1)
+	go func() {
+		_, err := worker.RunOnce(context.Background(), "worker-1")
+		done <- err
+	}()
+	select {
+	case <-executorStarted:
+	case <-time.After(250 * time.Millisecond):
+		t.Fatal("executor did not start")
+	}
+	if !worker.RequestCancel("imgjob_local_cancel") {
+		t.Fatal("RequestCancel() = false for a running local job")
+	}
+	select {
+	case err := <-done:
+		if err != nil {
+			t.Fatalf("RunOnce() error = %v", err)
+		}
+	case <-time.After(250 * time.Millisecond):
+		t.Fatal("local cancellation did not promptly stop execution")
+	}
+
+	snapshot := repo.snapshot()
+	if snapshot.cancelCalls != 1 || snapshot.failCalls != 0 || snapshot.completeCalls != 0 {
+		t.Fatalf("cancel/fail/complete calls = %d/%d/%d, want 1/0/0", snapshot.cancelCalls, snapshot.failCalls, snapshot.completeCalls)
+	}
+	if worker.RequestCancel("imgjob_local_cancel") {
+		t.Fatal("RequestCancel() = true after execution was unregistered")
+	}
+	if worker.RequestCancel("imgjob_missing") {
+		t.Fatal("RequestCancel() = true for an unknown job")
+	}
+}
+
+func TestOpenAIImageJobWorkerRequestCancelDuringPreflightNeverStartsExecutor(t *testing.T) {
+	repo := newOpenAIImageJobWorkerRepositoryFake(&OpenAIImageJob{JobID: "imgjob_preflight_cancel", Status: OpenAIImageJobStatusRunning})
+	preflightEntered := make(chan struct{})
+	releasePreflight := make(chan struct{})
+	repo.heartbeatHook = func(call int) {
+		if call == 2 {
+			close(preflightEntered)
+			<-releasePreflight
+		}
+	}
+	var executions atomic.Int32
+	executor := openAIImageJobExecutorFunc(func(_ context.Context, _ *OpenAIImageJob, _ OpenAIImageJobExecutionObserver) OpenAIImageJobExecutionResult {
+		executions.Add(1)
+		return OpenAIImageJobExecutionResult{Outcome: OpenAIImageJobExecutionInterrupted}
+	})
+	worker := newTestOpenAIImageJobWorker(repo, executor, time.Now())
+
+	done := make(chan error, 1)
+	go func() {
+		_, err := worker.RunOnce(context.Background(), "worker-1")
+		done <- err
+	}()
+	select {
+	case <-preflightEntered:
+	case <-time.After(250 * time.Millisecond):
+		t.Fatal("worker did not enter registered preflight heartbeat")
+	}
+	if !worker.RequestCancel("imgjob_preflight_cancel") {
+		t.Fatal("RequestCancel() = false during registered preflight")
+	}
+	close(releasePreflight)
+	if err := <-done; err != nil {
+		t.Fatalf("RunOnce() error = %v", err)
+	}
+	if executions.Load() != 0 {
+		t.Fatalf("executor calls = %d, want 0", executions.Load())
+	}
+	if got := repo.snapshot().cancelCalls; got != 1 {
+		t.Fatalf("MarkCancelled calls = %d, want 1", got)
+	}
+}
+
+func TestOpenAIImageJobWorkerLocalCancellationStillAllowsVerifiedSuccessToWin(t *testing.T) {
+	repo := newOpenAIImageJobWorkerRepositoryFake(&OpenAIImageJob{JobID: "imgjob_local_success", Status: OpenAIImageJobStatusRunning})
+	executorStarted := make(chan struct{})
+	executor := openAIImageJobExecutorFunc(func(ctx context.Context, _ *OpenAIImageJob, observer OpenAIImageJobExecutionObserver) OpenAIImageJobExecutionResult {
+		observer.MarkDispatched()
+		close(executorStarted)
+		<-ctx.Done()
+		return successfulOpenAIImageJobExecution()
+	})
+	worker := newTestOpenAIImageJobWorker(repo, executor, time.Now())
+	worker.opts.HeartbeatInterval = time.Hour
+
+	done := make(chan error, 1)
+	go func() {
+		_, err := worker.RunOnce(context.Background(), "worker-1")
+		done <- err
+	}()
+	select {
+	case <-executorStarted:
+	case <-time.After(250 * time.Millisecond):
+		t.Fatal("executor did not start")
+	}
+	if !worker.RequestCancel("imgjob_local_success") {
+		t.Fatal("RequestCancel() = false for a running local job")
+	}
+	if err := <-done; err != nil {
+		t.Fatalf("RunOnce() error = %v", err)
+	}
+	snapshot := repo.snapshot()
+	if snapshot.completeCalls != 1 || snapshot.failCalls != 0 || snapshot.cancelCalls != 0 {
+		t.Fatalf("complete/fail/cancel calls = %d/%d/%d, want 1/0/0", snapshot.completeCalls, snapshot.failCalls, snapshot.cancelCalls)
+	}
+}
+
+func TestOpenAIImageJobWorkerConcurrentWorkersExecuteClaimedJobOnlyOnce(t *testing.T) {
+	repo := newOpenAIImageJobWorkerRepositoryFake(&OpenAIImageJob{JobID: "imgjob_compete", Status: OpenAIImageJobStatusRunning})
+	var executions atomic.Int32
+	executor := openAIImageJobExecutorFunc(func(_ context.Context, _ *OpenAIImageJob, _ OpenAIImageJobExecutionObserver) OpenAIImageJobExecutionResult {
+		executions.Add(1)
+		return successfulOpenAIImageJobExecution()
+	})
+	worker := newTestOpenAIImageJobWorker(repo, executor, time.Now())
+
+	start := make(chan struct{})
+	results := make(chan bool, 2)
+	errorsCh := make(chan error, 2)
+	for _, workerID := range []string{"worker-1", "worker-2"} {
+		go func(workerID string) {
+			<-start
+			processed, err := worker.RunOnce(context.Background(), workerID)
+			results <- processed
+			errorsCh <- err
+		}(workerID)
+	}
+	close(start)
+	processedCount := 0
+	for range 2 {
+		if <-results {
+			processedCount++
+		}
+		if err := <-errorsCh; err != nil {
+			t.Fatalf("RunOnce() error = %v", err)
+		}
+	}
+
+	if processedCount != 1 {
+		t.Fatalf("processed workers = %d, want 1", processedCount)
+	}
+	if executions.Load() != 1 {
+		t.Fatalf("executor calls = %d, want 1", executions.Load())
+	}
+	snapshot := repo.snapshot()
+	if snapshot.claimCalls != 2 || snapshot.completeCalls != 1 {
+		t.Fatalf("claim/complete calls = %d/%d, want 2/1", snapshot.claimCalls, snapshot.completeCalls)
+	}
+}
+
 func TestOpenAIImageJobWorkerSuccessWinsCancellationRace(t *testing.T) {
 	repo := newOpenAIImageJobWorkerRepositoryFake(&OpenAIImageJob{JobID: "imgjob_success_wins", Status: OpenAIImageJobStatusRunning})
-	repo.heartbeatResults = []openAIImageJobHeartbeatResult{{}, {cancelRequested: true}}
+	repo.heartbeatResults = []openAIImageJobHeartbeatResult{{}, {}, {cancelRequested: true}}
 	executor := openAIImageJobExecutorFunc(func(ctx context.Context, _ *OpenAIImageJob, observer OpenAIImageJobExecutionObserver) OpenAIImageJobExecutionResult {
 		observer.MarkDispatched()
 		<-ctx.Done()
@@ -145,7 +309,7 @@ func TestOpenAIImageJobWorkerSuccessWinsCancellationRace(t *testing.T) {
 
 func TestOpenAIImageJobWorkerPostDispatchCancellationWithoutResultFailsUnknown(t *testing.T) {
 	repo := newOpenAIImageJobWorkerRepositoryFake(&OpenAIImageJob{JobID: "imgjob_cancel_unknown", Status: OpenAIImageJobStatusRunning})
-	repo.heartbeatResults = []openAIImageJobHeartbeatResult{{}, {cancelRequested: true}}
+	repo.heartbeatResults = []openAIImageJobHeartbeatResult{{}, {}, {cancelRequested: true}}
 	release := make(chan struct{})
 	executor := openAIImageJobExecutorFunc(func(_ context.Context, _ *OpenAIImageJob, observer OpenAIImageJobExecutionObserver) OpenAIImageJobExecutionResult {
 		observer.MarkDispatched()
@@ -249,7 +413,7 @@ func TestOpenAIImageJobWorkerUnknownFailurePreservesExecutorCode(t *testing.T) {
 
 func TestOpenAIImageJobWorkerHeartbeatLeaseLossAfterDispatchFailsUnknown(t *testing.T) {
 	repo := newOpenAIImageJobWorkerRepositoryFake(&OpenAIImageJob{JobID: "imgjob_lease_lost", Status: OpenAIImageJobStatusRunning})
-	repo.heartbeatResults = []openAIImageJobHeartbeatResult{{}, {err: errors.New("heartbeat unavailable")}}
+	repo.heartbeatResults = []openAIImageJobHeartbeatResult{{}, {}, {err: errors.New("heartbeat unavailable")}}
 	release := make(chan struct{})
 	executor := openAIImageJobExecutorFunc(func(_ context.Context, _ *OpenAIImageJob, observer OpenAIImageJobExecutionObserver) OpenAIImageJobExecutionResult {
 		observer.MarkDispatched()
@@ -438,6 +602,7 @@ type openAIImageJobWorkerRepositoryFake struct {
 	jobs             []*OpenAIImageJob
 	heartbeatResults []openAIImageJobHeartbeatResult
 	heartbeatIndex   int
+	heartbeatHook    func(call int)
 
 	claimCalls        int
 	heartbeatCalls    int
@@ -509,10 +674,15 @@ func (r *openAIImageJobWorkerRepositoryFake) ClaimNext(_ context.Context, _ stri
 
 func (r *openAIImageJobWorkerRepositoryFake) Heartbeat(_ context.Context, _, _ string, leaseUntil time.Time) (bool, error) {
 	r.mu.Lock()
-	defer r.mu.Unlock()
 	r.heartbeatCalls++
+	call := r.heartbeatCalls
 	r.lastLeaseUntil = leaseUntil
 	if len(r.heartbeatResults) == 0 {
+		hook := r.heartbeatHook
+		r.mu.Unlock()
+		if hook != nil {
+			hook(call)
+		}
 		return false, nil
 	}
 	index := r.heartbeatIndex
@@ -522,6 +692,11 @@ func (r *openAIImageJobWorkerRepositoryFake) Heartbeat(_ context.Context, _, _ s
 		r.heartbeatIndex++
 	}
 	result := r.heartbeatResults[index]
+	hook := r.heartbeatHook
+	r.mu.Unlock()
+	if hook != nil {
+		hook(call)
+	}
 	return result.cancelRequested, result.err
 }
 

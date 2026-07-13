@@ -91,9 +91,11 @@ type OpenAIImageJobWorkerRuntime struct {
 	now       func() time.Time
 	runtimeID string
 
-	mu     sync.Mutex
-	cancel context.CancelFunc
-	done   chan struct{}
+	mu             sync.Mutex
+	cancel         context.CancelFunc
+	done           chan struct{}
+	runningMu      sync.Mutex
+	runningCancels map[string]context.CancelFunc
 }
 
 func NewOpenAIImageJobWorkerRuntime(
@@ -102,11 +104,12 @@ func NewOpenAIImageJobWorkerRuntime(
 	opts OpenAIImageJobWorkerOptions,
 ) *OpenAIImageJobWorkerRuntime {
 	return &OpenAIImageJobWorkerRuntime{
-		repo:      repo,
-		executor:  executor,
-		opts:      normalizeOpenAIImageJobWorkerOptions(opts),
-		now:       time.Now,
-		runtimeID: uuid.NewString(),
+		repo:           repo,
+		executor:       executor,
+		opts:           normalizeOpenAIImageJobWorkerOptions(opts),
+		now:            time.Now,
+		runtimeID:      uuid.NewString(),
+		runningCancels: make(map[string]context.CancelFunc),
 	}
 }
 
@@ -208,6 +211,29 @@ func (r *OpenAIImageJobWorkerRuntime) executeClaimedJob(ctx context.Context, job
 	observer := &openAIImageJobExecutionObserver{}
 	executionCtx, cancelExecution := context.WithCancel(context.Background())
 	defer cancelExecution()
+	var localCancelRequested atomic.Bool
+	requestCancel := func() {
+		localCancelRequested.Store(true)
+		observer.stopBeforeDispatch()
+		cancelExecution()
+	}
+	if !r.registerRunningCancel(job.JobID, requestCancel) {
+		return fmt.Errorf("OpenAI image job %q is already executing in this runtime", job.JobID)
+	}
+	defer r.unregisterRunningCancel(job.JobID)
+
+	// Close the small race between the heartbeat in RunOnce and registration
+	// in the in-process cancellation map. Once this check finishes, either the
+	// persisted flag is visible here or RequestCancel can reach requestCancel.
+	persistedCancel, err := r.repo.Heartbeat(ctx, job.JobID, workerID, r.now().Add(r.opts.LeaseDuration))
+	if err != nil {
+		requestCancel()
+		return r.failBeforeExecution(ctx, job, workerID, err)
+	}
+	if persistedCancel || localCancelRequested.Load() {
+		requestCancel()
+		return r.repo.MarkCancelled(ctx, job.JobID, workerID)
+	}
 
 	resultCh := make(chan OpenAIImageJobExecutionResult, 1)
 	go func() {
@@ -223,6 +249,9 @@ func (r *OpenAIImageJobWorkerRuntime) executeClaimedJob(ctx context.Context, job
 	for {
 		select {
 		case result := <-resultCh:
+			if localCancelRequested.Load() {
+				cancelRequested = true
+			}
 			return r.finalizeExecutionResult(ctx, job, workerID, observer, cancelRequested, result)
 
 		case <-heartbeatTicker.C:
@@ -265,6 +294,49 @@ func (r *OpenAIImageJobWorkerRuntime) executeClaimedJob(ctx context.Context, job
 			return errors.Join(ctx.Err(), terminalErr)
 		}
 	}
+}
+
+// RequestCancel immediately notifies a job executing in this process. The
+// durable cancel_requested flag remains the source of truth and is observed by
+// heartbeat on other instances; this method only removes local heartbeat
+// latency after the cancel handler has persisted that flag.
+func (r *OpenAIImageJobWorkerRuntime) RequestCancel(jobID string) bool {
+	if r == nil || jobID == "" {
+		return false
+	}
+	r.runningMu.Lock()
+	cancel := r.runningCancels[jobID]
+	r.runningMu.Unlock()
+	if cancel == nil {
+		return false
+	}
+	cancel()
+	return true
+}
+
+func (r *OpenAIImageJobWorkerRuntime) registerRunningCancel(jobID string, cancel context.CancelFunc) bool {
+	if r == nil || jobID == "" || cancel == nil {
+		return false
+	}
+	r.runningMu.Lock()
+	defer r.runningMu.Unlock()
+	if r.runningCancels == nil {
+		r.runningCancels = make(map[string]context.CancelFunc)
+	}
+	if _, exists := r.runningCancels[jobID]; exists {
+		return false
+	}
+	r.runningCancels[jobID] = cancel
+	return true
+}
+
+func (r *OpenAIImageJobWorkerRuntime) unregisterRunningCancel(jobID string) {
+	if r == nil || jobID == "" {
+		return
+	}
+	r.runningMu.Lock()
+	delete(r.runningCancels, jobID)
+	r.runningMu.Unlock()
 }
 
 func tryOpenAIImageJobExecutionResult(resultCh <-chan OpenAIImageJobExecutionResult) (OpenAIImageJobExecutionResult, bool) {
