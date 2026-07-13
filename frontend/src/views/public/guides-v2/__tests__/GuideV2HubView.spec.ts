@@ -29,6 +29,12 @@ describe('GuideV2HubView', () => {
     expect(wrapper.get('[data-setup-flow]').text()).toMatch(/账户.*Key.*客户端.*测试/s)
     expect(wrapper.findAll('[data-client-card]')).toHaveLength(6)
     expect(wrapper.findAll('[data-primary-entry]')).toHaveLength(2)
+    expect(wrapper.get('[data-support-telegram]').attributes('href')).toBe(
+      'https://t.me/+aW_Sd-9qDBE2MmMx',
+    )
+    expect(wrapper.get('[data-support-qq]').attributes('href')).toBe(
+      'https://qm.qq.com/q/KunflJKpEG',
+    )
     expect(wrapper.get('[data-legacy-entry]').text()).toContain('旧版')
   })
 })

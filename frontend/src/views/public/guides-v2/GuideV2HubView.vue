@@ -3,6 +3,7 @@ import { RouterLink } from 'vue-router'
 
 import { Icon } from '@/components/icons'
 import GuideV2Header from './components/GuideV2Header.vue'
+import GuideV2Support from './components/GuideV2Support.vue'
 import { GUIDE_V2_REGISTRY } from './guide-v2.registry'
 
 const clientSlugs = Object.freeze([
@@ -93,6 +94,8 @@ const setupFlow = Object.freeze([
           </RouterLink>
         </nav>
       </section>
+
+      <GuideV2Support />
 
       <aside class="guide-v2-legacy" data-legacy-entry>
         <span>仍需查看原有版式？V1 路径和内容保持不变。</span>

@@ -111,7 +111,7 @@ describe('GuideV2View', () => {
     expect(localStorage.getItem(GUIDE_V2_PROGRESS_STORAGE_KEY)).toBeNull()
   })
 
-  it('提供上一篇/下一篇和公共排错入口，并在 hash 变化后定位锚点', async () => {
+  it('提供上一篇/下一篇、公共排错入口和官方联系方式，并在 hash 变化后定位锚点', async () => {
     const scrollIntoView = vi.fn()
     vi.spyOn(document, 'getElementById').mockReturnValue({ scrollIntoView } as unknown as HTMLElement)
     const { wrapper, router } = await mountAt()
@@ -121,6 +121,18 @@ describe('GuideV2View', () => {
     expect(wrapper.getComponent('[data-troubleshooting-entry]').props('to')).toBe(
       '/guides/v2/troubleshooting',
     )
+    const telegram = wrapper.get('[data-support-telegram]')
+    expect(telegram.attributes()).toMatchObject({
+      href: 'https://t.me/+aW_Sd-9qDBE2MmMx',
+      target: '_blank',
+      rel: 'noopener noreferrer',
+    })
+    const qq = wrapper.get('[data-support-qq]')
+    expect(qq.attributes()).toMatchObject({
+      href: 'https://qm.qq.com/q/KunflJKpEG',
+      target: '_blank',
+      rel: 'noopener noreferrer',
+    })
 
     await router.push('/guides/v2/codex#write-config-files')
     await flushPromises()

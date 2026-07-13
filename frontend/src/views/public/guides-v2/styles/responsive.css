@@ -405,6 +405,16 @@
     min-height: 44px;
   }
 
+  .guide-v2-support__actions {
+    width: 100%;
+    align-items: flex-start;
+  }
+
+  .guide-v2-support__contacts {
+    width: 100%;
+    justify-content: flex-start;
+  }
+
   .guide-v2-step__heading {
     grid-template-columns: 38px minmax(0, 1fr);
   }
