@@ -14,13 +14,15 @@ export const MAX_REFERENCE_IMAGE_COUNT = 16
 
 export interface CallApiOptions {
   settings: AppSettings
+  /** 本地 TaskRecord.id；仅显式启用幂等映射的服务商可以将其发送给服务端。 */
+  taskId?: string
   prompt: string
   params: TaskParams
   /** 输入图片的 data URL 列表 */
   inputImageDataUrls: string[]
   maskDataUrl?: string
   onFalRequestEnqueued?: (request: { requestId: string; endpoint: string }) => void
-  onCustomTaskEnqueued?: (task: { taskId: string }) => void
+  onCustomTaskEnqueued?: (task: { taskId: string }) => void | Promise<void>
   onPartialImage?: (partial: { image: string; partialImageIndex?: number; requestIndex?: number }) => void
 }
 

@@ -43,6 +43,8 @@ export interface CustomProviderSubmitMapping {
   body?: Record<string, unknown>
   files?: CustomProviderFileMapping[]
   taskIdPath?: string
+  /** 显式允许使用本地 TaskRecord.id 作为 Idempotency-Key。 */
+  useTaskIdAsIdempotencyKey?: boolean
   result?: CustomProviderResultMapping
 }
 
@@ -180,6 +182,8 @@ export interface TaskRecord {
   falRecoverable?: boolean
   /** 自定义异步服务商任务 ID，用于重启后继续查询结果 */
   customTaskId?: string
+  /** 自定义异步任务尚未确认服务端任务 ID，可用同一本地任务 ID 安全重提 */
+  customSubmissionPending?: boolean
   /** 自定义异步任务是否等待自动恢复 */
   customRecoverable?: boolean
   /** API 返回的实际生效参数，用于标记与请求值不一致的情况 */

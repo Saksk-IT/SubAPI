@@ -1720,10 +1720,17 @@ function isAsyncCustomProviderTask(settings: AppSettings, provider: string, hasI
   return Boolean(submitMapping.taskIdPath)
 }
 
+function isSafelyResubmittableCustomProviderTask(settings: AppSettings, provider: string, hasInputImages: boolean) {
+  const customProvider = getCustomProviderDefinition(settings, provider)
+  if (!customProvider?.poll) return false
+  const submitMapping = hasInputImages && customProvider.editSubmit ? customProvider.editSubmit : customProvider.submit
+  return Boolean(submitMapping.taskIdPath && submitMapping.useTaskIdAsIdempotencyKey)
+}
+
 export function markInterruptedOpenAIRunningTasks(tasks: TaskRecord[], now = Date.now()) {
   const interruptedTasks: TaskRecord[] = []
   const updatedTasks = tasks.map((task) => {
-    if (!isRunningOpenAITask(task) || task.customTaskId) return task
+    if (!isRunningOpenAITask(task) || task.customTaskId || task.customSubmissionPending) return task
 
     const updated: TaskRecord = {
       ...task,
@@ -2198,8 +2205,8 @@ export async function initStore() {
       scheduleFalRecovery(task.id, 0)
     }
     if (
-      task.customTaskId &&
-      (task.status === 'running' || task.customRecoverable)
+      (task.customTaskId || task.customSubmissionPending) &&
+      (task.status === 'running' || task.customRecoverable || task.customSubmissionPending)
     ) {
       scheduleCustomRecovery(task.id, 0)
     }
@@ -2440,6 +2447,7 @@ export async function submitTask(options: { allowFullMask?: boolean; useCurrentA
     apiProfileName: activeProfile.name,
     apiMode: activeProfile.apiMode,
     apiModel: activeProfile.model,
+    customSubmissionPending: isSafelyResubmittableCustomProviderTask(requestSettings, activeProfile.provider, orderedInputImages.length > 0),
     inputImageIds: orderedInputImages.map((i) => i.id),
     maskTargetImageId,
     maskImageId,
@@ -2524,6 +2532,7 @@ function markAgentRoundTasksStopped(conversationId: string, roundId: string, now
       status: 'error',
       error: AGENT_STOPPED_MESSAGE,
       falRecoverable: false,
+      customSubmissionPending: false,
       customRecoverable: false,
       finishedAt: now,
       elapsed: Math.max(0, now - task.createdAt),
@@ -2554,6 +2563,7 @@ function markAgentRoundTasksFailed(
       error,
       ...(rawResponsePayload ? { rawResponsePayload } : {}),
       falRecoverable: false,
+      customSubmissionPending: false,
       customRecoverable: false,
       finishedAt: now,
       elapsed: Math.max(0, now - task.createdAt),
@@ -3858,6 +3868,7 @@ async function executeAgentRound(
         apiProfileName: imageProfile.name,
         apiMode: imageProfile.apiMode,
         apiModel: imageProfile.model,
+        customSubmissionPending: isSafelyResubmittableCustomProviderTask(imageRequestSettings, imageProfile.provider, inputImageIds.length > 0),
         inputImageIds,
         maskTargetImageId: options.maskTargetImageId !== undefined ? options.maskTargetImageId : round.maskTargetImageId ?? null,
         maskImageId: options.maskImageId !== undefined ? options.maskImageId : round.maskImageId ?? null,
@@ -3924,6 +3935,7 @@ async function executeAgentRound(
         error,
         rawResponsePayload,
         falRecoverable: false,
+        customSubmissionPending: false,
         customRecoverable: false,
         finishedAt: Date.now(),
         elapsed: Date.now() - latestTask.createdAt,
@@ -3954,6 +3966,20 @@ async function executeAgentRound(
         updateTaskInStore(taskId, {
           status: 'error',
           error: '与自定义异步任务的连接已断开，之后会继续查询任务结果。',
+          customRecoverable: true,
+          finishedAt: Date.now(),
+          elapsed: Date.now() - latestTask.createdAt,
+        })
+        scheduleCustomRecovery(taskId)
+        return true
+      }
+
+      if (latestTask.customSubmissionPending) {
+        useStore.getState().setTaskStreamPreview(taskId)
+        updateTaskInStore(taskId, {
+          status: 'error',
+          error: '异步任务提交响应丢失，之后会使用同一幂等键安全重试。',
+          customSubmissionPending: true,
           customRecoverable: true,
           finishedAt: Date.now(),
           elapsed: Date.now() - latestTask.createdAt,
@@ -4063,6 +4089,7 @@ async function executeAgentRound(
     }) => {
       const result = await callImageApi({
         settings: imageRequestSettings,
+        taskId: opts.taskId,
         prompt: replaceImageMentionsForApi(opts.prompt, opts.referenceImageDataUrls.length),
         params: opts.taskParams,
         inputImageDataUrls: opts.referenceImageDataUrls,
@@ -4078,11 +4105,14 @@ async function executeAgentRound(
             falRecoverable: false,
           })
         },
-        onCustomTaskEnqueued: (request) => {
+        onCustomTaskEnqueued: async (request) => {
           updateTaskInStore(opts.taskId, {
             customTaskId: request.taskId,
+            customSubmissionPending: false,
             customRecoverable: false,
           })
+          const updated = useStore.getState().tasks.find((task) => task.id === opts.taskId)
+          if (updated) await putTask(updated)
         },
       })
       if (opts.signal.aborted) throw createAgentAbortError()
@@ -4717,6 +4747,7 @@ async function executeTask(taskId: string) {
 
     const result = await callImageApi({
       settings: requestSettings,
+      taskId,
       prompt: replaceImageMentionsForApi(requestPrompt, inputDataUrls.length),
       params: task.params,
       inputImageDataUrls: inputDataUrls,
@@ -4729,12 +4760,15 @@ async function executeTask(taskId: string) {
           falRecoverable: false,
         })
       },
-      onCustomTaskEnqueued: (request) => {
+      onCustomTaskEnqueued: async (request) => {
         customTaskInfo = request
         updateTaskInStore(taskId, {
           customTaskId: request.taskId,
+          customSubmissionPending: false,
           customRecoverable: false,
         })
+        const updated = useStore.getState().tasks.find((task) => task.id === taskId)
+        if (updated) await putTask(updated)
       },
       onPartialImage: (partial) => {
         useStore.getState().setTaskStreamPreview(taskId, partial.image, partial.requestIndex)
@@ -4807,6 +4841,7 @@ async function executeTask(taskId: string) {
       finishedAt: Date.now(),
       elapsed: Date.now() - task.createdAt,
       falRecoverable: false,
+      customSubmissionPending: false,
       customRecoverable: false,
     })
     void deleteUnreferencedImageIds(partialImageIdsToClean)
@@ -4826,6 +4861,7 @@ async function executeTask(taskId: string) {
     ) {
       useStore.getState().clearMaskDraft()
     }
+    if (isAgentTask(task)) void continueRecoveredAgentRound(task.id)
   } catch (err) {
     clearOpenAIWatchdogTimer(taskId)
     const latestTask = useStore.getState().tasks.find((t) => t.id === taskId) ?? task
@@ -4846,6 +4882,16 @@ async function executeTask(taskId: string) {
         elapsed: Date.now() - task.createdAt,
       })
       scheduleFalRecovery(taskId)
+    } else if (latestTask.customSubmissionPending && !latestCustomTaskInfo && isNetworkRecoverableError(err)) {
+      updateTaskInStore(taskId, {
+        status: 'error',
+        error: '异步任务提交响应丢失，之后会使用同一幂等键安全重试。',
+        customSubmissionPending: true,
+        customRecoverable: true,
+        finishedAt: Date.now(),
+        elapsed: Date.now() - task.createdAt,
+      })
+      scheduleCustomRecovery(taskId)
     } else if (latestCustomTaskInfo && isNetworkRecoverableError(err)) {
       updateTaskInStore(taskId, {
         status: 'error',
@@ -4877,6 +4923,7 @@ async function executeTask(taskId: string) {
         error: errorMessage,
         ...getRawErrorPayload(err),
         falRecoverable: false,
+        customSubmissionPending: false,
         customRecoverable: false,
         finishedAt: Date.now(),
         elapsed: Date.now() - task.createdAt,
@@ -5372,6 +5419,7 @@ async function completeRecoveredCustomTask(task: TaskRecord, result: Awaited<Ret
     revisedPromptByImage: undefined,
     status: 'done',
     error: null,
+    customSubmissionPending: false,
     customRecoverable: false,
     finishedAt: Date.now(),
     elapsed: Date.now() - task.createdAt,
@@ -5384,7 +5432,7 @@ async function completeRecoveredCustomTask(task: TaskRecord, result: Awaited<Ret
 async function recoverCustomTask(taskId: string) {
   const { settings, tasks } = useStore.getState()
   const task = tasks.find((item) => item.id === taskId)
-  if (!task || !task.customTaskId || task.status === 'done') return
+  if (!task || task.status === 'done') return
 
   const profile = getCustomRecoveryProfile(settings, task)
   const customProvider = task.apiProvider ? getCustomProviderDefinition(settings, task.apiProvider) : null
@@ -5392,6 +5440,21 @@ async function recoverCustomTask(taskId: string) {
     scheduleCustomRecovery(taskId)
     return
   }
+
+  if (task.customSubmissionPending && !task.customTaskId) {
+    clearCustomRecoveryTimer(taskId)
+    updateTaskInStore(taskId, {
+      status: 'running',
+      error: null,
+      customRecoverable: false,
+      finishedAt: null,
+      elapsed: null,
+    })
+    void executeTask(taskId)
+    return
+  }
+
+  if (!task.customTaskId) return
 
   try {
     const result = await getCustomQueuedImageResult(profile, customProvider, task.customTaskId, task.params)

@@ -851,6 +851,10 @@ async function submitCustomRequest(mapping: CustomProviderSubmitMapping, opts: C
   const contentType = mapping.contentType ?? 'json'
   const path = appendQuery(mapping.path, renderQuery(mapping.query, context))
   const headers: Record<string, string> = { ...requestHeaders }
+  if (mapping.useTaskIdAsIdempotencyKey) {
+    if (!opts.taskId?.trim()) throw new Error('异步任务缺少本地任务 ID，无法安全提交。')
+    headers['Idempotency-Key'] = opts.taskId.trim()
+  }
   let body: BodyInit | undefined
 
   if (method !== 'GET') {
@@ -981,11 +985,11 @@ async function callCustomHttpImageApi(opts: CallApiOptions, profile: ApiProfile,
     }
     if (!taskId) return extractCustomImages(submitPayload, submitMapping.result ?? {}, mime, controller.signal)
     if (!customProvider.poll) throw new Error('异步接口返回了 task_id，但服务商配置缺少 poll')
-    opts.onCustomTaskEnqueued?.({ taskId })
     if (timeoutId) {
       clearTimeout(timeoutId)
       timeoutId = null
     }
+    await opts.onCustomTaskEnqueued?.({ taskId })
     return pollCustomTaskResult(profile, customProvider.poll, taskId, mime, controller.signal)
   } finally {
     if (timeoutId) clearTimeout(timeoutId)

@@ -1,4 +1,4 @@
-import type { AppSettings } from '../types'
+import type { AppSettings, CustomProviderDefinition } from '../types'
 import { createDefaultOpenAIProfile, normalizeSettings } from './apiProfiles'
 import type { ManagedConfig } from './sub2apiBridge'
 
@@ -12,11 +12,59 @@ let generation = 0
 let snapshot: ManagedSnapshot | null = null
 let managedRuntimeRequirements = 0
 
-const ALLOWED_MANAGED_PATHS = new Set([
-  '/v1/images/generations',
-  '/v1/images/edits',
-  '/v1/responses',
-])
+const MANAGED_ASYNC_PROVIDER_ID = 'sub2api-async'
+const MANAGED_JOB_PATH = /^\/v1\/images\/jobs\/imgjob_[0-9a-f]{32}$/
+const MANAGED_JOB_CANCEL_PATH = /^\/v1\/images\/jobs\/imgjob_[0-9a-f]{32}\/cancel$/
+
+const MANAGED_IMAGE_REQUEST_BODY = {
+  model: '$profile.model',
+  prompt: '$prompt',
+  size: '$params.size',
+  quality: '$params.quality',
+  output_format: '$params.output_format',
+  moderation: '$params.moderation',
+  output_compression: '$params.output_compression',
+  n: '$params.n',
+}
+
+const MANAGED_ASYNC_PROVIDER: CustomProviderDefinition = {
+  id: MANAGED_ASYNC_PROVIDER_ID,
+  name: 'Sub2API 异步生图',
+  template: 'http-image',
+  submit: {
+    path: 'images/generations/jobs',
+    method: 'POST',
+    contentType: 'json',
+    body: MANAGED_IMAGE_REQUEST_BODY,
+    taskIdPath: 'id',
+    useTaskIdAsIdempotencyKey: true,
+  },
+  editSubmit: {
+    path: 'images/edits/jobs',
+    method: 'POST',
+    contentType: 'multipart',
+    body: MANAGED_IMAGE_REQUEST_BODY,
+    files: [
+      { field: 'image[]', source: 'inputImages', array: true },
+      { field: 'mask', source: 'mask' },
+    ],
+    taskIdPath: 'id',
+    useTaskIdAsIdempotencyKey: true,
+  },
+  poll: {
+    path: 'images/jobs/{task_id}',
+    method: 'GET',
+    intervalSeconds: 1,
+    statusPath: 'status',
+    successValues: ['completed'],
+    failureValues: ['failed', 'cancelled'],
+    errorPath: 'error.message',
+    result: {
+      imageUrlPaths: ['result.data.*.url'],
+      b64JsonPaths: ['result.data.*.b64_json'],
+    },
+  },
+}
 
 export function redactSettingsSecrets(settings: AppSettings): AppSettings {
   const normalized = normalizeSettings(settings)
@@ -36,7 +84,7 @@ function buildManagedSettings(config: ManagedConfig, previousSettings: AppSettin
   const profiles = config.profiles.map((profile) => createDefaultOpenAIProfile({
     id: profile.id,
     name: profile.name,
-    provider: 'openai',
+    provider: profile.apiMode === 'images' ? MANAGED_ASYNC_PROVIDER_ID : 'openai',
     baseUrl: '/v1',
     apiKey: config.apiKey,
     model: preserveModels ? getPreservedModel(previousSettings, profile.apiMode) ?? profile.model : profile.model,
@@ -55,15 +103,15 @@ function buildManagedSettings(config: ManagedConfig, previousSettings: AppSettin
     apiMode: imagesProfile.apiMode,
     codexCli: false,
     apiProxy: false,
-    customProviders: [],
-    providerOrder: ['openai'],
+    customProviders: [MANAGED_ASYNC_PROVIDER],
+    providerOrder: [MANAGED_ASYNC_PROVIDER_ID, 'openai'],
     profiles,
     activeProfileId: imagesProfile.id,
     agentApiConfigMode: 'hybrid',
     agentTextProfileId: responsesProfile.id,
     agentImageProfileId: imagesProfile.id,
   })
-  return { ...settings, providerOrder: ['openai'] }
+  return { ...settings, providerOrder: [MANAGED_ASYNC_PROVIDER_ID, 'openai'] }
 }
 
 export function activateManagedConfig(config: ManagedConfig, previousSettings: AppSettings): AppSettings {
@@ -197,10 +245,24 @@ export function managedFetch(input: RequestInfo | URL, init: RequestInit = {}) {
   const rawUrl = input instanceof Request ? input.url : String(input)
   const origin = globalThis.location?.origin
   if (!origin) return Promise.reject(new Error('Managed request URL is not allowed'))
-  const url = new URL(rawUrl, origin)
+  let url: URL
+  try {
+    url = new URL(rawUrl, origin)
+  } catch {
+    return Promise.reject(new Error('Managed request URL is not allowed'))
+  }
+  const method = String(init.method ?? (input instanceof Request ? input.method : 'GET')).toUpperCase()
+  const routeAllowed =
+    (url.pathname === '/v1/responses' && method === 'POST') ||
+    (url.pathname === '/v1/images/generations/jobs' && method === 'POST') ||
+    (url.pathname === '/v1/images/edits/jobs' && method === 'POST') ||
+    (MANAGED_JOB_PATH.test(url.pathname) && method === 'GET') ||
+    (MANAGED_JOB_CANCEL_PATH.test(url.pathname) && method === 'POST')
   if (
     url.origin !== origin ||
-    !ALLOWED_MANAGED_PATHS.has(url.pathname) ||
+    url.username !== '' ||
+    url.password !== '' ||
+    !routeAllowed ||
     url.search !== '' ||
     url.hash !== ''
   ) {

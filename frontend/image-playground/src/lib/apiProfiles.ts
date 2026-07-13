@@ -190,6 +190,7 @@ function normalizeSubmitMapping(value: unknown, fallback: CustomProviderSubmitMa
     body: normalizeBodyTemplate(record.body, fallback.body ?? (contentType === 'multipart' ? DEFAULT_EDIT_BODY : DEFAULT_GENERATE_BODY)),
     files: contentType === 'multipart' ? normalizeFileMappings(record.files, fallback.files) : undefined,
     taskIdPath: typeof record.taskIdPath === 'string' && record.taskIdPath.trim() ? record.taskIdPath.trim() : fallback.taskIdPath,
+    useTaskIdAsIdempotencyKey: record.useTaskIdAsIdempotencyKey === true || fallback.useTaskIdAsIdempotencyKey === true,
     result: normalizeResultMapping(record.result, fallback.result ?? DEFAULT_OPENAI_RESULT),
   }
 }

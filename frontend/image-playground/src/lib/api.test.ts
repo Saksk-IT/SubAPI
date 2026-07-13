@@ -886,6 +886,256 @@ describe('callImageApi', () => {
     expect(fetchMock).toHaveBeenCalledTimes(3)
   })
 
+  it('sends the local task id as Idempotency-Key only when the submit mapping explicitly opts in', async () => {
+    const fetchMock = vi.spyOn(globalThis, 'fetch')
+      .mockResolvedValueOnce(new Response(JSON.stringify({ id: 'imgjob_0123456789abcdef0123456789abcdef' }), {
+        status: 202,
+        headers: { 'Content-Type': 'application/json' },
+      }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        status: 'completed',
+        result: { data: [{ b64_json: 'aW1hZ2U=' }] },
+      }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      }))
+
+    const result = await callImageApi({
+      settings: {
+        ...DEFAULT_SETTINGS,
+        customProviders: [{
+          id: 'sub2api-async',
+          name: 'Sub2API Async',
+          template: 'http-image',
+          submit: {
+            path: 'images/generations/jobs',
+            method: 'POST',
+            contentType: 'json',
+            body: { model: '$profile.model', prompt: '$prompt' },
+            taskIdPath: 'id',
+            useTaskIdAsIdempotencyKey: true,
+          },
+          poll: {
+            path: 'images/jobs/{task_id}',
+            method: 'GET',
+            intervalSeconds: 1,
+            statusPath: 'status',
+            successValues: ['completed'],
+            failureValues: ['failed', 'cancelled'],
+            errorPath: 'error.message',
+            result: { b64JsonPaths: ['result.data.*.b64_json'] },
+          },
+        }],
+        profiles: [{
+          ...DEFAULT_SETTINGS.profiles[0],
+          id: 'managed-images',
+          provider: 'sub2api-async',
+          baseUrl: '/v1',
+          apiKey: 'test-key',
+          model: 'gpt-image-2',
+        }],
+        activeProfileId: 'managed-images',
+      },
+      taskId: 'local-task-id',
+      prompt: 'prompt',
+      params: { ...DEFAULT_PARAMS },
+      inputImageDataUrls: [],
+    })
+
+    const submitHeaders = fetchMock.mock.calls[0][1]?.headers as Record<string, string>
+    expect(submitHeaders['Idempotency-Key']).toBe('local-task-id')
+    expect(result.images).toEqual(['data:image/png;base64,aW1hZ2U='])
+  })
+
+  it('does not expose the local task id to ordinary custom providers', async () => {
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(JSON.stringify({
+      data: [{ b64_json: 'aW1hZ2U=' }],
+    }), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json' },
+    }))
+
+    await callImageApi({
+      settings: {
+        ...DEFAULT_SETTINGS,
+        customProviders: [{
+          id: 'ordinary-custom',
+          name: 'Ordinary Custom',
+          template: 'http-image',
+          submit: {
+            path: 'images/generations',
+            method: 'POST',
+            contentType: 'json',
+            body: { model: '$profile.model', prompt: '$prompt' },
+            result: { b64JsonPaths: ['data.*.b64_json'] },
+          },
+        }],
+        profiles: [{
+          ...DEFAULT_SETTINGS.profiles[0],
+          id: 'ordinary-profile',
+          provider: 'ordinary-custom',
+          baseUrl: 'https://ordinary.example/v1',
+          apiKey: 'test-key',
+          model: 'model',
+        }],
+        activeProfileId: 'ordinary-profile',
+      },
+      taskId: 'must-not-leak',
+      prompt: 'prompt',
+      params: { ...DEFAULT_PARAMS },
+      inputImageDataUrls: [],
+    })
+
+    const headers = fetchMock.mock.calls[0][1]?.headers as Record<string, string>
+    expect(headers).not.toHaveProperty('Idempotency-Key')
+    expect(JSON.stringify(fetchMock.mock.calls[0])).not.toContain('must-not-leak')
+  })
+
+  it('persists the server task id before starting the first poll', async () => {
+    let releasePersistence!: () => void
+    const persisted = new Promise<void>((resolve) => {
+      releasePersistence = resolve
+    })
+    const onCustomTaskEnqueued = vi.fn(() => persisted)
+    const fetchMock = vi.spyOn(globalThis, 'fetch')
+      .mockResolvedValueOnce(new Response(JSON.stringify({ task_id: 'task-1' }), {
+        status: 202,
+        headers: { 'Content-Type': 'application/json' },
+      }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        status: 'done',
+        data: [{ b64_json: 'aW1hZ2U=' }],
+      }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      }))
+
+    const promise = callImageApi({
+      settings: {
+        ...DEFAULT_SETTINGS,
+        customProviders: [{
+          id: 'custom-async-await-persist',
+          name: 'Custom Async Await Persist',
+          template: 'http-image',
+          submit: {
+            path: 'images/generations/jobs',
+            method: 'POST',
+            contentType: 'json',
+            body: { prompt: '$prompt' },
+            taskIdPath: 'task_id',
+          },
+          poll: {
+            path: 'images/jobs/{task_id}',
+            method: 'GET',
+            intervalSeconds: 1,
+            statusPath: 'status',
+            successValues: ['done'],
+            failureValues: ['failed'],
+            result: { b64JsonPaths: ['data.*.b64_json'] },
+          },
+        }],
+        profiles: [{
+          ...DEFAULT_SETTINGS.profiles[0],
+          id: 'async-await-profile',
+          provider: 'custom-async-await-persist',
+          baseUrl: 'https://api.example.com/v1',
+          apiKey: 'test-key',
+          model: 'model',
+        }],
+        activeProfileId: 'async-await-profile',
+      },
+      taskId: 'local-task-id',
+      prompt: 'prompt',
+      params: { ...DEFAULT_PARAMS },
+      inputImageDataUrls: [],
+      onCustomTaskEnqueued,
+    })
+
+    await vi.waitFor(() => expect(onCustomTaskEnqueued).toHaveBeenCalledWith({ taskId: 'task-1' }))
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+
+    releasePersistence()
+
+    await expect(promise).resolves.toEqual({ images: ['data:image/png;base64,aW1hZ2U='] })
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+  })
+
+  it('stops the submit timeout while waiting for durable server task id persistence', async () => {
+    vi.useFakeTimers()
+    let releasePersistence!: () => void
+    const persisted = new Promise<void>((resolve) => {
+      releasePersistence = resolve
+    })
+    const onCustomTaskEnqueued = vi.fn(() => persisted)
+    const fetchMock = vi.spyOn(globalThis, 'fetch')
+      .mockResolvedValueOnce(new Response(JSON.stringify({ task_id: 'task-1' }), {
+        status: 202,
+        headers: { 'Content-Type': 'application/json' },
+      }))
+      .mockImplementationOnce(async (_url, init) => {
+        if (init?.signal?.aborted) throw new DOMException('Aborted', 'AbortError')
+        return new Response(JSON.stringify({
+          status: 'done',
+          data: [{ b64_json: 'aW1hZ2U=' }],
+        }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        })
+      })
+
+    const promise = callImageApi({
+      settings: {
+        ...DEFAULT_SETTINGS,
+        timeout: 1,
+        customProviders: [{
+          id: 'custom-async-durable-persist',
+          name: 'Custom Async Durable Persist',
+          template: 'http-image',
+          submit: {
+            path: 'images/generations/jobs',
+            method: 'POST',
+            contentType: 'json',
+            body: { prompt: '$prompt' },
+            taskIdPath: 'task_id',
+          },
+          poll: {
+            path: 'images/jobs/{task_id}',
+            method: 'GET',
+            intervalSeconds: 1,
+            statusPath: 'status',
+            successValues: ['done'],
+            failureValues: ['failed'],
+            result: { b64JsonPaths: ['data.*.b64_json'] },
+          },
+        }],
+        profiles: [{
+          ...DEFAULT_SETTINGS.profiles[0],
+          id: 'async-durable-profile',
+          provider: 'custom-async-durable-persist',
+          baseUrl: 'https://api.example.com/v1',
+          apiKey: 'test-key',
+          model: 'model',
+          timeout: 1,
+        }],
+        activeProfileId: 'async-durable-profile',
+      },
+      taskId: 'local-task-id',
+      prompt: 'prompt',
+      params: { ...DEFAULT_PARAMS },
+      inputImageDataUrls: [],
+      onCustomTaskEnqueued,
+    })
+
+    await vi.advanceTimersByTimeAsync(0)
+    expect(onCustomTaskEnqueued).toHaveBeenCalledOnce()
+    await vi.advanceTimersByTimeAsync(2_000)
+    releasePersistence()
+    await vi.advanceTimersByTimeAsync(0)
+
+    await expect(promise).resolves.toEqual({ images: ['data:image/png;base64,aW1hZ2U='] })
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+  })
+
   it('does not apply submit timeout to custom async polling after receiving a task id', async () => {
     vi.useFakeTimers()
     vi.spyOn(globalThis, 'fetch')

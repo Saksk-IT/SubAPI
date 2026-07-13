@@ -42,23 +42,54 @@ describe('managed Sub2API runtime', () => {
     vi.unstubAllGlobals()
   })
 
-  it('injects only the two same-origin OpenAI profiles in memory', () => {
+  it('injects an internal async Images provider while keeping Responses on OpenAI', () => {
     const settings = activateManagedConfig(config(), DEFAULT_SETTINGS)
 
     expect(settings).toMatchObject({
       baseUrl: '/v1',
       apiKey: 'sk-first',
       apiProxy: false,
-      customProviders: [],
-      providerOrder: ['openai'],
+      providerOrder: ['sub2api-async', 'openai'],
       agentApiConfigMode: 'hybrid',
       agentTextProfileId: 'responses',
       agentImageProfileId: 'images',
     })
     expect(settings.profiles).toEqual([
-      expect.objectContaining({ id: 'images', provider: 'openai', baseUrl: '/v1', apiKey: 'sk-first', apiMode: 'images', apiProxy: false, responseFormatB64Json: true }),
+      expect.objectContaining({ id: 'images', provider: 'sub2api-async', baseUrl: '/v1', apiKey: 'sk-first', apiMode: 'images', apiProxy: false, responseFormatB64Json: true }),
       expect.objectContaining({ id: 'responses', provider: 'openai', baseUrl: '/v1', apiKey: 'sk-first', apiMode: 'responses', apiProxy: false }),
     ])
+    expect(settings.customProviders).toEqual([{
+      id: 'sub2api-async',
+      name: 'Sub2API 异步生图',
+      template: 'http-image',
+      submit: expect.objectContaining({
+        path: 'images/generations/jobs',
+        method: 'POST',
+        contentType: 'json',
+        taskIdPath: 'id',
+        useTaskIdAsIdempotencyKey: true,
+      }),
+      editSubmit: expect.objectContaining({
+        path: 'images/edits/jobs',
+        method: 'POST',
+        contentType: 'multipart',
+        taskIdPath: 'id',
+        useTaskIdAsIdempotencyKey: true,
+      }),
+      poll: {
+        path: 'images/jobs/{task_id}',
+        method: 'GET',
+        intervalSeconds: 1,
+        statusPath: 'status',
+        successValues: ['completed'],
+        failureValues: ['failed', 'cancelled'],
+        errorPath: 'error.message',
+        result: {
+          imageUrlPaths: ['result.data.*.url'],
+          b64JsonPaths: ['result.data.*.b64_json'],
+        },
+      },
+    }])
   })
 
   it('applies every configured theme and locale update to the document root', () => {
@@ -139,9 +170,9 @@ describe('managed Sub2API runtime', () => {
 
     const safe = enforceManagedSettings(unsafe)
 
-    expect(safe.customProviders).toEqual([])
+    expect(safe.customProviders).toHaveLength(1)
     expect(safe.profiles).toEqual([
-      expect.objectContaining({ provider: 'openai', baseUrl: '/v1', apiKey: 'sk-first', model: 'custom-image-model', responseFormatB64Json: true }),
+      expect.objectContaining({ provider: 'sub2api-async', baseUrl: '/v1', apiKey: 'sk-first', model: 'custom-image-model', responseFormatB64Json: true }),
       expect.objectContaining({ provider: 'openai', baseUrl: '/v1', apiKey: 'sk-first', model: 'custom-responses-model' }),
     ])
   })
@@ -227,7 +258,7 @@ describe('managed Sub2API runtime', () => {
     activateManagedConfig(config(), DEFAULT_SETTINGS)
     clearManagedConfig()
 
-    await expect(managedFetch('/v1/images/generations', { method: 'POST' }))
+    await expect(managedFetch('/v1/images/generations/jobs', { method: 'POST' }))
       .rejects.toThrow('Sub2API configuration is not available')
     expect(fetchMock).not.toHaveBeenCalled()
     release()
@@ -238,6 +269,12 @@ describe('managed Sub2API runtime', () => {
     '//evil.example/v1/images/generations',
     '/v1/chat/completions',
     '/v1/images/tasks/123',
+    '/v1/images/jobs/imgjob_0123456789abcdef0123456789abcdef?secret=1',
+    '/v1/images/jobs/imgjob_0123456789abcdef0123456789abcdef#fragment',
+    '/v1/images/jobs/../responses',
+    '/v1/images/jobs/not-a-job-id',
+    '/v1/images/jobs/imgjob_0123456789abcdef0123456789abcdeg',
+    'http://[::1',
   ])('rejects a managed request outside the fixed same-origin endpoints: %s', async (url) => {
     const release = requireManagedRuntime()
     const fetchMock = vi.fn()
@@ -247,6 +284,43 @@ describe('managed Sub2API runtime', () => {
 
     await expect(managedFetch(url, { method: 'POST' })).rejects.toThrow('Managed request URL is not allowed')
     expect(fetchMock).not.toHaveBeenCalled()
+    release()
+  })
+
+  it.each([
+    ['/v1/images/generations/jobs', 'GET'],
+    ['/v1/images/edits/jobs', 'GET'],
+    ['/v1/images/jobs/imgjob_0123456789abcdef0123456789abcdef', 'POST'],
+    ['/v1/images/jobs/imgjob_0123456789abcdef0123456789abcdef/cancel', 'GET'],
+    ['/v1/responses', 'GET'],
+  ])('rejects the wrong method for a managed route: %s %s', async (url, method) => {
+    const release = requireManagedRuntime()
+    const fetchMock = vi.fn()
+    vi.stubGlobal('fetch', fetchMock)
+    vi.stubGlobal('location', { origin: 'https://sub2api.example' })
+    activateManagedConfig(config(), DEFAULT_SETTINGS)
+
+    await expect(managedFetch(url, { method })).rejects.toThrow('Managed request URL is not allowed')
+    expect(fetchMock).not.toHaveBeenCalled()
+    release()
+  })
+
+  it.each([
+    ['/v1/images/generations/jobs', 'POST'],
+    ['/v1/images/edits/jobs', 'POST'],
+    ['/v1/images/jobs/imgjob_0123456789abcdef0123456789abcdef', 'GET'],
+    ['/v1/images/jobs/imgjob_0123456789abcdef0123456789abcdef/cancel', 'POST'],
+    ['/v1/responses', 'POST'],
+  ])('allows only the exact same-origin managed route and method: %s %s', async (url, method) => {
+    const release = requireManagedRuntime()
+    const fetchMock = vi.fn().mockResolvedValue(new Response('{}'))
+    vi.stubGlobal('fetch', fetchMock)
+    vi.stubGlobal('location', { origin: 'https://sub2api.example' })
+    activateManagedConfig(config(), DEFAULT_SETTINGS)
+
+    await managedFetch(url, { method })
+
+    expect(fetchMock).toHaveBeenCalledOnce()
     release()
   })
 

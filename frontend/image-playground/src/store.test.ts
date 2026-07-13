@@ -84,6 +84,18 @@ vi.mock('./lib/api', () => ({
     revisedPrompts: [],
   })),
 }))
+vi.mock('./lib/openaiCompatibleImageApi', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('./lib/openaiCompatibleImageApi')>()
+  return {
+    ...actual,
+    getCustomQueuedImageResult: vi.fn(async () => ({
+      images: [],
+      actualParams: {},
+      actualParamsList: [],
+      revisedPrompts: [],
+    })),
+  }
+})
 vi.mock('./lib/falAiImageApi', () => ({
   getFalErrorMessage: vi.fn((err: unknown) => err instanceof Error ? err.message : String(err)),
   getFalQueuedImageResult: vi.fn(async () => ({
@@ -131,6 +143,8 @@ vi.mock('./lib/agentApi', () => ({
 import { clearAgentConversations, clearImages, clearTasks, getAllAgentConversations, getAllTasks, getImage, putAgentConversation, putImage, putTask as putDbTask } from './lib/db'
 import { callAgentResponsesApi, callBatchImageSingle } from './lib/agentApi'
 import { getFalQueuedImageResult } from './lib/falAiImageApi'
+import { getCustomQueuedImageResult } from './lib/openaiCompatibleImageApi'
+import { callImageApi } from './lib/api'
 import { removeKeyedBackgroundFromDataUrl } from './lib/transparentImage'
 import { activateManagedConfig, clearManagedConfig } from './lib/managedMode'
 import { addImageFromUrl, cleanStaleAgentInputDrafts, clearFailedTasks, createInputImageFromFile, deleteAgentRoundFromConversation, deleteFavoriteCollection, editOutputs, getActiveAgentRounds, getAgentConversationTaskIds, getAgentRoundTaskIds, getCodexCliPromptKey, getErrorToastMessage, getPersistedState, getTaskApiProfile, importData, initStore, markInterruptedOpenAIRunningTasks, migratePersistedState, regenerateAgentAssistantMessage, remapAgentRoundMentionsForPathChange, removeTask, reuseConfig, stopAgentResponse, submitAgentMessage, submitTask, taskMatchesFilterStatus, taskMatchesSearchQuery, useStore } from './store'
@@ -201,6 +215,56 @@ function task(overrides: Partial<TaskRecord> = {}): TaskRecord {
     elapsed: 1,
     ...overrides,
   }
+}
+
+function customAsyncSettings(apiKey = 'async-key') {
+  return normalizeSettings({
+    ...DEFAULT_SETTINGS,
+    customProviders: [{
+      id: 'custom-async',
+      name: 'Custom Async',
+      template: 'http-image',
+      submit: {
+        path: 'images/generations/jobs',
+        method: 'POST',
+        contentType: 'json',
+        body: { model: '$profile.model', prompt: '$prompt' },
+        taskIdPath: 'id',
+        useTaskIdAsIdempotencyKey: true,
+      },
+      editSubmit: {
+        path: 'images/edits/jobs',
+        method: 'POST',
+        contentType: 'multipart',
+        body: { model: '$profile.model', prompt: '$prompt' },
+        files: [{ field: 'image[]', source: 'inputImages', array: true }],
+        taskIdPath: 'id',
+        useTaskIdAsIdempotencyKey: true,
+      },
+      poll: {
+        path: 'images/jobs/{task_id}',
+        method: 'GET',
+        intervalSeconds: 1,
+        statusPath: 'status',
+        successValues: ['completed'],
+        failureValues: ['failed', 'cancelled'],
+        errorPath: 'error.message',
+        result: { b64JsonPaths: ['result.data.*.b64_json'] },
+      },
+    }],
+    profiles: [{
+      ...createDefaultOpenAIProfile(),
+      id: 'async-images',
+      name: 'Async Images',
+      provider: 'custom-async',
+      baseUrl: '/v1',
+      apiKey,
+      model: 'gpt-image-2',
+      apiMode: 'images',
+      apiProxy: false,
+    }],
+    activeProfileId: 'async-images',
+  })
 }
 
 function importFile(data: ExportData): File {
@@ -529,9 +593,10 @@ describe('interrupted OpenAI running tasks', () => {
     const openAIRunning = task({ id: 'openai-running', apiProvider: 'openai', status: 'running', createdAt: 2_000, finishedAt: null, elapsed: null })
     const falRunning = task({ id: 'fal-running', apiProvider: 'fal', status: 'running', createdAt: 3_000, finishedAt: null, elapsed: null })
     const customAsyncRunning = task({ id: 'custom-running', apiProvider: 'custom-provider', customTaskId: 'task-1', status: 'running', createdAt: 4_000, finishedAt: null, elapsed: null })
+    const customSubmitPending = task({ id: 'custom-pending', apiProvider: 'custom-provider', customSubmissionPending: true, status: 'running', createdAt: 5_000, finishedAt: null, elapsed: null })
     const doneTask = task({ id: 'done-task', apiProvider: 'openai', status: 'done' })
 
-    const result = markInterruptedOpenAIRunningTasks([legacyRunning, openAIRunning, falRunning, customAsyncRunning, doneTask], now)
+    const result = markInterruptedOpenAIRunningTasks([legacyRunning, openAIRunning, falRunning, customAsyncRunning, customSubmitPending, doneTask], now)
 
     expect(result.interruptedTasks.map((item) => item.id)).toEqual(['legacy-running', 'openai-running'])
     expect(result.tasks.find((item) => item.id === 'legacy-running')).toMatchObject({
@@ -548,7 +613,354 @@ describe('interrupted OpenAI running tasks', () => {
     })
     expect(result.tasks.find((item) => item.id === 'fal-running')).toEqual(falRunning)
     expect(result.tasks.find((item) => item.id === 'custom-running')).toEqual(customAsyncRunning)
+    expect(result.tasks.find((item) => item.id === 'custom-pending')).toEqual(customSubmitPending)
     expect(result.tasks.find((item) => item.id === 'done-task')).toEqual(doneTask)
+  })
+})
+
+describe('custom async task submission and recovery', () => {
+  beforeEach(async () => {
+    clearManagedConfig()
+    await clearTasks()
+    await clearImages()
+    await clearAgentConversations()
+    vi.mocked(callImageApi).mockReset()
+    vi.mocked(getCustomQueuedImageResult).mockReset()
+    useStore.setState({
+      settings: customAsyncSettings(),
+      prompt: '画一只猫',
+      inputImages: [],
+      maskDraft: null,
+      params: { ...DEFAULT_PARAMS },
+      tasks: [],
+      galleryInputDraft: null,
+      agentConversations: [],
+      appMode: 'gallery',
+      showToast: vi.fn(),
+    })
+  })
+
+  it('persists a submission-pending gallery task before calling the API and passes the same local id', async () => {
+    let capturedTaskId = ''
+    vi.mocked(callImageApi).mockImplementationOnce(async (opts) => {
+      capturedTaskId = opts.taskId ?? ''
+      const persisted = await getAllTasks()
+      expect(persisted.find((item) => item.id === capturedTaskId)).toMatchObject({
+        status: 'running',
+        customSubmissionPending: true,
+      })
+      return new Promise(() => {})
+    })
+
+    await submitTask()
+    await vi.waitFor(() => expect(callImageApi).toHaveBeenCalledOnce())
+
+    const [createdTask] = useStore.getState().tasks
+    expect(capturedTaskId).toBe(createdTask.id)
+    expect(createdTask.customSubmissionPending).toBe(true)
+  })
+
+  it('does not mark an ordinary non-idempotent async provider submission as safely resubmittable', async () => {
+    const settings = customAsyncSettings()
+    useStore.setState({
+      settings: normalizeSettings({
+        ...settings,
+        customProviders: settings.customProviders.map((provider) => ({
+          ...provider,
+          submit: { ...provider.submit, useTaskIdAsIdempotencyKey: false },
+          editSubmit: provider.editSubmit
+            ? { ...provider.editSubmit, useTaskIdAsIdempotencyKey: false }
+            : undefined,
+        })),
+      }),
+    })
+    vi.mocked(callImageApi).mockRejectedValueOnce(new TypeError('Failed to fetch'))
+
+    await submitTask()
+    await vi.waitFor(() => expect(useStore.getState().tasks[0]?.status).toBe('error'))
+
+    expect(useStore.getState().tasks[0]).toMatchObject({
+      customSubmissionPending: false,
+      customRecoverable: false,
+    })
+  })
+
+  it('returns an awaited persistence promise when the server task id is received', async () => {
+    vi.mocked(callImageApi).mockImplementationOnce(async (opts) => {
+      const persistence = opts.onCustomTaskEnqueued?.({ taskId: 'imgjob_0123456789abcdef0123456789abcdef' })
+      expect(persistence).toBeInstanceOf(Promise)
+      await persistence
+      const persisted = (await getAllTasks()).find((item) => item.id === opts.taskId)
+      expect(persisted).toMatchObject({
+        customTaskId: 'imgjob_0123456789abcdef0123456789abcdef',
+        customSubmissionPending: false,
+      })
+      return {
+        images: ['data:image/png;base64,generated'],
+        actualParams: {},
+        actualParamsList: [{}],
+        revisedPrompts: [],
+      }
+    })
+
+    await submitTask()
+    await vi.waitFor(() => expect(useStore.getState().tasks[0]?.status).toBe('done'))
+
+    expect(useStore.getState().tasks[0]).toMatchObject({
+      customTaskId: 'imgjob_0123456789abcdef0123456789abcdef',
+      customSubmissionPending: false,
+      status: 'done',
+    })
+  })
+
+  it('resubmits a persisted pending task with the same local id after restart', async () => {
+    const pendingTask = task({
+      id: 'local-pending-task',
+      apiProvider: 'custom-async',
+      apiProfileId: 'async-images',
+      apiProfileName: 'Async Images',
+      apiMode: 'images',
+      apiModel: 'gpt-image-2',
+      status: 'running',
+      customSubmissionPending: true,
+      customTaskId: undefined,
+      createdAt: Date.now(),
+      finishedAt: null,
+      elapsed: null,
+    })
+    await putDbTask(pendingTask)
+    vi.mocked(callImageApi).mockImplementationOnce(async (opts) => {
+      await opts.onCustomTaskEnqueued?.({ taskId: 'imgjob_11111111111111111111111111111111' })
+      return {
+        images: ['data:image/png;base64,recovered'],
+        actualParams: {},
+        actualParamsList: [{}],
+        revisedPrompts: [],
+      }
+    })
+
+    await initStore()
+    await vi.waitFor(() => expect(callImageApi).toHaveBeenCalledOnce())
+    await vi.waitFor(() => expect(useStore.getState().tasks.find((item) => item.id === pendingTask.id)?.status).toBe('done'))
+
+    expect(callImageApi).toHaveBeenCalledWith(expect.objectContaining({ taskId: pendingTask.id }))
+    expect(useStore.getState().tasks.find((item) => item.id === pendingTask.id)).toMatchObject({
+      customTaskId: 'imgjob_11111111111111111111111111111111',
+      customSubmissionPending: false,
+      status: 'done',
+    })
+  })
+
+  it('resumes polling an existing job with a newly selected key for the same profile', async () => {
+    const queuedTask = task({
+      id: 'local-queued-task',
+      apiProvider: 'custom-async',
+      apiProfileId: 'async-images',
+      apiProfileName: 'Async Images',
+      apiMode: 'images',
+      apiModel: 'gpt-image-2',
+      status: 'error',
+      error: '等待恢复',
+      customTaskId: 'imgjob_22222222222222222222222222222222',
+      customSubmissionPending: false,
+      customRecoverable: true,
+      createdAt: Date.now(),
+      finishedAt: Date.now(),
+      elapsed: 1,
+    })
+    await putDbTask(queuedTask)
+    useStore.setState({ settings: customAsyncSettings('replacement-key') })
+    vi.mocked(getCustomQueuedImageResult).mockResolvedValueOnce({
+      images: ['data:image/png;base64,polled'],
+      actualParams: {},
+      actualParamsList: [{}],
+      revisedPrompts: [],
+    })
+
+    await initStore()
+    await vi.waitFor(() => expect(getCustomQueuedImageResult).toHaveBeenCalledOnce())
+    await vi.waitFor(() => expect(useStore.getState().tasks.find((item) => item.id === queuedTask.id)?.status).toBe('done'))
+
+    expect(getCustomQueuedImageResult).toHaveBeenCalledWith(
+      expect.objectContaining({ apiKey: 'replacement-key' }),
+      expect.objectContaining({ id: 'custom-async' }),
+      queuedTask.customTaskId,
+      queuedTask.params,
+    )
+    expect(callImageApi).not.toHaveBeenCalled()
+  })
+
+  it('maps a cancelled recovered job to a terminal local error', async () => {
+    const cancelledTask = task({
+      id: 'local-cancelled-task',
+      apiProvider: 'custom-async',
+      apiProfileId: 'async-images',
+      status: 'running',
+      customTaskId: 'imgjob_33333333333333333333333333333333',
+      customRecoverable: true,
+      createdAt: Date.now(),
+      finishedAt: null,
+      elapsed: null,
+    })
+    await putDbTask(cancelledTask)
+    vi.mocked(getCustomQueuedImageResult).mockRejectedValueOnce(new Error('已取消生成。'))
+
+    await initStore()
+    await vi.waitFor(() => expect(useStore.getState().tasks.find((item) => item.id === cancelledTask.id)?.status).toBe('error'))
+
+    expect(useStore.getState().tasks.find((item) => item.id === cancelledTask.id)).toMatchObject({
+      status: 'error',
+      error: '已取消生成。',
+      customRecoverable: false,
+    })
+  })
+
+  it('passes an Agent image task local id through the same async submission path', async () => {
+    const imageSettings = customAsyncSettings()
+    const textProfile = createDefaultOpenAIProfile({
+      id: 'agent-text',
+      apiKey: 'text-key',
+      apiMode: 'responses',
+      model: DEFAULT_RESPONSES_MODEL,
+    })
+    useStore.setState({
+      settings: normalizeSettings({
+        ...imageSettings,
+        profiles: [textProfile, ...imageSettings.profiles],
+        activeProfileId: textProfile.id,
+        agentApiConfigMode: 'hybrid',
+        agentTextProfileId: textProfile.id,
+        agentImageProfileId: 'async-images',
+      }),
+      appMode: 'agent',
+      prompt: '画一只猫',
+      agentConversations: [agentConversation({ id: 'conversation-async-agent' })],
+      activeAgentConversationId: 'conversation-async-agent',
+    })
+    vi.mocked(callAgentResponsesApi)
+      .mockResolvedValueOnce({
+        text: '',
+        images: [],
+        outputItems: [{
+          type: 'function_call',
+          name: 'generate_image',
+          call_id: 'tool-image-1',
+          arguments: JSON.stringify({ id: 'cat', prompt: '画一只猫' }),
+        }],
+        responseId: 'response-1',
+      })
+      .mockResolvedValueOnce({
+        text: '完成',
+        images: [],
+        outputItems: [{ type: 'message', content: [{ type: 'output_text', text: '完成' }] }],
+        responseId: 'response-2',
+      })
+    vi.mocked(callImageApi).mockImplementationOnce(async (opts) => {
+      await opts.onCustomTaskEnqueued?.({ taskId: 'imgjob_44444444444444444444444444444444' })
+      return {
+        images: ['data:image/png;base64,agent-generated'],
+        actualParams: {},
+        actualParamsList: [{}],
+        revisedPrompts: [],
+      }
+    })
+
+    await submitAgentMessage()
+    await vi.waitFor(() => expect(callImageApi).toHaveBeenCalledOnce())
+
+    const agentTask = useStore.getState().tasks.find((item) => item.agentToolCallId === 'tool-image-1')
+    expect(agentTask).toBeDefined()
+    expect(callImageApi).toHaveBeenCalledWith(expect.objectContaining({ taskId: agentTask?.id }))
+    expect(agentTask).toMatchObject({
+      sourceMode: 'agent',
+      customTaskId: 'imgjob_44444444444444444444444444444444',
+      customSubmissionPending: false,
+    })
+  })
+
+  it('retries an Agent submission with the same id after losing the submit response and then continues the round', async () => {
+    vi.useFakeTimers()
+    try {
+      const imageSettings = customAsyncSettings()
+      const textProfile = createDefaultOpenAIProfile({
+        id: 'agent-text-recovery',
+        apiKey: 'text-key',
+        apiMode: 'responses',
+        model: DEFAULT_RESPONSES_MODEL,
+      })
+      useStore.setState({
+        settings: normalizeSettings({
+          ...imageSettings,
+          profiles: [textProfile, ...imageSettings.profiles],
+          activeProfileId: textProfile.id,
+          agentApiConfigMode: 'hybrid',
+          agentTextProfileId: textProfile.id,
+          agentImageProfileId: 'async-images',
+        }),
+        appMode: 'agent',
+        prompt: '画一只猫',
+        agentConversations: [agentConversation({ id: 'conversation-agent-recovery' })],
+        activeAgentConversationId: 'conversation-agent-recovery',
+      })
+      vi.mocked(callAgentResponsesApi)
+        .mockResolvedValueOnce({
+          text: '',
+          images: [],
+          outputItems: [{
+            type: 'function_call',
+            name: 'generate_image',
+            call_id: 'tool-image-recovery',
+            arguments: JSON.stringify({ id: 'cat', prompt: '画一只猫' }),
+          }],
+          responseId: 'response-recovery-1',
+        })
+        .mockResolvedValueOnce({
+          text: '恢复完成',
+          images: [],
+          outputItems: [{ type: 'message', content: [{ type: 'output_text', text: '恢复完成' }] }],
+          responseId: 'response-recovery-2',
+        })
+      vi.mocked(callImageApi).mockRejectedValueOnce(new TypeError('Failed to fetch'))
+
+      await submitAgentMessage()
+      await vi.advanceTimersByTimeAsync(0)
+
+      const pendingTask = useStore.getState().tasks.find((item) => item.agentToolCallId === 'tool-image-recovery')
+      expect(pendingTask).toMatchObject({
+        status: 'error',
+        customSubmissionPending: true,
+        customRecoverable: true,
+      })
+
+      vi.mocked(callImageApi).mockImplementationOnce(async (opts) => {
+        await opts.onCustomTaskEnqueued?.({ taskId: 'imgjob_55555555555555555555555555555555' })
+        return {
+          images: ['data:image/png;base64,agent-recovered'],
+          actualParams: {},
+          actualParamsList: [{}],
+          revisedPrompts: [],
+        }
+      })
+
+      await vi.advanceTimersByTimeAsync(10_000)
+      for (let i = 0; i < 20 && useStore.getState().agentConversations[0]?.rounds[0]?.status !== 'done'; i += 1) {
+        await vi.advanceTimersByTimeAsync(0)
+      }
+
+      expect(callImageApi).toHaveBeenLastCalledWith(expect.objectContaining({ taskId: pendingTask?.id }))
+      expect(useStore.getState().tasks.find((item) => item.id === pendingTask?.id)).toMatchObject({
+        status: 'done',
+        customSubmissionPending: false,
+        customTaskId: 'imgjob_55555555555555555555555555555555',
+      })
+      expect(useStore.getState().agentConversations[0].rounds[0]).toMatchObject({
+        status: 'done',
+        error: null,
+        responseId: 'response-recovery-2',
+      })
+    } finally {
+      vi.useRealTimers()
+    }
   })
 })
 
@@ -655,8 +1067,8 @@ describe('input persistence setting', () => {
     })
 
     const settings = useStore.getState().settings
-    expect(settings.customProviders).toEqual([])
-    expect(settings.profiles.map((profile) => profile.provider)).toEqual(['openai', 'openai'])
+    expect(settings.customProviders.map((provider) => provider.id)).toEqual(['sub2api-async'])
+    expect(settings.profiles.map((profile) => profile.provider)).toEqual(['sub2api-async', 'openai'])
     expect(settings.profiles.every((profile) => profile.baseUrl === '/v1' && profile.apiKey === 'sk-managed')).toBe(true)
     clearManagedConfig()
   })
