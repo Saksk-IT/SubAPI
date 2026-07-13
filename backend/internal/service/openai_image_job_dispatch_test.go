@@ -108,3 +108,41 @@ func TestOpenAIImageJobDispatchGateIsAbsentForNormalHTTPRequests(t *testing.T) {
 	require.NotNil(t, result)
 	require.Equal(t, int32(1), upstream.calls.Load())
 }
+
+func TestOpenAIImageJobDispatchGateDeniesCrossTransportFailoverAfterFirstDo(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	accounts := []*Account{
+		{ID: 1, Platform: PlatformOpenAI, Type: AccountTypeAPIKey, Credentials: map[string]any{
+			"api_key": "upstream-secret", "base_url": "https://images.example/v1",
+		}},
+		{ID: 2, Platform: PlatformOpenAI, Type: AccountTypeOAuth, Credentials: map[string]any{
+			"access_token": "oauth-secret", "chatgpt_account_id": "acct-1",
+		}},
+	}
+	for firstIndex, name := range []string{"api-key-then-oauth", "oauth-then-api-key"} {
+		t.Run(name, func(t *testing.T) {
+			body := []byte(`{"model":"gpt-image-2","prompt":"cat","response_format":"b64_json"}`)
+			req := httptest.NewRequest(http.MethodPost, "/v1/images/generations", bytes.NewReader(body))
+			req.Header.Set("Content-Type", "application/json")
+			recorder := httptest.NewRecorder()
+			c, _ := gin.CreateTestContext(recorder)
+			c.Request = req
+			upstream := &openAIImageDispatchUpstreamStub{}
+			svc := &OpenAIGatewayService{cfg: &config.Config{}, httpUpstream: upstream}
+			parsed, err := svc.ParseOpenAIImagesRequest(c, body)
+			require.NoError(t, err)
+			observer := &openAIImageJobExecutionObserver{}
+			ctx := WithOpenAIImageJobExecutionObserver(context.Background(), observer)
+
+			_, _ = svc.ForwardImages(ctx, c, accounts[firstIndex], body, parsed, "")
+			require.Equal(t, int32(1), upstream.calls.Load(), "first transport must be the only upstream Do")
+
+			secondIndex := 1 - firstIndex
+			result, err := svc.ForwardImages(ctx, c, accounts[secondIndex], body, parsed, "")
+			require.Nil(t, result)
+			require.ErrorIs(t, err, context.Canceled)
+			require.Equal(t, int32(1), upstream.calls.Load(), "failover transport must be denied before Do")
+			require.True(t, observer.Dispatched())
+		})
+	}
+}

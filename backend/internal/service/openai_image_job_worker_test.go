@@ -499,6 +499,55 @@ func TestOpenAIImageJobWorkerStopIsBoundedWhenExecutorIgnoresContext(t *testing.
 	}
 }
 
+func TestOpenAIImageJobWorkerShutdownJoinsPromptVerifiedSuccess(t *testing.T) {
+	repo := newOpenAIImageJobWorkerRepositoryFake(&OpenAIImageJob{JobID: "imgjob_shutdown_join", Status: OpenAIImageJobStatusRunning})
+	repo.rejectCanceledFinalization = true
+	executorStarted := make(chan struct{})
+	executor := openAIImageJobExecutorFunc(func(ctx context.Context, _ *OpenAIImageJob, observer OpenAIImageJobExecutionObserver) OpenAIImageJobExecutionResult {
+		observer.MarkDispatched()
+		close(executorStarted)
+		<-ctx.Done()
+		time.Sleep(5 * time.Millisecond)
+		return successfulOpenAIImageJobExecution()
+	})
+	worker := newTestOpenAIImageJobWorker(repo, executor, time.Now())
+	worker.opts.PollInterval = time.Millisecond
+	worker.opts.ShutdownWait = 100 * time.Millisecond
+	worker.Start()
+
+	select {
+	case <-executorStarted:
+	case <-time.After(250 * time.Millisecond):
+		worker.Stop()
+		t.Fatal("executor did not start")
+	}
+	worker.Stop()
+
+	snapshot := repo.snapshot()
+	if snapshot.completeCalls != 1 || snapshot.failCalls != 0 {
+		t.Fatalf("shutdown complete/fail calls = %d/%d, want 1/0", snapshot.completeCalls, snapshot.failCalls)
+	}
+}
+
+func TestOpenAIImageJobWorkerFinalizesReadyResultWithFreshContextAfterRuntimeCancellation(t *testing.T) {
+	job := &OpenAIImageJob{JobID: "imgjob_shutdown_result", Status: OpenAIImageJobStatusRunning}
+	repo := newOpenAIImageJobWorkerRepositoryFake(job)
+	repo.rejectCanceledFinalization = true
+	worker := newTestOpenAIImageJobWorker(repo, nil, time.Now())
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	err := worker.finalizeReceivedExecutionResult(ctx, job, "worker-1", &openAIImageJobExecutionObserver{}, false, successfulOpenAIImageJobExecution())
+
+	if err != nil {
+		t.Fatalf("executeClaimedJob() error = %v", err)
+	}
+	snapshot := repo.snapshot()
+	if snapshot.completeCalls != 1 || snapshot.failCalls != 0 {
+		t.Fatalf("complete/fail calls = %d/%d, want 1/0", snapshot.completeCalls, snapshot.failCalls)
+	}
+}
+
 func TestOpenAIImageJobWorkerOptionsDefaults(t *testing.T) {
 	opts := normalizeOpenAIImageJobWorkerOptions(OpenAIImageJobWorkerOptions{})
 	if opts.WorkerCount != 2 || opts.PollInterval != time.Second || opts.HeartbeatInterval != 10*time.Second {
@@ -525,6 +574,19 @@ func TestOpenAIImageJobExecutionObserverRejectsDispatchAfterWorkerStopsAttempt(t
 	}
 	if observer.Dispatched() {
 		t.Fatal("Dispatched() = true after rejected late dispatch")
+	}
+}
+
+func TestOpenAIImageJobExecutionObserverAllowsOnlyFirstDispatch(t *testing.T) {
+	observer := &openAIImageJobExecutionObserver{}
+	if accepted := observer.MarkDispatched(); !accepted {
+		t.Fatal("first MarkDispatched() = false, want true")
+	}
+	if accepted := observer.MarkDispatched(); accepted {
+		t.Fatal("second MarkDispatched() = true, failover must be denied")
+	}
+	if !observer.Dispatched() {
+		t.Fatal("Dispatched() = false after first dispatch")
 	}
 }
 
@@ -604,20 +666,21 @@ type openAIImageJobWorkerRepositoryFake struct {
 	heartbeatIndex   int
 	heartbeatHook    func(call int)
 
-	claimCalls        int
-	heartbeatCalls    int
-	completeCalls     int
-	failCalls         int
-	cancelCalls       int
-	recoveryCalls     int
-	cleanupCalls      int
-	lastLeaseUntil    time.Time
-	completedResponse OpenAIImageJobResponse
-	failedCode        string
-	failedMessage     string
-	failedUnknown     bool
-	recoveryCutoff    time.Time
-	cleanupParams     OpenAIImageJobCleanupParams
+	claimCalls                 int
+	heartbeatCalls             int
+	completeCalls              int
+	failCalls                  int
+	cancelCalls                int
+	recoveryCalls              int
+	cleanupCalls               int
+	lastLeaseUntil             time.Time
+	completedResponse          OpenAIImageJobResponse
+	failedCode                 string
+	failedMessage              string
+	failedUnknown              bool
+	recoveryCutoff             time.Time
+	cleanupParams              OpenAIImageJobCleanupParams
+	rejectCanceledFinalization bool
 }
 
 func newOpenAIImageJobWorkerRepositoryFake(jobs ...*OpenAIImageJob) *openAIImageJobWorkerRepositoryFake {
@@ -634,20 +697,21 @@ func (r *openAIImageJobWorkerRepositoryFake) snapshot() openAIImageJobWorkerRepo
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	return openAIImageJobWorkerRepositoryFake{
-		claimCalls:        r.claimCalls,
-		heartbeatCalls:    r.heartbeatCalls,
-		completeCalls:     r.completeCalls,
-		failCalls:         r.failCalls,
-		cancelCalls:       r.cancelCalls,
-		recoveryCalls:     r.recoveryCalls,
-		cleanupCalls:      r.cleanupCalls,
-		lastLeaseUntil:    r.lastLeaseUntil,
-		completedResponse: r.completedResponse,
-		failedCode:        r.failedCode,
-		failedMessage:     r.failedMessage,
-		failedUnknown:     r.failedUnknown,
-		recoveryCutoff:    r.recoveryCutoff,
-		cleanupParams:     r.cleanupParams,
+		claimCalls:                 r.claimCalls,
+		heartbeatCalls:             r.heartbeatCalls,
+		completeCalls:              r.completeCalls,
+		failCalls:                  r.failCalls,
+		cancelCalls:                r.cancelCalls,
+		recoveryCalls:              r.recoveryCalls,
+		cleanupCalls:               r.cleanupCalls,
+		lastLeaseUntil:             r.lastLeaseUntil,
+		completedResponse:          r.completedResponse,
+		failedCode:                 r.failedCode,
+		failedMessage:              r.failedMessage,
+		failedUnknown:              r.failedUnknown,
+		recoveryCutoff:             r.recoveryCutoff,
+		cleanupParams:              r.cleanupParams,
+		rejectCanceledFinalization: r.rejectCanceledFinalization,
 	}
 }
 
@@ -700,17 +764,23 @@ func (r *openAIImageJobWorkerRepositoryFake) Heartbeat(_ context.Context, _, _ s
 	return result.cancelRequested, result.err
 }
 
-func (r *openAIImageJobWorkerRepositoryFake) Complete(_ context.Context, _, _ string, response OpenAIImageJobResponse) error {
+func (r *openAIImageJobWorkerRepositoryFake) Complete(ctx context.Context, _, _ string, response OpenAIImageJobResponse) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
+	if r.rejectCanceledFinalization && ctx.Err() != nil {
+		return ctx.Err()
+	}
 	r.completeCalls++
 	r.completedResponse = response
 	return nil
 }
 
-func (r *openAIImageJobWorkerRepositoryFake) Fail(_ context.Context, _, _, code, message string, unknown bool) error {
+func (r *openAIImageJobWorkerRepositoryFake) Fail(ctx context.Context, _, _, code, message string, unknown bool) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
+	if r.rejectCanceledFinalization && ctx.Err() != nil {
+		return ctx.Err()
+	}
 	r.failCalls++
 	r.failedCode = code
 	r.failedMessage = message
@@ -722,9 +792,12 @@ func (r *openAIImageJobWorkerRepositoryFake) CancelForUser(context.Context, int6
 	return nil, errors.New("not implemented by worker fake")
 }
 
-func (r *openAIImageJobWorkerRepositoryFake) MarkCancelled(context.Context, string, string) error {
+func (r *openAIImageJobWorkerRepositoryFake) MarkCancelled(ctx context.Context, _ string, _ string) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
+	if r.rejectCanceledFinalization && ctx.Err() != nil {
+		return ctx.Err()
+	}
 	r.cancelCalls++
 	return nil
 }

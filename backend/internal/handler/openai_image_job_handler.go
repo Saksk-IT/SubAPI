@@ -26,17 +26,20 @@ type OpenAIImageJobHandler struct {
 	repository     service.OpenAIImageJobRepository
 	gatewayService *service.OpenAIGatewayService
 	config         *config.Config
+	cancelNotifier service.OpenAIImageJobCancelNotifier
 }
 
 func NewOpenAIImageJobHandler(
 	repository service.OpenAIImageJobRepository,
 	gatewayService *service.OpenAIGatewayService,
 	cfg *config.Config,
+	cancelNotifier service.OpenAIImageJobCancelNotifier,
 ) *OpenAIImageJobHandler {
 	return &OpenAIImageJobHandler{
 		repository:     repository,
 		gatewayService: gatewayService,
 		config:         cfg,
+		cancelNotifier: cancelNotifier,
 	}
 }
 
@@ -159,6 +162,9 @@ func (h *OpenAIImageJobHandler) Cancel(c *gin.Context) {
 	if err != nil {
 		openAIImageJobWriteError(c, err)
 		return
+	}
+	if job != nil && job.Status == service.OpenAIImageJobStatusRunning && job.CancelRequested && h.cancelNotifier != nil {
+		h.cancelNotifier.RequestCancel(job.JobID)
 	}
 	setOpenAIImageJobResponseHeaders(c, job)
 	c.JSON(http.StatusOK, service.OpenAIImageJobToPublic(job))

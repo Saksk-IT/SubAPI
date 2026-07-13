@@ -5,6 +5,8 @@ import (
 	"context"
 	"errors"
 	"net/http"
+	"net/http/httptest"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -34,9 +36,11 @@ func (s *openAIImageJobAPIKeyProviderStub) InvalidateAuthCacheByKey(_ context.Co
 type openAIImageJobObserverStub struct {
 	allowDispatch bool
 	dispatched    atomic.Bool
+	markCalls     atomic.Int32
 }
 
 func (s *openAIImageJobObserverStub) MarkDispatched() bool {
+	s.markCalls.Add(1)
 	if !s.allowDispatch {
 		return false
 	}
@@ -48,7 +52,8 @@ func (s *openAIImageJobObserverStub) Dispatched() bool { return s.dispatched.Loa
 
 type openAIImageJobAuthRepoStub struct {
 	service.APIKeyRepository
-	key *service.APIKey
+	key          *service.APIKey
+	authGetCalls atomic.Int32
 }
 
 func (r *openAIImageJobAuthRepoStub) GetByID(context.Context, int64) (*service.APIKey, error) {
@@ -56,10 +61,46 @@ func (r *openAIImageJobAuthRepoStub) GetByID(context.Context, int64) (*service.A
 }
 
 func (r *openAIImageJobAuthRepoStub) GetByKeyForAuth(_ context.Context, key string) (*service.APIKey, error) {
+	r.authGetCalls.Add(1)
 	if r.key == nil || key != r.key.Key {
 		return nil, service.ErrAPIKeyNotFound
 	}
 	return cloneOpenAIImageJobAuthKey(r.key), nil
+}
+
+type openAIImageJobAuthCacheStub struct {
+	service.APIKeyCache
+	mu        sync.Mutex
+	entry     *service.APIKeyAuthCacheEntry
+	deleteErr error
+}
+
+func (s *openAIImageJobAuthCacheStub) GetAuthCache(context.Context, string) (*service.APIKeyAuthCacheEntry, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.entry == nil {
+		return nil, errors.New("cache miss")
+	}
+	return s.entry, nil
+}
+
+func (s *openAIImageJobAuthCacheStub) SetAuthCache(_ context.Context, _ string, entry *service.APIKeyAuthCacheEntry, _ time.Duration) error {
+	s.mu.Lock()
+	s.entry = entry
+	s.mu.Unlock()
+	return nil
+}
+
+func (s *openAIImageJobAuthCacheStub) DeleteAuthCache(context.Context, string) error {
+	return s.deleteErr
+}
+
+func (s *openAIImageJobAuthCacheStub) PublishAuthCacheInvalidation(context.Context, string) error {
+	return nil
+}
+
+func (s *openAIImageJobAuthCacheStub) SubscribeAuthCacheInvalidation(context.Context, func(string)) error {
+	return nil
 }
 
 func cloneOpenAIImageJobAuthKey(key *service.APIKey) *service.APIKey {
@@ -225,6 +266,118 @@ func TestOpenAIImageJobExecutorReplaysFullCurrentAuthentication(t *testing.T) {
 	}
 }
 
+func TestOpenAIImageJobExecutorBypassesStaleAuthCacheWhenInvalidationFails(t *testing.T) {
+	groupID := int64(77)
+	repo := &openAIImageJobAuthRepoStub{key: &service.APIKey{
+		ID:      9,
+		UserID:  42,
+		Key:     "sk-current-secret",
+		GroupID: &groupID,
+		Status:  service.StatusActive,
+		User:    &service.User{ID: 42, Status: service.StatusActive, Balance: 10},
+		Group: &service.Group{
+			ID:                   groupID,
+			Status:               service.StatusActive,
+			Hydrated:             true,
+			Platform:             service.PlatformOpenAI,
+			AllowImageGeneration: true,
+		},
+	}}
+	cache := &openAIImageJobAuthCacheStub{}
+	cfg := &config.Config{RunMode: config.RunModeStandard}
+	cfg.APIKeyAuth.L2TTLSeconds = 60
+	apiKeyService := service.NewAPIKeyService(repo, nil, nil, nil, nil, cache, cfg)
+
+	// Prime L2 with an active snapshot, then change the database row while a
+	// simulated Redis deletion failure leaves the stale snapshot available.
+	_, err := apiKeyService.GetByKey(context.Background(), repo.key.Key)
+	require.NoError(t, err)
+	repo.key.Status = service.StatusDisabled
+	cache.deleteErr = errors.New("redis unavailable")
+
+	executor := NewOpenAIImageJobExecutor(&OpenAIGatewayHandler{}, apiKeyService, nil, nil, nil, cfg)
+	result := executor.Execute(context.Background(), openAIImageExecutorTestJob(), &openAIImageJobObserverStub{allowDispatch: true})
+
+	require.Equal(t, service.OpenAIImageJobExecutionFailed, result.Outcome)
+	require.Equal(t, "API_KEY_DISABLED", result.ErrorCode)
+	require.Equal(t, int32(2), repo.authGetCalls.Load(), "internal replay must query current auth state instead of stale L2")
+}
+
+func TestOpenAIImageJobExecutionEngineHeaderCannotForgeAuthCacheBypass(t *testing.T) {
+	groupID := int64(77)
+	repo := &openAIImageJobAuthRepoStub{key: &service.APIKey{
+		ID:      9,
+		UserID:  42,
+		Key:     "sk-current-secret",
+		GroupID: &groupID,
+		Status:  service.StatusActive,
+		User:    &service.User{ID: 42, Status: service.StatusActive, Balance: 10},
+		Group: &service.Group{
+			ID:                   groupID,
+			Status:               service.StatusActive,
+			Hydrated:             true,
+			Platform:             service.PlatformOpenAI,
+			AllowImageGeneration: true,
+		},
+	}}
+	cache := &openAIImageJobAuthCacheStub{}
+	cfg := &config.Config{RunMode: config.RunModeStandard}
+	cfg.APIKeyAuth.L2TTLSeconds = 60
+	apiKeyService := service.NewAPIKeyService(repo, nil, nil, nil, nil, cache, cfg)
+	_, err := apiKeyService.GetByKey(context.Background(), repo.key.Key)
+	require.NoError(t, err)
+	repo.key.Status = service.StatusDisabled
+
+	engine := newOpenAIImageJobExecutionEngine(&OpenAIGatewayHandler{}, apiKeyService, nil, nil, nil, cfg)
+	req := httptest.NewRequest(http.MethodPost, service.OpenAIImageJobEndpointGenerations, bytes.NewBufferString(`{"model":"gpt-image-2","prompt":"cat"}`))
+	req.RemoteAddr = "203.0.113.7:12345"
+	req.Header.Set("Authorization", "Bearer "+repo.key.Key)
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("X-Sub2API-Internal-Auth-Cache-Bypass", "true")
+	recorder := httptest.NewRecorder()
+
+	engine.ServeHTTP(recorder, req)
+
+	require.Equal(t, int32(1), repo.authGetCalls.Load(), "HTTP headers must not activate the private context marker")
+	require.NotContains(t, recorder.Body.String(), "API_KEY_DISABLED")
+}
+
+func TestOpenAIImageJobExecutionEngineIgnoresSpoofedForwardedClientIP(t *testing.T) {
+	groupID := int64(77)
+	repo := &openAIImageJobAuthRepoStub{key: &service.APIKey{
+		ID:          9,
+		UserID:      42,
+		Key:         "sk-current-secret",
+		GroupID:     &groupID,
+		Status:      service.StatusActive,
+		IPWhitelist: []string{"198.51.100.4"},
+		User:        &service.User{ID: 42, Status: service.StatusActive, Balance: 10},
+		Group: &service.Group{
+			ID:                   groupID,
+			Status:               service.StatusActive,
+			Hydrated:             true,
+			Platform:             service.PlatformOpenAI,
+			AllowImageGeneration: true,
+		},
+	}}
+	cfg := &config.Config{RunMode: config.RunModeStandard}
+	apiKeyService := service.NewAPIKeyService(repo, nil, nil, nil, nil, nil, cfg)
+	engine := newOpenAIImageJobExecutionEngine(&OpenAIGatewayHandler{}, apiKeyService, nil, nil, nil, cfg)
+	req := httptest.NewRequest(http.MethodPost, service.OpenAIImageJobEndpointGenerations, bytes.NewBufferString(`{"model":"gpt-image-2","prompt":"cat"}`))
+	req.RemoteAddr = "203.0.113.7:12345"
+	req.Header.Set("Authorization", "Bearer "+repo.key.Key)
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("X-Forwarded-For", "198.51.100.4")
+	req.Header.Set("Forwarded", "for=198.51.100.4")
+	recorder := httptest.NewRecorder()
+
+	engine.ServeHTTP(recorder, req)
+
+	require.Equal(t, http.StatusForbidden, recorder.Code)
+	require.Contains(t, recorder.Body.String(), "ACCESS_DENIED")
+	require.Contains(t, recorder.Body.String(), "203.0.113.7")
+}
+
 func TestOpenAIImageJobExecutorClassifiesPreAndPostDispatchFailures(t *testing.T) {
 	provider := &openAIImageJobAPIKeyProviderStub{key: openAIImageExecutorTestKey()}
 
@@ -251,6 +404,32 @@ func TestOpenAIImageJobExecutorClassifiesPreAndPostDispatchFailures(t *testing.T
 		require.True(t, observer.Dispatched())
 	})
 
+	t.Run("structured post-dispatch 4xx is known", func(t *testing.T) {
+		observer := &openAIImageJobObserverStub{allowDispatch: true}
+		executor := newOpenAIImageJobExecutorForTest(provider, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			require.True(t, service.MarkOpenAIImageJobDispatched(r.Context()))
+			w.Header().Set("Content-Type", "application/problem+json; charset=utf-8")
+			w.WriteHeader(http.StatusBadRequest)
+			_, _ = w.Write([]byte(`{"error":{"code":"invalid_prompt","message":"prompt rejected"}}`))
+		}), &config.Config{})
+		result := executor.Execute(context.Background(), openAIImageExecutorTestJob(), observer)
+		require.Equal(t, service.OpenAIImageJobExecutionFailed, result.Outcome)
+		require.Equal(t, "invalid_prompt", result.ErrorCode)
+		require.Equal(t, "prompt rejected", result.ErrorMessage)
+	})
+
+	t.Run("unstructured post-dispatch 4xx is unknown", func(t *testing.T) {
+		observer := &openAIImageJobObserverStub{allowDispatch: true}
+		executor := newOpenAIImageJobExecutorForTest(provider, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			require.True(t, service.MarkOpenAIImageJobDispatched(r.Context()))
+			w.Header().Set("Content-Type", "text/plain")
+			w.WriteHeader(http.StatusBadRequest)
+			_, _ = w.Write([]byte("bad request"))
+		}), &config.Config{})
+		result := executor.Execute(context.Background(), openAIImageExecutorTestJob(), observer)
+		require.Equal(t, service.OpenAIImageJobExecutionFailedUnknown, result.Outcome)
+	})
+
 	t.Run("dispatch gate denial is interrupted", func(t *testing.T) {
 		observer := &openAIImageJobObserverStub{allowDispatch: false}
 		executor := newOpenAIImageJobExecutorForTest(provider, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -261,24 +440,41 @@ func TestOpenAIImageJobExecutorClassifiesPreAndPostDispatchFailures(t *testing.T
 		require.Equal(t, service.OpenAIImageJobExecutionInterrupted, result.Outcome)
 		require.False(t, observer.Dispatched())
 	})
+
+	t.Run("later failover denial remains failed unknown", func(t *testing.T) {
+		observer := &openAIImageJobObserverStub{allowDispatch: true}
+		executor := newOpenAIImageJobExecutorForTest(provider, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			require.True(t, service.MarkOpenAIImageJobDispatched(r.Context()))
+			require.False(t, service.MarkOpenAIImageJobDispatched(r.Context()))
+			w.WriteHeader(http.StatusServiceUnavailable)
+		}), &config.Config{})
+		result := executor.Execute(context.Background(), openAIImageExecutorTestJob(), observer)
+		require.Equal(t, service.OpenAIImageJobExecutionFailedUnknown, result.Outcome)
+		require.True(t, observer.Dispatched())
+		require.Equal(t, int32(1), observer.markCalls.Load(), "executor gate must call its delegate only once")
+	})
 }
 
 func TestOpenAIImageJobExecutorRequiresVerifiedImageAndResolvedBilling(t *testing.T) {
 	provider := &openAIImageJobAPIKeyProviderStub{key: openAIImageExecutorTestKey()}
 	tests := []struct {
-		name       string
-		body       string
-		dispatch   bool
-		bill       bool
-		billingErr error
-		want       service.OpenAIImageJobExecutionOutcome
-		wantCode   string
+		name        string
+		body        string
+		contentType string
+		dispatch    bool
+		bill        bool
+		billingErr  error
+		want        service.OpenAIImageJobExecutionOutcome
+		wantCode    string
 	}{
 		{name: "empty recorder 200", want: service.OpenAIImageJobExecutionFailed, wantCode: "image_generation_failed"},
 		{name: "non json after dispatch", body: "not-json", dispatch: true, bill: true, want: service.OpenAIImageJobExecutionFailedUnknown, wantCode: "failed_unknown"},
 		{name: "json without image", body: `{"data":[{}]}`, dispatch: true, bill: true, want: service.OpenAIImageJobExecutionFailedUnknown, wantCode: "failed_unknown"},
+		{name: "success-shaped body without dispatch", body: `{"data":[{"url":"https://example.test/image.png"}]}`, bill: true, want: service.OpenAIImageJobExecutionFailed, wantCode: "image_generation_failed"},
 		{name: "billing missing", body: `{"data":[{"url":"https://example.test/image.png"}]}`, dispatch: true, want: service.OpenAIImageJobExecutionFailedUnknown, wantCode: "billing_failed_unknown"},
 		{name: "billing failed", body: `{"data":[{"b64_json":"aA=="}]}`, dispatch: true, bill: true, billingErr: errors.New("db unavailable"), want: service.OpenAIImageJobExecutionFailedUnknown, wantCode: "billing_failed_unknown"},
+		{name: "non json content type", body: `{"data":[{"b64_json":"aA=="}]}`, contentType: "text/plain", dispatch: true, bill: true, want: service.OpenAIImageJobExecutionFailedUnknown, wantCode: "failed_unknown"},
+		{name: "json suffix content type", body: `{"data":[{"b64_json":"aA=="}]}`, contentType: "application/vnd.openai.image+json; charset=utf-8", dispatch: true, bill: true, want: service.OpenAIImageJobExecutionSucceeded},
 		{name: "url image", body: `{"data":[{"url":"https://example.test/image.png"}]}`, dispatch: true, bill: true, want: service.OpenAIImageJobExecutionSucceeded},
 	}
 	for _, tt := range tests {
@@ -294,7 +490,11 @@ func TestOpenAIImageJobExecutorRequiresVerifiedImageAndResolvedBilling(t *testin
 					barrier.Record(r.Context(), func(context.Context) error { return tt.billingErr })
 				}
 				if tt.body != "" {
-					w.Header().Set("Content-Type", "application/json")
+					contentType := tt.contentType
+					if contentType == "" {
+						contentType = "application/json"
+					}
+					w.Header().Set("Content-Type", contentType)
 					_, _ = w.Write([]byte(tt.body))
 				}
 			}), &config.Config{})
@@ -303,6 +503,53 @@ func TestOpenAIImageJobExecutorRequiresVerifiedImageAndResolvedBilling(t *testin
 			require.Equal(t, tt.wantCode, result.ErrorCode)
 		})
 	}
+}
+
+func TestOpenAIImageJobExecutorCapsOversizedResponses(t *testing.T) {
+	provider := &openAIImageJobAPIKeyProviderStub{key: openAIImageExecutorTestKey()}
+	observer := &openAIImageJobObserverStub{allowDispatch: true}
+	executor := newOpenAIImageJobExecutorForTest(provider, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		require.True(t, service.MarkOpenAIImageJobDispatched(r.Context()))
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusBadRequest)
+		_, _ = w.Write(bytes.Repeat([]byte("x"), 1024))
+	}), &config.Config{})
+	executor.resultBodyLimit = 32
+
+	result := executor.Execute(context.Background(), openAIImageExecutorTestJob(), observer)
+
+	require.Equal(t, service.OpenAIImageJobExecutionFailedUnknown, result.Outcome)
+	require.Equal(t, "response_too_large", result.ErrorCode)
+}
+
+func TestOpenAIImageJobResponseRecorderStoresAtMostLimit(t *testing.T) {
+	recorder := newOpenAIImageJobResponseRecorder(32)
+	written, err := recorder.Write(bytes.Repeat([]byte("x"), 1024))
+	require.NoError(t, err)
+	require.Equal(t, 1024, written)
+	require.Len(t, recorder.BodyBytes(), 32)
+	require.True(t, recorder.Exceeded())
+}
+
+func TestOpenAIImageJobExecutorResultLimitUsesGatewayResponseLimit(t *testing.T) {
+	t.Run("gateway default", func(t *testing.T) {
+		executor := newOpenAIImageJobExecutorForTest(nil, nil, &config.Config{})
+		require.Equal(t, config.DefaultUpstreamResponseReadMaxBytes, executor.resultBodyLimit)
+	})
+
+	t.Run("configured gateway limit", func(t *testing.T) {
+		cfg := &config.Config{}
+		cfg.Gateway.UpstreamResponseReadMaxBytes = 192 << 20
+		executor := newOpenAIImageJobExecutorForTest(nil, nil, cfg)
+		require.Equal(t, int64(192<<20), executor.resultBodyLimit)
+	})
+
+	t.Run("invalid gateway limit falls back to default", func(t *testing.T) {
+		cfg := &config.Config{}
+		cfg.Gateway.UpstreamResponseReadMaxBytes = -1
+		executor := newOpenAIImageJobExecutorForTest(nil, nil, cfg)
+		require.Equal(t, config.DefaultUpstreamResponseReadMaxBytes, executor.resultBodyLimit)
+	})
 }
 
 func TestOpenAIImageJobExecutorVerifiedSuccessWinsCancelledContext(t *testing.T) {
@@ -315,6 +562,7 @@ func TestOpenAIImageJobExecutorVerifiedSuccessWinsCancelledContext(t *testing.T)
 		require.True(t, ok)
 		barrier.Record(r.Context(), func(context.Context) error { return nil })
 		cancel()
+		w.Header().Set("Content-Type", "application/json")
 		_, _ = w.Write([]byte(`{"data":[{"b64_json":"aA=="}]}`))
 	}), &config.Config{})
 
@@ -348,6 +596,26 @@ func TestOpenAIImageJobDispatchTrackerStopsLaterFailoverAfterCancellation(t *tes
 	require.False(t, tracker.MarkDispatched(), "a later failover must not dispatch after cancellation")
 	require.True(t, tracker.Dispatched(), "the first dispatch remains ambiguous")
 	require.True(t, tracker.Denied())
+}
+
+func TestOpenAIImageJobDispatchTrackerAllowsOnlyOneConcurrentDispatch(t *testing.T) {
+	observer := &openAIImageJobObserverStub{allowDispatch: true}
+	tracker := &openAIImageJobDispatchTracker{delegate: observer, ctx: context.Background()}
+	var allowed atomic.Int32
+	var wg sync.WaitGroup
+	for range 32 {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			if tracker.MarkDispatched() {
+				allowed.Add(1)
+			}
+		}()
+	}
+	wg.Wait()
+	require.Equal(t, int32(1), allowed.Load())
+	require.Equal(t, int32(1), observer.markCalls.Load())
+	require.True(t, tracker.Dispatched())
 }
 
 func TestOpenAIImageJobBillingBarrierRetriesAndPreservesStableIDs(t *testing.T) {
@@ -398,6 +666,23 @@ func TestOpenAIImageJobBillingBarrierConflictDoesNotRetryAndPanicResolves(t *tes
 		require.Error(t, err)
 		require.Contains(t, err.Error(), "panic")
 	})
+}
+
+func TestOpenAIImageJobBillingBarrierBackoffHasHardBudget(t *testing.T) {
+	barrier := newOpenAIImageJobBillingBarrierWithBudget(5, time.Second, 15*time.Millisecond)
+	started := time.Now()
+	var attempts atomic.Int32
+	barrier.Record(context.Background(), func(context.Context) error {
+		attempts.Add(1)
+		return errors.New("temporary billing error")
+	})
+	elapsed := time.Since(started)
+
+	resolved, err := barrier.Result()
+	require.True(t, resolved)
+	require.Error(t, err)
+	require.Less(t, elapsed, 250*time.Millisecond)
+	require.Equal(t, int32(1), attempts.Load(), "budget expiry during backoff must stop retries")
 }
 
 func TestOpenAIImageUsageSubmissionUsesPoolNormallyAndBarrierSynchronously(t *testing.T) {

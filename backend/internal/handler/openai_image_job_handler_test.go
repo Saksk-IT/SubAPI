@@ -7,6 +7,7 @@ import (
 	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
+	"sync"
 	"testing"
 	"time"
 
@@ -21,6 +22,15 @@ type openAIImageJobHandlerRepository struct {
 	createOrGet func(context.Context, service.CreateOpenAIImageJobParams) (*service.OpenAIImageJob, bool, error)
 	getForUser  func(context.Context, int64, string) (*service.OpenAIImageJob, error)
 	cancel      func(context.Context, int64, string) (*service.OpenAIImageJob, error)
+}
+
+type recordingOpenAIImageJobCancelNotifier struct {
+	requested []string
+}
+
+func (n *recordingOpenAIImageJobCancelNotifier) RequestCancel(jobID string) bool {
+	n.requested = append(n.requested, jobID)
+	return true
 }
 
 func (r *openAIImageJobHandlerRepository) CreateOrGet(ctx context.Context, params service.CreateOpenAIImageJobParams) (*service.OpenAIImageJob, bool, error) {
@@ -79,7 +89,7 @@ func TestOpenAIImageJobHandlerSubmitGenerationReturnsImmediatelyAndReplays(t *te
 			}, false, nil
 		},
 	}
-	h := NewOpenAIImageJobHandler(repo, &service.OpenAIGatewayService{}, openAIImageJobHandlerTestConfig())
+	h := NewOpenAIImageJobHandler(repo, &service.OpenAIGatewayService{}, openAIImageJobHandlerTestConfig(), nil)
 	body := []byte(`{"model":"gpt-image-2","prompt":"draw a cat","stream":false}`)
 	c, recorder := newOpenAIImageJobHandlerContext(http.MethodPost, "/v1/images/generations/jobs", body, "application/json")
 	c.Request.Header.Set("Idempotency-Key", "  local-task-123  ")
@@ -122,7 +132,7 @@ func TestOpenAIImageJobHandlerSubmitMultipartEdit(t *testing.T) {
 			return &service.OpenAIImageJob{JobID: "imgjob_edit", Status: service.OpenAIImageJobStatusQueued, CreatedAt: time.Now()}, true, nil
 		},
 	}
-	h := NewOpenAIImageJobHandler(repo, &service.OpenAIGatewayService{}, openAIImageJobHandlerTestConfig())
+	h := NewOpenAIImageJobHandler(repo, &service.OpenAIGatewayService{}, openAIImageJobHandlerTestConfig(), nil)
 	c, recorder := newOpenAIImageJobHandlerContext(http.MethodPost, "/v1/images/edits/jobs", body.Bytes(), writer.FormDataContentType())
 	c.Request.Header.Set("Idempotency-Key", "edit-task")
 
@@ -156,7 +166,7 @@ func TestOpenAIImageJobHandlerSubmitValidatesRequestBeforePersistence(t *testing
 					return nil, false, nil
 				},
 			}
-			h := NewOpenAIImageJobHandler(repo, &service.OpenAIGatewayService{}, openAIImageJobHandlerTestConfig())
+			h := NewOpenAIImageJobHandler(repo, &service.OpenAIGatewayService{}, openAIImageJobHandlerTestConfig(), nil)
 			c, recorder := newOpenAIImageJobHandlerContext(http.MethodPost, "/v1/images/generations/jobs", []byte(tt.body), "application/json")
 			if tt.idempotencyKey != "" {
 				c.Request.Header.Set("Idempotency-Key", tt.idempotencyKey)
@@ -194,7 +204,7 @@ func TestOpenAIImageJobHandlerStatusIsUserScopedAndNoStore(t *testing.T) {
 			}, nil
 		},
 	}
-	h := NewOpenAIImageJobHandler(repo, &service.OpenAIGatewayService{}, openAIImageJobHandlerTestConfig())
+	h := NewOpenAIImageJobHandler(repo, &service.OpenAIGatewayService{}, openAIImageJobHandlerTestConfig(), nil)
 	c, recorder := newOpenAIImageJobHandlerContext(http.MethodGet, "/v1/images/jobs/imgjob_status", nil, "")
 	c.Params = gin.Params{{Key: "id", Value: "imgjob_status"}}
 
@@ -226,7 +236,7 @@ func TestOpenAIImageJobHandlerStatusCompletedEmbedsOriginalResult(t *testing.T) 
 			}, nil
 		},
 	}
-	h := NewOpenAIImageJobHandler(repo, &service.OpenAIGatewayService{}, openAIImageJobHandlerTestConfig())
+	h := NewOpenAIImageJobHandler(repo, &service.OpenAIGatewayService{}, openAIImageJobHandlerTestConfig(), nil)
 	c, recorder := newOpenAIImageJobHandlerContext(http.MethodGet, "/v1/images/jobs/imgjob_done", nil, "")
 	c.Params = gin.Params{{Key: "id", Value: "imgjob_done"}}
 
@@ -254,7 +264,8 @@ func TestOpenAIImageJobHandlerCancelUsesAuthenticatedUserAndIsIdempotent(t *test
 			}, nil
 		},
 	}
-	h := NewOpenAIImageJobHandler(repo, &service.OpenAIGatewayService{}, openAIImageJobHandlerTestConfig())
+	notifier := &recordingOpenAIImageJobCancelNotifier{}
+	h := NewOpenAIImageJobHandler(repo, &service.OpenAIGatewayService{}, openAIImageJobHandlerTestConfig(), notifier)
 	c, recorder := newOpenAIImageJobHandlerContext(http.MethodPost, "/v1/images/jobs/imgjob_cancel/cancel", nil, "")
 	c.Params = gin.Params{{Key: "id", Value: "imgjob_cancel"}}
 
@@ -263,10 +274,48 @@ func TestOpenAIImageJobHandlerCancelUsesAuthenticatedUserAndIsIdempotent(t *test
 	require.Equal(t, http.StatusOK, recorder.Code)
 	require.Equal(t, "1", recorder.Header().Get("Retry-After"))
 	require.Equal(t, "private, no-store", recorder.Header().Get("Cache-Control"))
+	require.Equal(t, []string{"imgjob_cancel"}, notifier.requested)
 	require.JSONEq(t, `{
 		"id":"imgjob_cancel","object":"image_generation.job","status":"running",
 		"cancel_requested":true,"created_at":"2026-07-14T01:02:03Z"
 	}`, recorder.Body.String())
+}
+
+func TestOpenAIImageJobHandlerCancelDoesNotNotifyBeforePersistenceOrForTerminalJob(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	t.Run("persistence error", func(t *testing.T) {
+		notifier := &recordingOpenAIImageJobCancelNotifier{}
+		repo := &openAIImageJobHandlerRepository{
+			cancel: func(context.Context, int64, string) (*service.OpenAIImageJob, error) {
+				return nil, service.ErrOpenAIImageJobNotFound
+			},
+		}
+		h := NewOpenAIImageJobHandler(repo, &service.OpenAIGatewayService{}, openAIImageJobHandlerTestConfig(), notifier)
+		c, recorder := newOpenAIImageJobHandlerContext(http.MethodPost, "/v1/images/jobs/missing/cancel", nil, "")
+		c.Params = gin.Params{{Key: "id", Value: "missing"}}
+
+		h.Cancel(c)
+
+		require.Equal(t, http.StatusNotFound, recorder.Code)
+		require.Empty(t, notifier.requested)
+	})
+
+	t.Run("already completed", func(t *testing.T) {
+		notifier := &recordingOpenAIImageJobCancelNotifier{}
+		repo := &openAIImageJobHandlerRepository{
+			cancel: func(context.Context, int64, string) (*service.OpenAIImageJob, error) {
+				return &service.OpenAIImageJob{JobID: "imgjob_done", Status: service.OpenAIImageJobStatusCompleted}, nil
+			},
+		}
+		h := NewOpenAIImageJobHandler(repo, &service.OpenAIGatewayService{}, openAIImageJobHandlerTestConfig(), notifier)
+		c, recorder := newOpenAIImageJobHandlerContext(http.MethodPost, "/v1/images/jobs/imgjob_done/cancel", nil, "")
+		c.Params = gin.Params{{Key: "id", Value: "imgjob_done"}}
+
+		h.Cancel(c)
+
+		require.Equal(t, http.StatusOK, recorder.Code)
+		require.Empty(t, notifier.requested)
+	})
 }
 
 func TestOpenAIImageJobHandlerHidesCrossUserJobsAsNotFound(t *testing.T) {
@@ -276,7 +325,7 @@ func TestOpenAIImageJobHandlerHidesCrossUserJobsAsNotFound(t *testing.T) {
 			return nil, service.ErrOpenAIImageJobNotFound
 		},
 	}
-	h := NewOpenAIImageJobHandler(repo, &service.OpenAIGatewayService{}, openAIImageJobHandlerTestConfig())
+	h := NewOpenAIImageJobHandler(repo, &service.OpenAIGatewayService{}, openAIImageJobHandlerTestConfig(), nil)
 	c, recorder := newOpenAIImageJobHandlerContext(http.MethodGet, "/v1/images/jobs/other-user-job", nil, "")
 	c.Params = gin.Params{{Key: "id", Value: "other-user-job"}}
 
@@ -284,6 +333,297 @@ func TestOpenAIImageJobHandlerHidesCrossUserJobsAsNotFound(t *testing.T) {
 
 	require.Equal(t, http.StatusNotFound, recorder.Code)
 	require.JSONEq(t, `{"error":{"type":"invalid_request_error","code":"OPENAI_IMAGE_JOB_NOT_FOUND","message":"image generation job not found"}}`, recorder.Body.String())
+}
+
+func TestOpenAIImageJobAsyncHTTPFlowReturnsBeforeSlowExecutionAndPollsToCompletion(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	repo := newOpenAIImageJobHTTPFlowRepository()
+	executorStarted := make(chan struct{})
+	releaseExecutor := make(chan struct{})
+	releaseOnce := sync.Once{}
+	defer releaseOnce.Do(func() { close(releaseExecutor) })
+
+	executor := openAIImageJobHTTPFlowExecutor(func(ctx context.Context, _ *service.OpenAIImageJob, observer service.OpenAIImageJobExecutionObserver) service.OpenAIImageJobExecutionResult {
+		if !observer.MarkDispatched() {
+			return service.OpenAIImageJobExecutionResult{Outcome: service.OpenAIImageJobExecutionInterrupted}
+		}
+		close(executorStarted)
+		select {
+		case <-releaseExecutor:
+			return service.OpenAIImageJobExecutionResult{
+				Outcome: service.OpenAIImageJobExecutionSucceeded,
+				Response: service.OpenAIImageJobResponse{
+					StatusCode:  http.StatusOK,
+					ContentType: "application/json",
+					Body:        []byte(`{"created":123,"data":[{"b64_json":"abc"}]}`),
+				},
+			}
+		case <-ctx.Done():
+			return service.OpenAIImageJobExecutionResult{Outcome: service.OpenAIImageJobExecutionInterrupted}
+		}
+	})
+	worker := service.NewOpenAIImageJobWorkerRuntime(repo, executor, service.OpenAIImageJobWorkerOptions{
+		HeartbeatInterval: time.Hour,
+		ExecutionTimeout:  time.Minute,
+	})
+	h := NewOpenAIImageJobHandler(repo, &service.OpenAIGatewayService{}, openAIImageJobHandlerTestConfig(), worker)
+
+	workerCtx, cancelWorker := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancelWorker()
+	workerDone := make(chan error, 1)
+	go func() {
+		processed, err := worker.RunOnce(workerCtx, "http-flow-worker")
+		if err == nil && !processed {
+			err = service.ErrOpenAIImageJobNotFound
+		}
+		workerDone <- err
+	}()
+
+	submitDone := make(chan *httptest.ResponseRecorder, 1)
+	go func() {
+		body := []byte(`{"model":"gpt-image-2","prompt":"draw a durable cat","stream":false}`)
+		c, recorder := newOpenAIImageJobHandlerContext(http.MethodPost, "/v1/images/generations/jobs", body, "application/json")
+		c.Request.Header.Set("Idempotency-Key", "http-flow-task")
+		h.Submit(c)
+		submitDone <- recorder
+	}()
+
+	// The worker is already consuming the newly persisted row and the fake
+	// upstream remains blocked. The submit response must not wait for that
+	// long-running execution to finish.
+	var submitRecorder *httptest.ResponseRecorder
+	for submitRecorder == nil {
+		select {
+		case submitRecorder = <-submitDone:
+		case <-time.After(time.Second):
+			t.Fatal("submit HTTP request waited for the blocked image executor")
+		}
+	}
+	require.Equal(t, http.StatusAccepted, submitRecorder.Code)
+	require.JSONEq(t, `{
+		"id":"imgjob_0123456789abcdef0123456789abcdef",
+		"object":"image_generation.job",
+		"status":"queued",
+		"created_at":"2026-07-14T01:02:03Z"
+	}`, submitRecorder.Body.String())
+
+	select {
+	case <-executorStarted:
+	case <-time.After(time.Second):
+		t.Fatal("worker did not claim the submitted job")
+	}
+
+	runningContext, runningRecorder := newOpenAIImageJobHandlerContext(http.MethodGet, "/v1/images/jobs/imgjob_0123456789abcdef0123456789abcdef", nil, "")
+	runningContext.Params = gin.Params{{Key: "id", Value: "imgjob_0123456789abcdef0123456789abcdef"}}
+	h.Get(runningContext)
+	require.Equal(t, http.StatusOK, runningRecorder.Code)
+	require.Equal(t, "1", runningRecorder.Header().Get("Retry-After"))
+	require.Contains(t, runningRecorder.Body.String(), `"status":"running"`)
+
+	releaseOnce.Do(func() { close(releaseExecutor) })
+	select {
+	case err := <-workerDone:
+		require.NoError(t, err)
+	case <-time.After(time.Second):
+		t.Fatal("worker did not persist the released executor result")
+	}
+
+	completedContext, completedRecorder := newOpenAIImageJobHandlerContext(http.MethodGet, "/v1/images/jobs/imgjob_0123456789abcdef0123456789abcdef", nil, "")
+	completedContext.Params = gin.Params{{Key: "id", Value: "imgjob_0123456789abcdef0123456789abcdef"}}
+	h.Get(completedContext)
+	require.Equal(t, http.StatusOK, completedRecorder.Code)
+	require.Empty(t, completedRecorder.Header().Get("Retry-After"))
+	require.JSONEq(t, `{
+		"id":"imgjob_0123456789abcdef0123456789abcdef",
+		"object":"image_generation.job",
+		"status":"completed",
+		"created_at":"2026-07-14T01:02:03Z",
+		"started_at":"2026-07-14T01:02:04Z",
+		"finished_at":"2026-07-14T01:02:05Z",
+		"result":{"created":123,"data":[{"b64_json":"abc"}]}
+	}`, completedRecorder.Body.String())
+}
+
+type openAIImageJobHTTPFlowExecutor func(context.Context, *service.OpenAIImageJob, service.OpenAIImageJobExecutionObserver) service.OpenAIImageJobExecutionResult
+
+func (f openAIImageJobHTTPFlowExecutor) Execute(ctx context.Context, job *service.OpenAIImageJob, observer service.OpenAIImageJobExecutionObserver) service.OpenAIImageJobExecutionResult {
+	return f(ctx, job, observer)
+}
+
+// openAIImageJobHTTPFlowRepository is a one-row, mutex-protected durable-store
+// harness shared by the real HTTP handler and the real worker runtime. It keeps
+// returned snapshots separate so the submit JSON cannot race the worker's
+// queued -> running transition.
+type openAIImageJobHTTPFlowRepository struct {
+	mu          sync.Mutex
+	created     chan struct{}
+	createdOnce sync.Once
+	job         *service.OpenAIImageJob
+	claimed     bool
+}
+
+func newOpenAIImageJobHTTPFlowRepository() *openAIImageJobHTTPFlowRepository {
+	return &openAIImageJobHTTPFlowRepository{created: make(chan struct{})}
+}
+
+func (r *openAIImageJobHTTPFlowRepository) CreateOrGet(_ context.Context, params service.CreateOpenAIImageJobParams) (*service.OpenAIImageJob, bool, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.job != nil {
+		return cloneOpenAIImageJobHTTPFlow(r.job), false, nil
+	}
+	r.job = &service.OpenAIImageJob{
+		JobID:        "imgjob_0123456789abcdef0123456789abcdef",
+		UserID:       params.UserID,
+		APIKeyID:     params.APIKeyID,
+		Endpoint:     params.Endpoint,
+		Model:        params.Model,
+		ContentType:  params.ContentType,
+		RequestBody:  append([]byte(nil), params.RequestBody...),
+		RequestHash:  service.HashOpenAIImageJobRequest(params.Endpoint, params.ContentType, params.RequestBody),
+		Status:       service.OpenAIImageJobStatusQueued,
+		CreatedAt:    time.Date(2026, 7, 14, 1, 2, 3, 0, time.UTC),
+		UpdatedAt:    time.Date(2026, 7, 14, 1, 2, 3, 0, time.UTC),
+		AttemptCount: 0,
+	}
+	created := cloneOpenAIImageJobHTTPFlow(r.job)
+	r.createdOnce.Do(func() { close(r.created) })
+	return created, true, nil
+}
+
+func (r *openAIImageJobHTTPFlowRepository) GetForUser(_ context.Context, userID int64, jobID string) (*service.OpenAIImageJob, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.job == nil || r.job.UserID != userID || r.job.JobID != jobID {
+		return nil, service.ErrOpenAIImageJobNotFound
+	}
+	return cloneOpenAIImageJobHTTPFlow(r.job), nil
+}
+
+func (r *openAIImageJobHTTPFlowRepository) ClaimNext(ctx context.Context, workerID string, leaseUntil time.Time) (*service.OpenAIImageJob, error) {
+	select {
+	case <-r.created:
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.job == nil || r.claimed || r.job.Status != service.OpenAIImageJobStatusQueued {
+		return nil, nil
+	}
+	r.claimed = true
+	r.job.Status = service.OpenAIImageJobStatusRunning
+	r.job.AttemptCount++
+	workerIDCopy := workerID
+	r.job.WorkerID = &workerIDCopy
+	r.job.LeaseExpiresAt = cloneOpenAIImageJobHTTPFlowTime(&leaseUntil)
+	startedAt := time.Date(2026, 7, 14, 1, 2, 4, 0, time.UTC)
+	r.job.StartedAt = &startedAt
+	r.job.UpdatedAt = startedAt
+	return cloneOpenAIImageJobHTTPFlow(r.job), nil
+}
+
+func (r *openAIImageJobHTTPFlowRepository) Heartbeat(_ context.Context, jobID, workerID string, leaseUntil time.Time) (bool, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if !r.ownsRunningJob(jobID, workerID) {
+		return false, service.ErrOpenAIImageJobLeaseLost
+	}
+	r.job.LeaseExpiresAt = cloneOpenAIImageJobHTTPFlowTime(&leaseUntil)
+	return r.job.CancelRequested, nil
+}
+
+func (r *openAIImageJobHTTPFlowRepository) Complete(_ context.Context, jobID, workerID string, response service.OpenAIImageJobResponse) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if !r.ownsRunningJob(jobID, workerID) {
+		return service.ErrOpenAIImageJobLeaseLost
+	}
+	return r.job.MarkCompleted(response, time.Date(2026, 7, 14, 1, 2, 5, 0, time.UTC))
+}
+
+func (r *openAIImageJobHTTPFlowRepository) Fail(_ context.Context, jobID, workerID, code, message string, unknown bool) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if !r.ownsRunningJob(jobID, workerID) {
+		return service.ErrOpenAIImageJobLeaseLost
+	}
+	r.job.Status = service.OpenAIImageJobStatusFailed
+	r.job.ErrorCode = &code
+	r.job.ErrorMessage = &message
+	r.job.FailureUnknown = unknown
+	r.job.WorkerID = nil
+	r.job.LeaseExpiresAt = nil
+	return nil
+}
+
+func (r *openAIImageJobHTTPFlowRepository) CancelForUser(_ context.Context, userID int64, jobID string) (*service.OpenAIImageJob, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.job == nil || r.job.UserID != userID || r.job.JobID != jobID {
+		return nil, service.ErrOpenAIImageJobNotFound
+	}
+	if err := r.job.RequestCancellation(time.Now()); err != nil {
+		return nil, err
+	}
+	return cloneOpenAIImageJobHTTPFlow(r.job), nil
+}
+
+func (r *openAIImageJobHTTPFlowRepository) MarkCancelled(_ context.Context, jobID, workerID string) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if !r.ownsRunningJob(jobID, workerID) {
+		return service.ErrOpenAIImageJobLeaseLost
+	}
+	r.job.Status = service.OpenAIImageJobStatusCancelled
+	r.job.WorkerID = nil
+	r.job.LeaseExpiresAt = nil
+	return nil
+}
+
+func (r *openAIImageJobHTTPFlowRepository) FailExpiredLeases(context.Context, time.Time) (int64, error) {
+	return 0, nil
+}
+
+func (r *openAIImageJobHTTPFlowRepository) PurgeExpiredPayloads(context.Context, service.OpenAIImageJobCleanupParams) (service.OpenAIImageJobCleanupResult, error) {
+	return service.OpenAIImageJobCleanupResult{}, nil
+}
+
+func (r *openAIImageJobHTTPFlowRepository) ownsRunningJob(jobID, workerID string) bool {
+	return r.job != nil && r.job.JobID == jobID && r.job.Status == service.OpenAIImageJobStatusRunning && r.job.WorkerID != nil && *r.job.WorkerID == workerID
+}
+
+func cloneOpenAIImageJobHTTPFlow(job *service.OpenAIImageJob) *service.OpenAIImageJob {
+	if job == nil {
+		return nil
+	}
+	clone := *job
+	clone.RequestBody = append([]byte(nil), job.RequestBody...)
+	clone.ResponseBody = append([]byte(nil), job.ResponseBody...)
+	clone.ErrorCode = cloneOpenAIImageJobHTTPFlowString(job.ErrorCode)
+	clone.ErrorMessage = cloneOpenAIImageJobHTTPFlowString(job.ErrorMessage)
+	clone.WorkerID = cloneOpenAIImageJobHTTPFlowString(job.WorkerID)
+	clone.LeaseExpiresAt = cloneOpenAIImageJobHTTPFlowTime(job.LeaseExpiresAt)
+	clone.ResultExpiresAt = cloneOpenAIImageJobHTTPFlowTime(job.ResultExpiresAt)
+	clone.StartedAt = cloneOpenAIImageJobHTTPFlowTime(job.StartedAt)
+	clone.FinishedAt = cloneOpenAIImageJobHTTPFlowTime(job.FinishedAt)
+	return &clone
+}
+
+func cloneOpenAIImageJobHTTPFlowString(value *string) *string {
+	if value == nil {
+		return nil
+	}
+	clone := *value
+	return &clone
+}
+
+func cloneOpenAIImageJobHTTPFlowTime(value *time.Time) *time.Time {
+	if value == nil {
+		return nil
+	}
+	clone := *value
+	return &clone
 }
 
 func newOpenAIImageJobHandlerContext(method, path string, body []byte, contentType string) (*gin.Context, *httptest.ResponseRecorder) {

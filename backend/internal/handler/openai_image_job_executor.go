@@ -1,11 +1,13 @@
 package handler
 
 import (
+	"bufio"
 	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"mime"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -43,6 +45,9 @@ type OpenAIImageJobExecutor struct {
 	apiKeys openAIImageJobAPIKeyProvider
 	engine  http.Handler
 	cfg     *config.Config
+	// resultBodyLimit is intentionally independent from the inbound request
+	// limit: base64 image responses can be much larger than their prompt.
+	resultBodyLimit int64
 }
 
 var _ service.OpenAIImageJobExecutor = (*OpenAIImageJobExecutor)(nil)
@@ -68,7 +73,8 @@ func NewOpenAIImageJobExecutor(
 			opsService,
 			cfg,
 		),
-		cfg: cfg,
+		cfg:             cfg,
+		resultBodyLimit: resolveOpenAIImageJobExecutionResultBodyLimit(cfg),
 	}
 }
 
@@ -77,7 +83,19 @@ func newOpenAIImageJobExecutorForTest(
 	engine http.Handler,
 	cfg *config.Config,
 ) *OpenAIImageJobExecutor {
-	return &OpenAIImageJobExecutor{apiKeys: apiKeys, engine: engine, cfg: cfg}
+	return &OpenAIImageJobExecutor{
+		apiKeys:         apiKeys,
+		engine:          engine,
+		cfg:             cfg,
+		resultBodyLimit: resolveOpenAIImageJobExecutionResultBodyLimit(cfg),
+	}
+}
+
+func resolveOpenAIImageJobExecutionResultBodyLimit(cfg *config.Config) int64 {
+	if cfg != nil && cfg.Gateway.UpstreamResponseReadMaxBytes > 0 {
+		return cfg.Gateway.UpstreamResponseReadMaxBytes
+	}
+	return config.DefaultUpstreamResponseReadMaxBytes
 }
 
 func newOpenAIImageJobExecutionEngine(
@@ -98,6 +116,12 @@ func newOpenAIImageJobExecutionEngine(
 	}
 
 	engine := gin.New()
+	// The replay request carries the already authenticated client address in
+	// RemoteAddr and deliberately has no forwarding headers. Never let Gin's
+	// default proxy trust policy reinterpret that identity.
+	if err := engine.SetTrustedProxies(nil); err != nil {
+		panic("failed to disable trusted proxies for image job executor")
+	}
 	// Do not use Gin's default recovery logger here: this private request carries
 	// the current API key in memory, and a middleware panic must never dump it.
 	engine.Use(gin.CustomRecovery(func(c *gin.Context, _ any) {
@@ -203,6 +227,7 @@ func (e *OpenAIImageJobExecutor) Execute(
 	requestID := fmt.Sprintf("%s/%d", job.JobID, attempt)
 	requestCtx := context.WithValue(ctx, ctxkey.ClientRequestID, job.JobID)
 	requestCtx = context.WithValue(requestCtx, ctxkey.RequestID, requestID)
+	requestCtx = service.WithAPIKeyAuthCacheBypass(requestCtx)
 	requestCtx = service.WithOpenAIImageJobExecutionObserver(requestCtx, tracker)
 	barrier := newOpenAIImageJobBillingBarrierFromConfig(e.cfg)
 	requestCtx = withOpenAIImageJobBillingBarrier(requestCtx, barrier)
@@ -217,25 +242,34 @@ func (e *OpenAIImageJobExecutor) Execute(
 		request.Header.Set("User-Agent", userAgent)
 	}
 
-	recorder := httptest.NewRecorder()
+	resultBodyLimit := e.resultBodyLimit
+	if resultBodyLimit <= 0 {
+		resultBodyLimit = resolveOpenAIImageJobExecutionResultBodyLimit(e.cfg)
+	}
+	recorder := newOpenAIImageJobResponseRecorder(resultBodyLimit)
 	e.engine.ServeHTTP(recorder, request)
-	body := append([]byte(nil), recorder.Body.Bytes()...)
-	statusCode := recorder.Code
+	body := recorder.BodyBytes()
+	statusCode := recorder.StatusCode()
 	if statusCode == 0 {
 		statusCode = http.StatusOK
+	}
+	contentType := strings.TrimSpace(recorder.Header().Get("Content-Type"))
+
+	if recorder.Exceeded() {
+		if tracker.Dispatched() {
+			return openAIImageJobUnknownFailure("response_too_large", "image generation response exceeded the durable result size limit")
+		}
+		return openAIImageJobKnownFailure("response_too_large", "image generation response exceeded the durable result size limit")
 	}
 
 	// A verified image response wins a concurrent cancellation. Publishing it is
 	// still gated on the synchronous, stable-ID billing barrier.
-	if statusCode >= http.StatusOK && statusCode < http.StatusMultipleChoices && openAIImageJobHasImageResult(body) {
+	if statusCode >= http.StatusOK && statusCode < http.StatusMultipleChoices &&
+		tracker.Dispatched() && openAIImageJobJSONContentType(contentType) && openAIImageJobHasImageResult(body) {
 		resolved, billingErr := barrier.Result()
 		if !resolved || billingErr != nil {
 			message := "image generation succeeded but billing could not be durably confirmed"
 			return openAIImageJobUnknownFailure("billing_failed_unknown", message)
-		}
-		contentType := strings.TrimSpace(recorder.Header().Get("Content-Type"))
-		if contentType == "" {
-			contentType = "application/json"
 		}
 		return service.OpenAIImageJobExecutionResult{
 			Outcome: service.OpenAIImageJobExecutionSucceeded,
@@ -247,21 +281,122 @@ func (e *OpenAIImageJobExecutor) Execute(
 		}
 	}
 
-	if tracker.Denied() || (ctx.Err() != nil && !tracker.Dispatched()) {
-		return service.OpenAIImageJobExecutionResult{Outcome: service.OpenAIImageJobExecutionInterrupted}
-	}
 	if tracker.Dispatched() {
+		if statusCode >= http.StatusBadRequest && statusCode < http.StatusInternalServerError && openAIImageJobJSONContentType(contentType) {
+			if code, message, structured := openAIImageJobStructuredResponseError(body); structured {
+				return openAIImageJobKnownFailure(code, message)
+			}
+		}
 		return openAIImageJobUnknownFailure("failed_unknown", "image generation may have reached the upstream, but no verified result was received")
+	}
+	if tracker.Denied() || ctx.Err() != nil {
+		return service.OpenAIImageJobExecutionResult{Outcome: service.OpenAIImageJobExecutionInterrupted}
 	}
 	code, message := openAIImageJobResponseError(body)
 	return openAIImageJobKnownFailure(code, message)
 }
 
+type openAIImageJobResponseRecorder struct {
+	header   http.Header
+	body     bytes.Buffer
+	limit    int64
+	status   int
+	exceeded bool
+	closed   chan bool
+}
+
+func newOpenAIImageJobResponseRecorder(limit int64) *openAIImageJobResponseRecorder {
+	if limit <= 0 {
+		limit = config.DefaultUpstreamResponseReadMaxBytes
+	}
+	return &openAIImageJobResponseRecorder{header: make(http.Header), limit: limit, closed: make(chan bool)}
+}
+
+func (r *openAIImageJobResponseRecorder) Header() http.Header {
+	return r.header
+}
+
+func (r *openAIImageJobResponseRecorder) WriteHeader(statusCode int) {
+	if r.status != 0 {
+		return
+	}
+	r.status = statusCode
+}
+
+func (r *openAIImageJobResponseRecorder) Write(data []byte) (int, error) {
+	if r.status == 0 {
+		r.status = http.StatusOK
+	}
+	originalLen := len(data)
+	remaining := r.limit - int64(r.body.Len())
+	if remaining <= 0 {
+		if originalLen > 0 {
+			r.exceeded = true
+		}
+		return originalLen, nil
+	}
+	if int64(len(data)) > remaining {
+		data = data[:int(remaining)]
+		r.exceeded = true
+	}
+	_, err := r.body.Write(data)
+	if err != nil {
+		return 0, err
+	}
+	// Report the original length so the application does not retry or replace a
+	// successfully capped write. The recorder retains at most limit bytes.
+	return originalLen, nil
+}
+
+func (r *openAIImageJobResponseRecorder) StatusCode() int {
+	if r == nil {
+		return 0
+	}
+	return r.status
+}
+
+func (r *openAIImageJobResponseRecorder) BodyBytes() []byte {
+	if r == nil {
+		return nil
+	}
+	return r.body.Bytes()
+}
+
+func (r *openAIImageJobResponseRecorder) Exceeded() bool {
+	return r != nil && r.exceeded
+}
+
+func (r *openAIImageJobResponseRecorder) Flush() {
+	if r != nil && r.status == 0 {
+		r.status = http.StatusOK
+	}
+}
+
+func (r *openAIImageJobResponseRecorder) CloseNotify() <-chan bool {
+	if r == nil || r.closed == nil {
+		closed := make(chan bool)
+		return closed
+	}
+	return r.closed
+}
+
+func (r *openAIImageJobResponseRecorder) Hijack() (net.Conn, *bufio.ReadWriter, error) {
+	return nil, nil, errors.New("image job response recorder does not support hijacking")
+}
+
 type openAIImageJobDispatchTracker struct {
 	delegate service.OpenAIImageJobExecutionObserver
 	ctx      context.Context
+	state    atomic.Uint32
 	denied   atomic.Bool
 }
+
+const (
+	openAIImageJobExecutorDispatchPending uint32 = iota
+	openAIImageJobExecutorDispatchClaimed
+	openAIImageJobExecutorDispatchStarted
+	openAIImageJobExecutorDispatchDenied
+)
 
 func (t *openAIImageJobDispatchTracker) MarkDispatched() bool {
 	if t == nil || t.delegate == nil {
@@ -270,19 +405,30 @@ func (t *openAIImageJobDispatchTracker) MarkDispatched() bool {
 		}
 		return false
 	}
+	// This is deliberately a one-shot gate. Account failover reuses the same
+	// execution context, so any attempt after the first must be denied even when
+	// the worker's delegate remains in its irreversible dispatched state.
+	if !t.state.CompareAndSwap(openAIImageJobExecutorDispatchPending, openAIImageJobExecutorDispatchClaimed) {
+		t.denied.Store(true)
+		return false
+	}
 	if t.ctx != nil && t.ctx.Err() != nil {
 		t.denied.Store(true)
+		t.state.Store(openAIImageJobExecutorDispatchDenied)
 		return false
 	}
 	allowed := t.delegate.MarkDispatched()
 	if !allowed {
 		t.denied.Store(true)
+		t.state.Store(openAIImageJobExecutorDispatchDenied)
+		return false
 	}
-	return allowed
+	t.state.Store(openAIImageJobExecutorDispatchStarted)
+	return true
 }
 
 func (t *openAIImageJobDispatchTracker) Dispatched() bool {
-	return t != nil && t.delegate != nil && t.delegate.Dispatched()
+	return t != nil && t.state.Load() == openAIImageJobExecutorDispatchStarted
 }
 
 func (t *openAIImageJobDispatchTracker) Denied() bool {
@@ -335,6 +481,52 @@ func openAIImageJobHasImageResult(body []byte) bool {
 	return false
 }
 
+func openAIImageJobJSONContentType(contentType string) bool {
+	mediaType, _, err := mime.ParseMediaType(strings.TrimSpace(contentType))
+	if err != nil {
+		return false
+	}
+	mediaType = strings.ToLower(mediaType)
+	return mediaType == "application/json" || strings.HasSuffix(mediaType, "+json")
+}
+
+func openAIImageJobStructuredResponseError(body []byte) (string, string, bool) {
+	if !json.Valid(body) {
+		return "", "", false
+	}
+	var payload struct {
+		Code    string `json:"code"`
+		Message string `json:"message"`
+		Error   *struct {
+			Code    string `json:"code"`
+			Message string `json:"message"`
+		} `json:"error"`
+	}
+	if err := json.Unmarshal(body, &payload); err != nil {
+		return "", "", false
+	}
+	code := strings.TrimSpace(payload.Code)
+	message := strings.TrimSpace(payload.Message)
+	if payload.Error != nil {
+		if value := strings.TrimSpace(payload.Error.Code); value != "" {
+			code = value
+		}
+		if value := strings.TrimSpace(payload.Error.Message); value != "" {
+			message = value
+		}
+	}
+	if code == "" && message == "" {
+		return "", "", false
+	}
+	if code == "" {
+		code = "image_generation_failed"
+	}
+	if message == "" {
+		message = "image generation request was rejected by the upstream"
+	}
+	return code, message, true
+}
+
 func openAIImageJobResponseError(body []byte) (string, string) {
 	code := "image_generation_failed"
 	message := "image generation failed before upstream dispatch"
@@ -370,6 +562,7 @@ type openAIImageJobBillingBarrierContextKey struct{}
 type openAIImageJobBillingBarrier struct {
 	maxAttempts int
 	retryDelay  time.Duration
+	budget      time.Duration
 	once        sync.Once
 	mu          sync.RWMutex
 	resolved    bool
@@ -391,6 +584,10 @@ func newOpenAIImageJobBillingBarrierFromConfig(cfg *config.Config) *openAIImageJ
 }
 
 func newOpenAIImageJobBillingBarrier(maxAttempts int, retryDelay time.Duration) *openAIImageJobBillingBarrier {
+	return newOpenAIImageJobBillingBarrierWithBudget(maxAttempts, retryDelay, 0)
+}
+
+func newOpenAIImageJobBillingBarrierWithBudget(maxAttempts int, retryDelay, budget time.Duration) *openAIImageJobBillingBarrier {
 	if maxAttempts <= 0 {
 		maxAttempts = 1
 	}
@@ -403,7 +600,10 @@ func newOpenAIImageJobBillingBarrier(maxAttempts int, retryDelay time.Duration) 
 	if retryDelay > openAIImageJobMaxBillingRetryDelay {
 		retryDelay = openAIImageJobMaxBillingRetryDelay
 	}
-	return &openAIImageJobBillingBarrier{maxAttempts: maxAttempts, retryDelay: retryDelay}
+	if budget <= 0 {
+		budget = time.Duration(maxAttempts)*openAIImageJobBillingAttemptTimeout + time.Duration(maxAttempts-1)*retryDelay
+	}
+	return &openAIImageJobBillingBarrier{maxAttempts: maxAttempts, retryDelay: retryDelay, budget: budget}
 }
 
 func withOpenAIImageJobBillingBarrier(ctx context.Context, barrier *openAIImageJobBillingBarrier) context.Context {
@@ -451,8 +651,10 @@ func (b *openAIImageJobBillingBarrier) Record(parent context.Context, task func(
 		if parent != nil {
 			base = context.WithoutCancel(parent)
 		}
+		billingCtx, cancelBilling := context.WithTimeout(base, b.budget)
+		defer cancelBilling()
 		for attempt := 1; attempt <= b.maxAttempts; attempt++ {
-			attemptCtx, cancel := context.WithTimeout(base, openAIImageJobBillingAttemptTimeout)
+			attemptCtx, cancel := context.WithTimeout(billingCtx, openAIImageJobBillingAttemptTimeout)
 			resultErr = task(attemptCtx)
 			cancel()
 			if resultErr == nil || errors.Is(resultErr, service.ErrUsageBillingRequestConflict) || attempt == b.maxAttempts {
@@ -460,7 +662,18 @@ func (b *openAIImageJobBillingBarrier) Record(parent context.Context, task func(
 			}
 			if b.retryDelay > 0 {
 				timer := time.NewTimer(b.retryDelay)
-				<-timer.C
+				select {
+				case <-timer.C:
+				case <-billingCtx.Done():
+					if !timer.Stop() {
+						select {
+						case <-timer.C:
+						default:
+						}
+					}
+					resultErr = errors.Join(resultErr, billingCtx.Err())
+					return
+				}
 			}
 		}
 	})

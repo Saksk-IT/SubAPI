@@ -69,6 +69,13 @@ type OpenAIImageJobExecutor interface {
 	Execute(ctx context.Context, job *OpenAIImageJob, observer OpenAIImageJobExecutionObserver) OpenAIImageJobExecutionResult
 }
 
+// OpenAIImageJobCancelNotifier accelerates cancellation for work owned by the
+// current process. The persisted cancel_requested flag remains authoritative
+// across processes.
+type OpenAIImageJobCancelNotifier interface {
+	RequestCancel(jobID string) bool
+}
+
 type OpenAIImageJobWorkerOptions struct {
 	WorkerCount       int
 	PollInterval      time.Duration
@@ -252,7 +259,7 @@ func (r *OpenAIImageJobWorkerRuntime) executeClaimedJob(ctx context.Context, job
 			if localCancelRequested.Load() {
 				cancelRequested = true
 			}
-			return r.finalizeExecutionResult(ctx, job, workerID, observer, cancelRequested, result)
+			return r.finalizeReceivedExecutionResult(ctx, job, workerID, observer, cancelRequested, result)
 
 		case <-heartbeatTicker.C:
 			persistedCancel, err := r.repo.Heartbeat(ctx, job.JobID, workerID, r.now().Add(r.opts.LeaseDuration))
@@ -282,18 +289,66 @@ func (r *OpenAIImageJobWorkerRuntime) executeClaimedJob(ctx context.Context, job
 		case <-ctx.Done():
 			observer.stopBeforeDispatch()
 			cancelExecution()
-			if result, ok := tryOpenAIImageJobExecutionResult(resultCh); ok && result.Outcome == OpenAIImageJobExecutionSucceeded {
-				terminalCtx, terminalCancel := r.newShutdownFinalizationContext()
+			joinBudget, finalizationBudget := splitOpenAIImageJobShutdownBudget(r.opts.ShutdownWait)
+			joinTimer := time.NewTimer(joinBudget)
+			select {
+			case result := <-resultCh:
+				if !joinTimer.Stop() {
+					select {
+					case <-joinTimer.C:
+					default:
+					}
+				}
+				terminalCtx, terminalCancel := context.WithTimeout(context.Background(), finalizationBudget)
 				err := r.finalizeExecutionResult(terminalCtx, job, workerID, observer, cancelRequested, result)
 				terminalCancel()
 				return errors.Join(ctx.Err(), err)
+			case <-joinTimer.C:
 			}
-			terminalCtx, terminalCancel := r.newShutdownFinalizationContext()
+			terminalCtx, terminalCancel := context.WithTimeout(context.Background(), finalizationBudget)
 			terminalErr := r.finalizeInterrupted(terminalCtx, job, workerID, observer, cancelRequested, "worker_shutdown", "image generation worker stopped during shutdown")
 			terminalCancel()
 			return errors.Join(ctx.Err(), terminalErr)
 		}
 	}
+}
+
+func (r *OpenAIImageJobWorkerRuntime) finalizeReceivedExecutionResult(
+	ctx context.Context,
+	job *OpenAIImageJob,
+	workerID string,
+	observer OpenAIImageJobExecutionObserver,
+	cancelRequested bool,
+	result OpenAIImageJobExecutionResult,
+) error {
+	finalizeCtx := ctx
+	var finalizeCancel context.CancelFunc
+	if ctx == nil || ctx.Err() != nil {
+		// The executor can publish a verified result concurrently with runtime
+		// shutdown. Do not lose that terminal state merely because the worker
+		// loop's parent context has already been cancelled.
+		finalizeCtx, finalizeCancel = r.newShutdownFinalizationContext()
+	}
+	err := r.finalizeExecutionResult(finalizeCtx, job, workerID, observer, cancelRequested, result)
+	if finalizeCancel != nil {
+		finalizeCancel()
+	}
+	return err
+}
+
+func splitOpenAIImageJobShutdownBudget(total time.Duration) (time.Duration, time.Duration) {
+	if total <= 0 {
+		total = defaultOpenAIImageJobShutdownWait
+	}
+	join := total / 2
+	if join <= 0 {
+		join = total
+	}
+	finalize := total - join
+	if finalize <= 0 {
+		finalize = total
+	}
+	return join, finalize
 }
 
 // RequestCancel immediately notifies a job executing in this process. The
@@ -603,7 +658,9 @@ func (o *openAIImageJobExecutionObserver) MarkDispatched() bool {
 	for {
 		switch state := o.state.Load(); state {
 		case openAIImageJobDispatchStarted:
-			return true
+			// Dispatch is one-shot. A later account failover must not issue a
+			// second billable upstream request for the same durable job.
+			return false
 		case openAIImageJobDispatchStopped:
 			return false
 		default:

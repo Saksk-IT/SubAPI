@@ -159,6 +159,7 @@ var ProviderSet = wire.NewSet(
 	NewChannelMonitorUserHandler,
 	NewGatewayHandler,
 	NewOpenAIGatewayHandler,
+	NewOpenAIImageJobExecutor,
 	NewOpenAIImageJobHandler,
 	NewTotpHandler,
 	ProvideSettingHandler,

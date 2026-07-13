@@ -55,6 +55,37 @@ func ProvideBatchImageCleanupService(repo BatchImageRepository, accountRepo Acco
 	return svc
 }
 
+// ProvideOpenAIImageJobWorkerRuntime creates the durable single-image worker
+// for every process and starts it only when the feature is enabled. PostgreSQL
+// leases remain the cross-process ownership boundary.
+func ProvideOpenAIImageJobWorkerRuntime(
+	repo OpenAIImageJobRepository,
+	executor OpenAIImageJobExecutor,
+	cfg *config.Config,
+) *OpenAIImageJobWorkerRuntime {
+	var jobs config.OpenAIImageJobsConfig
+	if cfg != nil {
+		jobs = cfg.OpenAIImageJobs
+	}
+	runtime := NewOpenAIImageJobWorkerRuntime(repo, executor, OpenAIImageJobWorkerOptions{
+		WorkerCount:       jobs.WorkerCount,
+		PollInterval:      time.Duration(jobs.PollIntervalSeconds) * time.Second,
+		HeartbeatInterval: time.Duration(jobs.HeartbeatIntervalSeconds) * time.Second,
+		LeaseDuration:     time.Duration(jobs.LeaseDurationSeconds) * time.Second,
+		ExecutionTimeout:  time.Duration(jobs.ExecutionTimeoutSeconds) * time.Second,
+		ResultRetention:   time.Duration(jobs.ResultRetentionHours) * time.Hour,
+		QueuedRetention:   time.Duration(jobs.QueuedRetentionHours) * time.Hour,
+		RecordRetention:   time.Duration(jobs.MetadataRetentionDays) * 24 * time.Hour,
+		CleanupInterval:   time.Duration(jobs.CleanupIntervalSeconds) * time.Second,
+		CleanupBatchLimit: jobs.CleanupBatchSize,
+		ShutdownWait:      time.Duration(jobs.ShutdownWaitSeconds) * time.Second,
+	})
+	if jobs.Enabled {
+		runtime.Start()
+	}
+	return runtime
+}
+
 // ProvideOpenAIOAuthService creates OpenAIOAuthService with privacy/account enrichment support.
 func ProvideOpenAIOAuthService(
 	proxyRepo ProxyRepository,
@@ -581,6 +612,8 @@ var ProviderSet = wire.NewSet(
 	NewBatchImageDownloadService,
 	ProvideBatchImageCleanupService,
 	ProvideBatchImageWorkerRuntime,
+	ProvideOpenAIImageJobWorkerRuntime,
+	wire.Bind(new(OpenAIImageJobCancelNotifier), new(*OpenAIImageJobWorkerRuntime)),
 	wire.Bind(new(AccountRuntimeBlocker), new(*OpenAIGatewayService)),
 	NewOAuthService,
 	ProvideOpenAIOAuthService,

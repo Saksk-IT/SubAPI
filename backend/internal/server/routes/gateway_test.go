@@ -28,7 +28,7 @@ func newGatewayRoutesTestRouter(platform ...string) *gin.Engine {
 		&handler.Handlers{
 			Gateway:        &handler.GatewayHandler{},
 			OpenAIGateway:  &handler.OpenAIGatewayHandler{},
-			OpenAIImageJob: handler.NewOpenAIImageJobHandler(nil, nil, &config.Config{}),
+			OpenAIImageJob: handler.NewOpenAIImageJobHandler(nil, nil, &config.Config{}, nil),
 		},
 		servermiddleware.APIKeyAuthMiddleware(func(c *gin.Context) {
 			groupID := int64(1)
@@ -87,7 +87,7 @@ func TestGatewayRoutesUseIdentityOnlyAuthOnlyForStatusAndCancel(t *testing.T) {
 		&handler.Handlers{
 			Gateway:        &handler.GatewayHandler{},
 			OpenAIGateway:  &handler.OpenAIGatewayHandler{},
-			OpenAIImageJob: handler.NewOpenAIImageJobHandler(nil, nil, &config.Config{}),
+			OpenAIImageJob: handler.NewOpenAIImageJobHandler(nil, nil, &config.Config{}, nil),
 		},
 		auth,
 		nil,

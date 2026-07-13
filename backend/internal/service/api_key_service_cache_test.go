@@ -127,6 +127,7 @@ type authCacheStub struct {
 	getAuthCache   func(ctx context.Context, key string) (*APIKeyAuthCacheEntry, error)
 	setAuthKeys    []string
 	deleteAuthKeys []string
+	deleteAuthErr  error
 }
 
 func (s *authCacheStub) GetCreateAttemptCount(ctx context.Context, userID int64) (int, error) {
@@ -163,7 +164,7 @@ func (s *authCacheStub) SetAuthCache(ctx context.Context, key string, entry *API
 
 func (s *authCacheStub) DeleteAuthCache(ctx context.Context, key string) error {
 	s.deleteAuthKeys = append(s.deleteAuthKeys, key)
-	return nil
+	return s.deleteAuthErr
 }
 
 func (s *authCacheStub) PublishAuthCacheInvalidation(ctx context.Context, cacheKey string) error {
@@ -578,4 +579,82 @@ func TestAPIKeyService_GetByKey_SingleflightCollapses(t *testing.T) {
 		require.NoError(t, err)
 	}
 	require.Equal(t, int32(1), atomic.LoadInt32(&calls))
+}
+
+func TestAPIKeyService_InternalReplayBypassesStaleCacheAfterDeleteFailure(t *testing.T) {
+	cache := &authCacheStub{deleteAuthErr: errors.New("redis delete failed")}
+	var status atomic.Value
+	status.Store(StatusActive)
+	repo := &authRepoStub{
+		getByKeyForAuth: func(context.Context, string) (*APIKey, error) {
+			return &APIKey{
+				ID:     44,
+				UserID: 7,
+				Status: status.Load().(string),
+				User:   &User{ID: 7, Status: StatusActive, Balance: 10},
+			}, nil
+		},
+	}
+	cfg := &config.Config{APIKeyAuth: config.APIKeyAuthCacheConfig{L1Size: 100, L1TTLSeconds: 60, L2TTLSeconds: 60}}
+	svc := NewAPIKeyService(repo, nil, nil, nil, nil, cache, cfg)
+
+	first, err := svc.GetByKey(context.Background(), "sk-stale")
+	require.NoError(t, err)
+	require.Equal(t, StatusActive, first.Status)
+	svc.authCacheL1.Wait()
+	status.Store(StatusDisabled)
+	svc.InvalidateAuthCacheByKey(context.Background(), "sk-stale")
+
+	fresh, err := svc.GetByKey(WithAPIKeyAuthCacheBypass(context.Background()), "sk-stale")
+	require.NoError(t, err)
+	require.Equal(t, StatusDisabled, fresh.Status)
+	require.Len(t, cache.deleteAuthKeys, 1)
+}
+
+func TestAPIKeyService_InternalReplayDoesNotJoinOrConsumeConcurrentStaleRefill(t *testing.T) {
+	cache := &authCacheStub{}
+	loadStarted := make(chan struct{})
+	releaseStaleLoad := make(chan struct{})
+	var calls atomic.Int32
+	repo := &authRepoStub{
+		getByKeyForAuth: func(context.Context, string) (*APIKey, error) {
+			call := calls.Add(1)
+			status := StatusDisabled
+			if call == 1 {
+				close(loadStarted)
+				<-releaseStaleLoad
+				status = StatusActive
+			}
+			return &APIKey{
+				ID:     45,
+				UserID: 8,
+				Status: status,
+				User:   &User{ID: 8, Status: StatusActive, Balance: 10},
+			}, nil
+		},
+	}
+	cfg := &config.Config{APIKeyAuth: config.APIKeyAuthCacheConfig{L2TTLSeconds: 60, Singleflight: true}}
+	svc := NewAPIKeyService(repo, nil, nil, nil, nil, cache, cfg)
+	normalResult := make(chan *APIKey, 1)
+	normalErr := make(chan error, 1)
+	go func() {
+		key, err := svc.GetByKey(context.Background(), "sk-refill")
+		normalResult <- key
+		normalErr <- err
+	}()
+	<-loadStarted
+
+	fresh, err := svc.GetByKey(WithAPIKeyAuthCacheBypass(context.Background()), "sk-refill")
+	require.NoError(t, err)
+	require.Equal(t, StatusDisabled, fresh.Status, "internal replay must not join a stale singleflight")
+	close(releaseStaleLoad)
+	require.NoError(t, <-normalErr)
+	require.Equal(t, StatusActive, (<-normalResult).Status)
+
+	// Even after the stale normal request refills L2, internal replay must read
+	// the database directly again.
+	fresh, err = svc.GetByKey(WithAPIKeyAuthCacheBypass(context.Background()), "sk-refill")
+	require.NoError(t, err)
+	require.Equal(t, StatusDisabled, fresh.Status)
+	require.Equal(t, int32(3), calls.Load())
 }
