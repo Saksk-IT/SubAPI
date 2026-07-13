@@ -278,6 +278,40 @@ func TestLoadDefaultBatchImageQueueDisabled(t *testing.T) {
 	require.False(t, cfg.BatchImage.QueueEnabled)
 }
 
+func TestLoadDefaultOpenAIImageJobsConfig(t *testing.T) {
+	resetViperWithJWTSecret(t)
+
+	cfg, err := Load()
+	require.NoError(t, err)
+	require.True(t, cfg.OpenAIImageJobs.Enabled)
+	require.Equal(t, 2, cfg.OpenAIImageJobs.WorkerCount)
+	require.Equal(t, 1, cfg.OpenAIImageJobs.PollIntervalSeconds)
+	require.Equal(t, 10, cfg.OpenAIImageJobs.HeartbeatIntervalSeconds)
+	require.Equal(t, 120, cfg.OpenAIImageJobs.LeaseDurationSeconds)
+	require.Equal(t, 900, cfg.OpenAIImageJobs.ExecutionTimeoutSeconds)
+	require.Equal(t, 72, cfg.OpenAIImageJobs.ResultRetentionHours)
+	require.Equal(t, 24, cfg.OpenAIImageJobs.QueuedRetentionHours)
+	require.Equal(t, 30, cfg.OpenAIImageJobs.MetadataRetentionDays)
+	require.Equal(t, 3600, cfg.OpenAIImageJobs.CleanupIntervalSeconds)
+	require.Equal(t, 100, cfg.OpenAIImageJobs.CleanupBatchSize)
+	require.Equal(t, 10, cfg.OpenAIImageJobs.ShutdownWaitSeconds)
+	require.Equal(t, 10, cfg.OpenAIImageJobs.MaxActivePerUser)
+	require.Equal(t, 1000, cfg.OpenAIImageJobs.MaxActiveGlobal)
+	require.Equal(t, 3, cfg.OpenAIImageJobs.BillingMaxAttempts)
+	require.Equal(t, 250, cfg.OpenAIImageJobs.BillingRetryDelayMS)
+}
+
+func TestLoadOpenAIImageJobsConfigFromEnv(t *testing.T) {
+	resetViperWithJWTSecret(t)
+	t.Setenv("OPENAI_IMAGE_JOBS_WORKER_COUNT", "4")
+	t.Setenv("OPENAI_IMAGE_JOBS_MAX_ACTIVE_PER_USER", "6")
+
+	cfg, err := Load()
+	require.NoError(t, err)
+	require.Equal(t, 4, cfg.OpenAIImageJobs.WorkerCount)
+	require.Equal(t, 6, cfg.OpenAIImageJobs.MaxActivePerUser)
+}
+
 func TestLoadIdempotencyConfigFromEnv(t *testing.T) {
 	resetViperWithJWTSecret(t)
 	t.Setenv("IDEMPOTENCY_OBSERVE_ONLY", "false")

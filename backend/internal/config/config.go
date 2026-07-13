@@ -94,6 +94,7 @@ type Config struct {
 	Update                  UpdateConfig                  `mapstructure:"update"`
 	Idempotency             IdempotencyConfig             `mapstructure:"idempotency"`
 	BatchImage              BatchImageConfig              `mapstructure:"batch_image"`
+	OpenAIImageJobs         OpenAIImageJobsConfig         `mapstructure:"openai_image_jobs"`
 }
 
 type LogConfig struct {
@@ -174,6 +175,28 @@ type IdempotencyConfig struct {
 	CleanupIntervalSeconds int `mapstructure:"cleanup_interval_seconds"`
 	// CleanupBatchSize 每次清理的最大记录数。
 	CleanupBatchSize int `mapstructure:"cleanup_batch_size"`
+}
+
+// OpenAIImageJobsConfig controls the durable single-request Images API queue.
+// Durations use explicit units in their field names so YAML/env configuration
+// remains unambiguous.
+type OpenAIImageJobsConfig struct {
+	Enabled                  bool `mapstructure:"enabled"`
+	WorkerCount              int  `mapstructure:"worker_count"`
+	PollIntervalSeconds      int  `mapstructure:"poll_interval_seconds"`
+	HeartbeatIntervalSeconds int  `mapstructure:"heartbeat_interval_seconds"`
+	LeaseDurationSeconds     int  `mapstructure:"lease_duration_seconds"`
+	ExecutionTimeoutSeconds  int  `mapstructure:"execution_timeout_seconds"`
+	ResultRetentionHours     int  `mapstructure:"result_retention_hours"`
+	QueuedRetentionHours     int  `mapstructure:"queued_retention_hours"`
+	MetadataRetentionDays    int  `mapstructure:"metadata_retention_days"`
+	CleanupIntervalSeconds   int  `mapstructure:"cleanup_interval_seconds"`
+	CleanupBatchSize         int  `mapstructure:"cleanup_batch_size"`
+	ShutdownWaitSeconds      int  `mapstructure:"shutdown_wait_seconds"`
+	MaxActivePerUser         int  `mapstructure:"max_active_per_user"`
+	MaxActiveGlobal          int  `mapstructure:"max_active_global"`
+	BillingMaxAttempts       int  `mapstructure:"billing_max_attempts"`
+	BillingRetryDelayMS      int  `mapstructure:"billing_retry_delay_ms"`
 }
 
 type BatchImageConfig struct {
@@ -1783,6 +1806,24 @@ func setDefaults() {
 	viper.SetDefault("redis.min_idle_conns", 128)
 	viper.SetDefault("redis.enable_tls", false)
 
+	// Durable OpenAI Images jobs
+	viper.SetDefault("openai_image_jobs.enabled", true)
+	viper.SetDefault("openai_image_jobs.worker_count", 2)
+	viper.SetDefault("openai_image_jobs.poll_interval_seconds", 1)
+	viper.SetDefault("openai_image_jobs.heartbeat_interval_seconds", 10)
+	viper.SetDefault("openai_image_jobs.lease_duration_seconds", 120)
+	viper.SetDefault("openai_image_jobs.execution_timeout_seconds", 900)
+	viper.SetDefault("openai_image_jobs.result_retention_hours", 72)
+	viper.SetDefault("openai_image_jobs.queued_retention_hours", 24)
+	viper.SetDefault("openai_image_jobs.metadata_retention_days", 30)
+	viper.SetDefault("openai_image_jobs.cleanup_interval_seconds", 3600)
+	viper.SetDefault("openai_image_jobs.cleanup_batch_size", 100)
+	viper.SetDefault("openai_image_jobs.shutdown_wait_seconds", 10)
+	viper.SetDefault("openai_image_jobs.max_active_per_user", 10)
+	viper.SetDefault("openai_image_jobs.max_active_global", 1000)
+	viper.SetDefault("openai_image_jobs.billing_max_attempts", 3)
+	viper.SetDefault("openai_image_jobs.billing_retry_delay_ms", 250)
+
 	// Batch Image queue
 	viper.SetDefault("batch_image.enabled", false)
 	viper.SetDefault("batch_image.max_items_per_job_default", 200)
@@ -2430,6 +2471,54 @@ func (c *Config) Validate() error {
 	}
 	if c.Redis.MinIdleConns > c.Redis.PoolSize {
 		return fmt.Errorf("redis.min_idle_conns cannot exceed redis.pool_size")
+	}
+	if c.OpenAIImageJobs.Enabled {
+		if c.OpenAIImageJobs.WorkerCount <= 0 {
+			return fmt.Errorf("openai_image_jobs.worker_count must be positive")
+		}
+		if c.OpenAIImageJobs.PollIntervalSeconds <= 0 {
+			return fmt.Errorf("openai_image_jobs.poll_interval_seconds must be positive")
+		}
+		if c.OpenAIImageJobs.HeartbeatIntervalSeconds <= 0 {
+			return fmt.Errorf("openai_image_jobs.heartbeat_interval_seconds must be positive")
+		}
+		if c.OpenAIImageJobs.LeaseDurationSeconds <= c.OpenAIImageJobs.HeartbeatIntervalSeconds {
+			return fmt.Errorf("openai_image_jobs.lease_duration_seconds must exceed heartbeat_interval_seconds")
+		}
+		if c.OpenAIImageJobs.ExecutionTimeoutSeconds <= 0 {
+			return fmt.Errorf("openai_image_jobs.execution_timeout_seconds must be positive")
+		}
+		if c.OpenAIImageJobs.ResultRetentionHours <= 0 {
+			return fmt.Errorf("openai_image_jobs.result_retention_hours must be positive")
+		}
+		if c.OpenAIImageJobs.QueuedRetentionHours <= 0 {
+			return fmt.Errorf("openai_image_jobs.queued_retention_hours must be positive")
+		}
+		if c.OpenAIImageJobs.MetadataRetentionDays <= 0 ||
+			time.Duration(c.OpenAIImageJobs.MetadataRetentionDays)*24*time.Hour < time.Duration(c.OpenAIImageJobs.ResultRetentionHours)*time.Hour {
+			return fmt.Errorf("openai_image_jobs.metadata_retention_days must cover result_retention_hours")
+		}
+		if c.OpenAIImageJobs.CleanupIntervalSeconds <= 0 {
+			return fmt.Errorf("openai_image_jobs.cleanup_interval_seconds must be positive")
+		}
+		if c.OpenAIImageJobs.CleanupBatchSize <= 0 || c.OpenAIImageJobs.CleanupBatchSize > 1000 {
+			return fmt.Errorf("openai_image_jobs.cleanup_batch_size must be between 1 and 1000")
+		}
+		if c.OpenAIImageJobs.ShutdownWaitSeconds <= 0 {
+			return fmt.Errorf("openai_image_jobs.shutdown_wait_seconds must be positive")
+		}
+		if c.OpenAIImageJobs.MaxActivePerUser <= 0 {
+			return fmt.Errorf("openai_image_jobs.max_active_per_user must be positive")
+		}
+		if c.OpenAIImageJobs.MaxActiveGlobal < c.OpenAIImageJobs.MaxActivePerUser {
+			return fmt.Errorf("openai_image_jobs.max_active_global must be at least max_active_per_user")
+		}
+		if c.OpenAIImageJobs.BillingMaxAttempts <= 0 {
+			return fmt.Errorf("openai_image_jobs.billing_max_attempts must be positive")
+		}
+		if c.OpenAIImageJobs.BillingRetryDelayMS < 0 {
+			return fmt.Errorf("openai_image_jobs.billing_retry_delay_ms must be non-negative")
+		}
 	}
 	if c.BatchImage.QueueEnabled {
 		if strings.TrimSpace(c.BatchImage.QueueReadyKey) == "" {
