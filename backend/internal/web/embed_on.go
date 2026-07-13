@@ -119,7 +119,19 @@ func (s *FrontendServer) Middleware() gin.HandlerFunc {
 }
 
 func (s *FrontendServer) fileExists(path string) bool {
-	file, err := s.distFS.Open(path)
+	return embeddedStaticPathExists(s.distFS, path)
+}
+
+// embeddedStaticPathExists mirrors net/http's directory-index lookup. embed.FS
+// rejects paths with a trailing slash, while http.FileServer serves the
+// directory's index.html for that same request path.
+func embeddedStaticPathExists(fsys fs.FS, path string) bool {
+	candidate := path
+	if strings.HasSuffix(candidate, "/") {
+		candidate += "index.html"
+	}
+
+	file, err := fsys.Open(candidate)
 	if err != nil {
 		return false
 	}
@@ -269,8 +281,7 @@ func ServeEmbeddedFrontend() gin.HandlerFunc {
 			cleanPath = "index.html"
 		}
 
-		if file, err := distFS.Open(cleanPath); err == nil {
-			_ = file.Close()
+		if embeddedStaticPathExists(distFS, cleanPath) {
 			// Try local override first
 			if tryServeOverrideFile(c, overrideDir, cleanPath) {
 				return
