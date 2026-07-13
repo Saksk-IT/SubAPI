@@ -121,8 +121,11 @@ func (r *openAIImageJobRepository) createOrGetWithLimits(
 	// insertion one admission decision across all application instances. A
 	// status transition may only reduce the count concurrently, so the bound is
 	// exact without locking every active row.
-	var ignored any
-	if err := tx.QueryRowContext(ctx, `SELECT pg_advisory_xact_lock($1)`, openAIImageJobCreateLockKey).Scan(&ignored); err != nil {
+	lockRows, err := tx.QueryContext(ctx, `SELECT pg_advisory_xact_lock($1)`, openAIImageJobCreateLockKey)
+	if err != nil {
+		return nil, false, err
+	}
+	if err := lockRows.Close(); err != nil {
 		return nil, false, err
 	}
 
