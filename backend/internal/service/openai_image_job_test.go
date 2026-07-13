@@ -120,6 +120,45 @@ func TestOpenAIImageJobRequestHashCanonicalizesJSON(t *testing.T) {
 	}
 }
 
+func TestOpenAIImageJobRequestHashPreservesLargeJSONIntegers(t *testing.T) {
+	t.Parallel()
+
+	first := HashOpenAIImageJobRequest(
+		OpenAIImageJobEndpointGenerations,
+		"application/json",
+		[]byte(`{"seed":9007199254740992}`),
+	)
+	second := HashOpenAIImageJobRequest(
+		OpenAIImageJobEndpointGenerations,
+		"application/json",
+		[]byte(`{"seed":9007199254740993}`),
+	)
+	if first == second {
+		t.Fatalf("distinct integers above 2^53 collapsed to %q", first)
+	}
+}
+
+func TestOpenAIImageJobRequestHashRejectsTrailingJSONValueFromCanonicalization(t *testing.T) {
+	t.Parallel()
+
+	if _, ok := canonicalOpenAIImageJobJSON([]byte(`{"model":"gpt-image-1"} {"second":true}`)); ok {
+		t.Fatal("JSON canonicalizer accepted a trailing second value")
+	}
+	valid := HashOpenAIImageJobRequest(
+		OpenAIImageJobEndpointGenerations,
+		"application/json",
+		[]byte(`{"model":"gpt-image-1"}`),
+	)
+	invalid := HashOpenAIImageJobRequest(
+		OpenAIImageJobEndpointGenerations,
+		"application/json",
+		[]byte(`{"model":"gpt-image-1"} {"second":true}`),
+	)
+	if valid == invalid {
+		t.Fatalf("JSON with a trailing second value was canonicalized as valid: %q", valid)
+	}
+}
+
 func TestOpenAIImageJobIdempotencyConflict(t *testing.T) {
 	t.Parallel()
 
@@ -149,6 +188,7 @@ func TestOpenAIImageJobPublicSerialization(t *testing.T) {
 		Status:             OpenAIImageJobStatusCompleted,
 		ResponseBody:       []byte(`{"created":1,"data":[{"b64_json":"image"}]}`),
 		ResponseStatus:     200,
+		ResultExpiresAt:    openAIImageJobTimePtr(now.Add(72 * time.Hour)),
 		WorkerID:           openAIImageJobStringPtr("worker-secret"),
 		CreatedAt:          now,
 		StartedAt:          openAIImageJobTimePtr(now.Add(time.Second)),
@@ -156,7 +196,7 @@ func TestOpenAIImageJobPublicSerialization(t *testing.T) {
 		CancelRequested:    true,
 	}
 
-	encoded, err := json.Marshal(OpenAIImageJobToPublic(job))
+	encoded, err := json.Marshal(OpenAIImageJobToPublicAt(job, now))
 	if err != nil {
 		t.Fatalf("marshal public job: %v", err)
 	}
@@ -175,6 +215,49 @@ func TestOpenAIImageJobPublicSerialization(t *testing.T) {
 		if _, exists := got[forbidden]; exists {
 			t.Fatalf("public job leaks %q: %s", forbidden, encoded)
 		}
+	}
+}
+
+func TestOpenAIImageJobPublicSerializationMapsExpiredOrMissingResultToFailure(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, time.July, 14, 10, 0, 0, 0, time.UTC)
+	tests := []struct {
+		name    string
+		body    []byte
+		expires *time.Time
+	}{
+		{
+			name:    "retention elapsed before cleanup",
+			body:    []byte(`{"data":[]}`),
+			expires: openAIImageJobTimePtr(now.Add(-time.Second)),
+		},
+		{
+			name:    "payload already purged",
+			expires: openAIImageJobTimePtr(now.Add(time.Hour)),
+		},
+		{
+			name: "legacy row missing expiry",
+			body: []byte(`{"data":[]}`),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			public := OpenAIImageJobToPublicAt(&OpenAIImageJob{
+				JobID:           "imgjob_expired",
+				Status:          OpenAIImageJobStatusCompleted,
+				ResponseBody:    tt.body,
+				ResultExpiresAt: tt.expires,
+			}, now)
+			if public.Status != OpenAIImageJobStatusFailed || public.Result != nil || public.Error == nil {
+				t.Fatalf("expired result was exposed as success: %#v", public)
+			}
+			if public.Error.Code != "result_expired" || public.Error.Message == "" {
+				t.Fatalf("unexpected result-expired error: %#v", public.Error)
+			}
+		})
 	}
 }
 

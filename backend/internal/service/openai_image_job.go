@@ -106,6 +106,8 @@ type CreateOpenAIImageJobParams struct {
 	Model       string
 	ContentType string
 	RequestBody []byte
+	// RequestHash is informational input only. The repository recomputes it
+	// from Endpoint, ContentType and RequestBody before every insert/replay.
 	RequestHash string
 	// IdempotencyKey is normalized and hashed by the repository. The raw value
 	// is never persisted.
@@ -119,6 +121,24 @@ type OpenAIImageJobResponse struct {
 	ContentType     string
 	Body            []byte
 	ResultExpiresAt time.Time
+}
+
+const (
+	DefaultOpenAIImageJobCleanupBatchLimit = 100
+	MaxOpenAIImageJobCleanupBatchLimit     = 1000
+)
+
+type OpenAIImageJobCleanupParams struct {
+	Now          time.Time
+	QueuedCutoff time.Time
+	RecordCutoff time.Time
+	BatchLimit   int
+}
+
+type OpenAIImageJobCleanupResult struct {
+	Queued   int64
+	Payloads int64
+	Records  int64
 }
 
 type OpenAIImageJobPublicError struct {
@@ -151,7 +171,7 @@ type OpenAIImageJobRepository interface {
 	CancelForUser(ctx context.Context, userID int64, jobID string) (*OpenAIImageJob, error)
 	MarkCancelled(ctx context.Context, jobID, workerID string) error
 	FailExpiredLeases(ctx context.Context, cutoff time.Time) (int64, error)
-	PurgeExpiredPayloads(ctx context.Context, now, recordCutoff time.Time) (payloads int64, records int64, err error)
+	PurgeExpiredPayloads(ctx context.Context, params OpenAIImageJobCleanupParams) (OpenAIImageJobCleanupResult, error)
 }
 
 func NewOpenAIImageJobID() (string, error) {
@@ -214,12 +234,9 @@ func HashOpenAIImageJobRequest(endpoint, contentType string, body []byte) string
 				payload = canonical
 			}
 		case strings.EqualFold(mediaType, "application/json") || strings.HasSuffix(strings.ToLower(mediaType), "+json"):
-			var value any
-			if err := json.Unmarshal(body, &value); err == nil {
-				if canonical, err := json.Marshal(value); err == nil {
-					contentType = strings.ToLower(mediaType)
-					payload = canonical
-				}
+			if canonical, ok := canonicalOpenAIImageJobJSON(body); ok {
+				contentType = strings.ToLower(mediaType)
+				payload = canonical
 			}
 		}
 	}
@@ -227,6 +244,24 @@ func HashOpenAIImageJobRequest(endpoint, contentType string, body []byte) string
 	hashOpenAIImageJobComponent(hash, []byte(contentType))
 	hashOpenAIImageJobComponent(hash, payload)
 	return hex.EncodeToString(hash.Sum(nil))
+}
+
+func canonicalOpenAIImageJobJSON(body []byte) ([]byte, bool) {
+	decoder := json.NewDecoder(bytes.NewReader(body))
+	decoder.UseNumber()
+	var value any
+	if err := decoder.Decode(&value); err != nil {
+		return nil, false
+	}
+	var trailing any
+	if err := decoder.Decode(&trailing); err != io.EOF {
+		return nil, false
+	}
+	canonical, err := json.Marshal(value)
+	if err != nil {
+		return nil, false
+	}
+	return canonical, true
 }
 
 type openAIImageJobHashWriter interface {
@@ -288,6 +323,12 @@ func ValidateOpenAIImageJobIdempotency(job *OpenAIImageJob, requestHash string) 
 }
 
 func OpenAIImageJobToPublic(job *OpenAIImageJob) *OpenAIImageJobPublic {
+	return OpenAIImageJobToPublicAt(job, time.Now())
+}
+
+// OpenAIImageJobToPublicAt makes retention behavior deterministic for callers
+// and tests. A completed row is never exposed without a usable result.
+func OpenAIImageJobToPublicAt(job *OpenAIImageJob, now time.Time) *OpenAIImageJobPublic {
 	if job == nil {
 		return nil
 	}
@@ -300,7 +341,15 @@ func OpenAIImageJobToPublic(job *OpenAIImageJob) *OpenAIImageJobPublic {
 		StartedAt:       cloneOpenAIImageJobTime(job.StartedAt),
 		FinishedAt:      cloneOpenAIImageJobTime(job.FinishedAt),
 	}
-	if job.Status == OpenAIImageJobStatusCompleted && len(job.ResponseBody) > 0 {
+	if job.Status == OpenAIImageJobStatusCompleted {
+		if job.ResultExpiresAt == nil || !job.ResultExpiresAt.After(now) || len(job.ResponseBody) == 0 {
+			public.Status = OpenAIImageJobStatusFailed
+			public.Error = &OpenAIImageJobPublicError{
+				Code:    "result_expired",
+				Message: "image generation result has expired",
+			}
+			return public
+		}
 		public.Result = append(json.RawMessage(nil), job.ResponseBody...)
 	}
 	if job.Status == OpenAIImageJobStatusFailed {

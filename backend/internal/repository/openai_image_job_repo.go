@@ -72,9 +72,7 @@ func (r *openAIImageJobRepository) CreateOrGet(ctx context.Context, params servi
 		}
 		params.JobID = jobID
 	}
-	if params.RequestHash == "" {
-		params.RequestHash = service.HashOpenAIImageJobRequest(params.Endpoint, params.ContentType, params.RequestBody)
-	}
+	params.RequestHash = service.HashOpenAIImageJobRequest(params.Endpoint, params.ContentType, params.RequestBody)
 
 	query := `
 		INSERT INTO openai_image_jobs (
@@ -122,7 +120,7 @@ func (r *openAIImageJobRepository) CreateOrGet(ctx context.Context, params servi
 }
 
 func (r *openAIImageJobRepository) GetForUser(ctx context.Context, userID int64, jobID string) (*service.OpenAIImageJob, error) {
-	query := `SELECT ` + openAIImageJobColumnList("") + `
+	query := `SELECT ` + openAIImageJobStatusColumnList("") + `
 		FROM openai_image_jobs
 		WHERE user_id = $1 AND job_id = $2`
 	job, err := scanOpenAIImageJob(r.db.QueryRowContext(ctx, query, userID, jobID))
@@ -133,7 +131,7 @@ func (r *openAIImageJobRepository) GetForUser(ctx context.Context, userID int64,
 }
 
 func (r *openAIImageJobRepository) getByIdempotencyKeyHash(ctx context.Context, userID int64, idempotencyKeyHash string) (*service.OpenAIImageJob, error) {
-	query := `SELECT ` + openAIImageJobColumnList("") + `
+	query := `SELECT ` + openAIImageJobStatusColumnList("") + `
 		FROM openai_image_jobs
 		WHERE user_id = $1 AND idempotency_key_hash = $2`
 	job, err := scanOpenAIImageJob(r.db.QueryRowContext(ctx, query, userID, idempotencyKeyHash))
@@ -294,7 +292,7 @@ func (r *openAIImageJobRepository) CancelForUser(ctx context.Context, userID int
 				ELSE version
 			END
 		WHERE user_id = $1 AND job_id = $2
-		RETURNING ` + openAIImageJobColumnList("")
+		RETURNING ` + openAIImageJobStatusColumnList("")
 	job, err := scanOpenAIImageJob(r.db.QueryRowContext(ctx, query, userID, jobID))
 	if err != nil {
 		return nil, translatePersistenceError(err, service.ErrOpenAIImageJobNotFound, nil)
@@ -356,62 +354,133 @@ func (r *openAIImageJobRepository) FailExpiredLeases(ctx context.Context, cutoff
 	return result.RowsAffected()
 }
 
-func (r *openAIImageJobRepository) PurgeExpiredPayloads(ctx context.Context, now, recordCutoff time.Time) (payloads int64, records int64, err error) {
+func (r *openAIImageJobRepository) PurgeExpiredPayloads(ctx context.Context, params service.OpenAIImageJobCleanupParams) (service.OpenAIImageJobCleanupResult, error) {
+	limit := normalizeOpenAIImageJobCleanupBatchLimit(params.BatchLimit)
+
 	tx, err := r.db.BeginTx(ctx, nil)
 	if err != nil {
-		return 0, 0, err
+		return service.OpenAIImageJobCleanupResult{}, err
 	}
 	defer func() { _ = tx.Rollback() }()
 
+	var result service.OpenAIImageJobCleanupResult
+	queuedResult, err := tx.ExecContext(ctx, `
+		WITH expired_queued AS (
+			SELECT id
+			FROM openai_image_jobs
+			WHERE status = $1
+				AND created_at < $2
+			ORDER BY created_at ASC, id ASC
+			LIMIT $3
+			FOR UPDATE SKIP LOCKED
+		)
+		UPDATE openai_image_jobs AS jobs
+		SET status = $4,
+			error_code = $5,
+			error_message = $6,
+			failure_unknown = FALSE,
+			request_body = NULL,
+			worker_id = NULL,
+			lease_expires_at = NULL,
+			finished_at = CURRENT_TIMESTAMP,
+			updated_at = CURRENT_TIMESTAMP,
+			version = version + 1
+		FROM expired_queued
+		WHERE jobs.id = expired_queued.id`,
+		service.OpenAIImageJobStatusQueued,
+		params.QueuedCutoff,
+		limit,
+		service.OpenAIImageJobStatusFailed,
+		"queue_expired",
+		"image generation job expired before execution",
+	)
+	if err != nil {
+		return service.OpenAIImageJobCleanupResult{}, err
+	}
+	result.Queued, err = queuedResult.RowsAffected()
+	if err != nil {
+		return service.OpenAIImageJobCleanupResult{}, err
+	}
+
 	payloadResult, err := tx.ExecContext(ctx, `
-		UPDATE openai_image_jobs
+		WITH expired_payloads AS (
+			SELECT id
+			FROM openai_image_jobs
+			WHERE status IN ('completed', 'failed', 'cancelled')
+				AND (
+					request_body IS NOT NULL
+					OR (
+						response_body IS NOT NULL
+						AND result_expires_at IS NOT NULL
+						AND result_expires_at <= $1
+					)
+					OR (
+						response_body IS NOT NULL
+						AND result_expires_at IS NULL
+						AND finished_at IS NOT NULL
+						AND finished_at < $2
+					)
+				)
+			ORDER BY COALESCE(finished_at, created_at) ASC, id ASC
+			LIMIT $3
+			FOR UPDATE SKIP LOCKED
+		)
+		UPDATE openai_image_jobs AS jobs
 		SET request_body = NULL,
 			response_body = CASE
-				WHEN result_expires_at IS NOT NULL AND result_expires_at <= $1 THEN NULL
-				WHEN result_expires_at IS NULL AND finished_at IS NOT NULL AND finished_at < $2 THEN NULL
-				ELSE response_body
+				WHEN jobs.result_expires_at IS NOT NULL AND jobs.result_expires_at <= $1 THEN NULL
+				WHEN jobs.result_expires_at IS NULL AND jobs.finished_at IS NOT NULL AND jobs.finished_at < $2 THEN NULL
+				ELSE jobs.response_body
 			END
-		WHERE status IN ('completed', 'failed', 'cancelled')
-			AND (
-				request_body IS NOT NULL
-				OR (
-					response_body IS NOT NULL
-					AND result_expires_at IS NOT NULL
-					AND result_expires_at <= $1
-				)
-				OR (
-					response_body IS NOT NULL
-					AND result_expires_at IS NULL
-					AND finished_at IS NOT NULL
-					AND finished_at < $2
-				)
-			)`, now, recordCutoff)
+		FROM expired_payloads
+		WHERE jobs.id = expired_payloads.id`, params.Now, params.RecordCutoff, limit)
 	if err != nil {
-		return 0, 0, err
+		return service.OpenAIImageJobCleanupResult{}, err
 	}
-	payloads, err = payloadResult.RowsAffected()
+	result.Payloads, err = payloadResult.RowsAffected()
 	if err != nil {
-		return 0, 0, err
+		return service.OpenAIImageJobCleanupResult{}, err
 	}
 
 	recordResult, err := tx.ExecContext(ctx, `
-		DELETE FROM openai_image_jobs
-		WHERE status IN ('completed', 'failed', 'cancelled')
-			AND finished_at IS NOT NULL
-			AND finished_at < $1
-			AND request_body IS NULL
-			AND response_body IS NULL`, recordCutoff)
+		WITH expired_records AS (
+			SELECT id
+			FROM openai_image_jobs
+			WHERE status IN ('completed', 'failed', 'cancelled')
+				AND finished_at IS NOT NULL
+				AND finished_at < $1
+				AND request_body IS NULL
+				AND response_body IS NULL
+			ORDER BY finished_at ASC, id ASC
+			LIMIT $2
+			FOR UPDATE SKIP LOCKED
+		)
+		DELETE FROM openai_image_jobs AS jobs
+		USING expired_records
+		WHERE jobs.id = expired_records.id
+			AND jobs.request_body IS NULL
+			AND jobs.response_body IS NULL`, params.RecordCutoff, limit)
 	if err != nil {
-		return 0, 0, err
+		return service.OpenAIImageJobCleanupResult{}, err
 	}
-	records, err = recordResult.RowsAffected()
+	result.Records, err = recordResult.RowsAffected()
 	if err != nil {
-		return 0, 0, err
+		return service.OpenAIImageJobCleanupResult{}, err
 	}
 	if err := tx.Commit(); err != nil {
-		return 0, 0, err
+		return service.OpenAIImageJobCleanupResult{}, err
 	}
-	return payloads, records, nil
+	return result, nil
+}
+
+func normalizeOpenAIImageJobCleanupBatchLimit(limit int) int {
+	if limit <= 0 {
+		return service.DefaultOpenAIImageJobCleanupBatchLimit
+	}
+	if limit > service.MaxOpenAIImageJobCleanupBatchLimit {
+		return service.MaxOpenAIImageJobCleanupBatchLimit
+	}
+	return limit
 }
 
 func openAIImageJobColumnList(alias string) string {
@@ -423,6 +492,34 @@ func openAIImageJobColumnList(alias string) string {
 		qualified = append(qualified, alias+"."+column)
 	}
 	return strings.Join(qualified, ", ")
+}
+
+// openAIImageJobStatusColumnList is the only projection suitable for public
+// status and cancellation lookups. It never moves request bytes out of
+// PostgreSQL and only returns result bytes for completed rows.
+func openAIImageJobStatusColumnList(alias string) string {
+	qualifiedColumn := func(column string) string {
+		if alias == "" {
+			return column
+		}
+		return alias + "." + column
+	}
+	columns := make([]string, 0, len(openAIImageJobColumns))
+	for _, column := range openAIImageJobColumns {
+		switch column {
+		case "request_body":
+			columns = append(columns, "NULL::bytea AS request_body")
+		case "response_body":
+			columns = append(columns, fmt.Sprintf(
+				"CASE WHEN %s = 'completed' THEN %s ELSE NULL::bytea END AS response_body",
+				qualifiedColumn("status"),
+				qualifiedColumn("response_body"),
+			))
+		default:
+			columns = append(columns, qualifiedColumn(column))
+		}
+	}
+	return strings.Join(columns, ", ")
 }
 
 type openAIImageJobScanner interface {
