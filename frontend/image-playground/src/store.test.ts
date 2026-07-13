@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { strToU8, zipSync } from 'fflate'
 import { DEFAULT_PARAMS } from './types'
 import { createDefaultFalProfile, createDefaultOpenAIProfile, DEFAULT_RESPONSES_MODEL, DEFAULT_SETTINGS, normalizeSettings } from './lib/apiProfiles'
@@ -96,6 +96,13 @@ vi.mock('./lib/openaiCompatibleImageApi', async (importOriginal) => {
     })),
   }
 })
+vi.mock('./lib/sub2apiImageJobApi', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('./lib/sub2apiImageJobApi')>()
+  return {
+    ...actual,
+    cancelSub2APIImageJob: vi.fn(),
+  }
+})
 vi.mock('./lib/falAiImageApi', () => ({
   getFalErrorMessage: vi.fn((err: unknown) => err instanceof Error ? err.message : String(err)),
   getFalQueuedImageResult: vi.fn(async () => ({
@@ -144,10 +151,11 @@ import { clearAgentConversations, clearImages, clearTasks, getAllAgentConversati
 import { callAgentResponsesApi, callBatchImageSingle } from './lib/agentApi'
 import { getFalQueuedImageResult } from './lib/falAiImageApi'
 import { getCustomQueuedImageResult } from './lib/openaiCompatibleImageApi'
+import { cancelSub2APIImageJob } from './lib/sub2apiImageJobApi'
 import { callImageApi } from './lib/api'
 import { removeKeyedBackgroundFromDataUrl } from './lib/transparentImage'
 import { activateManagedConfig, clearManagedConfig } from './lib/managedMode'
-import { addImageFromUrl, cleanStaleAgentInputDrafts, clearFailedTasks, createInputImageFromFile, deleteAgentRoundFromConversation, deleteFavoriteCollection, editOutputs, getActiveAgentRounds, getAgentConversationTaskIds, getAgentRoundTaskIds, getCodexCliPromptKey, getErrorToastMessage, getPersistedState, getTaskApiProfile, importData, initStore, markInterruptedOpenAIRunningTasks, migratePersistedState, regenerateAgentAssistantMessage, remapAgentRoundMentionsForPathChange, removeTask, reuseConfig, stopAgentResponse, submitAgentMessage, submitTask, taskMatchesFilterStatus, taskMatchesSearchQuery, useStore } from './store'
+import { addImageFromUrl, cancelManagedImageTask, cleanStaleAgentInputDrafts, clearData, clearFailedTasks, createInputImageFromFile, deleteAgentRoundFromConversation, deleteFavoriteCollection, editOutputs, getActiveAgentRounds, getAgentConversationTaskIds, getAgentRoundTaskIds, getCodexCliPromptKey, getErrorToastMessage, getPersistedState, getTaskApiProfile, importData, initStore, markInterruptedOpenAIRunningTasks, migratePersistedState, regenerateAgentAssistantMessage, remapAgentRoundMentionsForPathChange, removeTask, retryTask, reuseConfig, stopAgentResponse, submitAgentMessage, submitTask, taskMatchesFilterStatus, taskMatchesSearchQuery, useStore } from './store'
 
 const imageA = { id: 'image-a', dataUrl: 'data:image/png;base64,a' }
 const imageB = { id: 'image-b', dataUrl: 'data:image/png;base64,b' }
@@ -267,6 +275,21 @@ function customAsyncSettings(apiKey = 'async-key') {
   })
 }
 
+function managedAsyncSettings(apiKey = 'managed-key') {
+  clearManagedConfig()
+  return activateManagedConfig({
+    apiKey,
+    apiKeyId: 7,
+    apiKeyName: 'Managed image key',
+    storageScope: '42',
+    baseUrl: '/v1',
+    profiles: [
+      { id: 'images', name: 'Images', apiMode: 'images', model: 'gpt-image-2' },
+      { id: 'responses', name: 'Responses', apiMode: 'responses', model: DEFAULT_RESPONSES_MODEL },
+    ],
+  }, DEFAULT_SETTINGS)
+}
+
 function importFile(data: ExportData): File {
   const zipped = zipSync({ 'manifest.json': strToU8(JSON.stringify(data)) })
   const buffer = zipped.buffer.slice(zipped.byteOffset, zipped.byteOffset + zipped.byteLength)
@@ -280,6 +303,7 @@ describe('favorite collection deletion', () => {
   beforeEach(async () => {
     await clearTasks()
     await clearImages()
+    await clearAgentConversations()
     useStore.setState({
       tasks: [],
       favoriteCollections: [collectionA, collectionB],
@@ -685,6 +709,22 @@ describe('custom async task submission and recovery', () => {
     })
   })
 
+  it('keeps an idempotent submission pending when the server outcome is ambiguous', async () => {
+    const ambiguous = Object.assign(new Error('upstream returned an unusable response'), {
+      customSubmissionOutcomeUnknown: true,
+    })
+    vi.mocked(callImageApi).mockRejectedValueOnce(ambiguous)
+
+    await submitTask()
+    await vi.waitFor(() => expect(useStore.getState().tasks[0]?.status).toBe('error'))
+
+    expect(useStore.getState().tasks[0]).toMatchObject({
+      customSubmissionPending: true,
+      customRecoverable: true,
+      error: '异步任务提交响应丢失，之后会使用同一幂等键安全重试。',
+    })
+  })
+
   it('returns an awaited persistence promise when the server task id is received', async () => {
     vi.mocked(callImageApi).mockImplementationOnce(async (opts) => {
       const persistence = opts.onCustomTaskEnqueued?.({ taskId: 'imgjob_0123456789abcdef0123456789abcdef' })
@@ -749,6 +789,46 @@ describe('custom async task submission and recovery', () => {
       customSubmissionPending: false,
       status: 'done',
     })
+  })
+
+  it('resubmits with the original task model after the profile model changes', async () => {
+    const pendingTask = task({
+      id: 'local-original-model',
+      apiProvider: 'custom-async',
+      apiProfileId: 'async-images',
+      apiProfileName: 'Async Images',
+      apiMode: 'images',
+      apiModel: 'original-image-model',
+      status: 'running',
+      customSubmissionPending: true,
+      customTaskId: undefined,
+      createdAt: Date.now(),
+      finishedAt: null,
+      elapsed: null,
+    })
+    await putDbTask(pendingTask)
+    const changedSettings = customAsyncSettings('replacement-key')
+    useStore.setState({
+      settings: normalizeSettings({
+        ...changedSettings,
+        profiles: changedSettings.profiles.map((profile) => ({ ...profile, model: 'changed-image-model' })),
+      }),
+    })
+    vi.mocked(callImageApi).mockImplementationOnce(async (opts) => {
+      const profile = opts.settings.profiles.find((item) => item.id === pendingTask.apiProfileId)
+      expect(profile).toMatchObject({ model: 'original-image-model', apiKey: 'replacement-key' })
+      await opts.onCustomTaskEnqueued?.({ taskId: 'imgjob_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa' })
+      return {
+        images: ['data:image/png;base64,recovered'],
+        actualParams: {},
+        actualParamsList: [{}],
+        revisedPrompts: [],
+      }
+    })
+
+    await initStore()
+    await vi.waitFor(() => expect(callImageApi).toHaveBeenCalledOnce())
+    await vi.waitFor(() => expect(useStore.getState().tasks.find((item) => item.id === pendingTask.id)?.status).toBe('done'))
   })
 
   it('resumes polling an existing job with a newly selected key for the same profile', async () => {
@@ -920,7 +1000,9 @@ describe('custom async task submission and recovery', () => {
           outputItems: [{ type: 'message', content: [{ type: 'output_text', text: '恢复完成' }] }],
           responseId: 'response-recovery-2',
         })
-      vi.mocked(callImageApi).mockRejectedValueOnce(new TypeError('Failed to fetch'))
+      vi.mocked(callImageApi).mockRejectedValueOnce(Object.assign(new Error('bad gateway'), {
+        customSubmissionOutcomeUnknown: true as const,
+      }))
 
       await submitAgentMessage()
       await vi.advanceTimersByTimeAsync(0)
@@ -958,6 +1040,103 @@ describe('custom async task submission and recovery', () => {
         error: null,
         responseId: 'response-recovery-2',
       })
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('preserves and cancels a managed Agent submission stopped before its server id arrives', async () => {
+    const managedSettings = managedAsyncSettings()
+    const textProfile = managedSettings.profiles.find((profile) => profile.apiMode === 'responses')!
+    const imageProfile = managedSettings.profiles.find((profile) => profile.apiMode === 'images')!
+    useStore.setState({
+      settings: normalizeSettings({
+        ...managedSettings,
+        activeProfileId: textProfile.id,
+        agentApiConfigMode: 'hybrid',
+        agentTextProfileId: textProfile.id,
+        agentImageProfileId: imageProfile.id,
+      }),
+      appMode: 'agent',
+      prompt: '画一只猫',
+      agentConversations: [agentConversation({ id: 'conversation-stop-before-id' })],
+      activeAgentConversationId: 'conversation-stop-before-id',
+    })
+    vi.mocked(callAgentResponsesApi).mockReset()
+    vi.mocked(callAgentResponsesApi).mockResolvedValueOnce({
+      text: '',
+      images: [],
+      outputItems: [{
+        type: 'function_call',
+        name: 'generate_image',
+        call_id: 'tool-stop-before-id',
+        arguments: JSON.stringify({ id: 'cat', prompt: '画一只猫' }),
+      }],
+      responseId: 'response-stop-before-id',
+    })
+    let releaseSubmission!: () => void
+    vi.mocked(callImageApi).mockImplementationOnce(async (opts) => {
+      await new Promise<void>((resolve) => { releaseSubmission = resolve })
+      await opts.onCustomTaskEnqueued?.({ taskId: 'imgjob_66666666666666666666666666666666' })
+      throw new DOMException('Agent stopped', 'AbortError')
+    })
+    vi.mocked(cancelSub2APIImageJob).mockReset()
+    vi.mocked(cancelSub2APIImageJob).mockResolvedValueOnce({
+      id: 'imgjob_66666666666666666666666666666666',
+      status: 'running',
+      cancel_requested: true,
+    })
+    vi.mocked(getCustomQueuedImageResult).mockRejectedValueOnce(new Error('已取消生成。'))
+
+    const submission = submitAgentMessage()
+    await vi.waitFor(() => expect(callImageApi).toHaveBeenCalledOnce())
+    const pendingTask = useStore.getState().tasks.find((item) => item.agentToolCallId === 'tool-stop-before-id')
+    expect(pendingTask).toMatchObject({ status: 'running', customSubmissionPending: true })
+
+    stopAgentResponse('conversation-stop-before-id')
+    expect(useStore.getState().tasks.find((item) => item.id === pendingTask?.id)).toMatchObject({
+      status: 'running',
+      customSubmissionPending: true,
+    })
+
+    releaseSubmission()
+    await submission
+    await vi.waitFor(() => expect(cancelSub2APIImageJob).toHaveBeenCalledWith(
+      'managed-key',
+      'imgjob_66666666666666666666666666666666',
+    ))
+    await vi.waitFor(() => expect(getCustomQueuedImageResult).toHaveBeenCalled())
+    await vi.waitFor(() => expect(useStore.getState().tasks.find((item) => item.id === pendingTask?.id)).toMatchObject({
+      status: 'error',
+      error: '已取消生成。',
+      customSubmissionPending: false,
+    }))
+  })
+
+  it('marks a retried managed task as safely resubmittable before its first request', async () => {
+    vi.useFakeTimers()
+    try {
+      const original = task({ id: 'failed-original', status: 'error', error: 'failed' })
+      useStore.setState({ settings: customAsyncSettings(), tasks: [original] })
+      let persistedBeforeRequest: TaskRecord | undefined
+      vi.mocked(callImageApi).mockImplementationOnce(async (opts) => {
+        persistedBeforeRequest = (await getAllTasks()).find((item) => item.id === opts.taskId)
+        throw Object.assign(new Error('truncated accepted response'), {
+          customSubmissionOutcomeUnknown: true as const,
+        })
+      })
+
+      await retryTask(original)
+      const retried = useStore.getState().tasks.find((item) => item.id !== original.id)
+      expect(persistedBeforeRequest).toMatchObject({ status: 'running', customSubmissionPending: true })
+
+      await vi.advanceTimersByTimeAsync(0)
+      expect(useStore.getState().tasks.find((item) => item.id === retried?.id)).toMatchObject({
+        status: 'error',
+        customSubmissionPending: true,
+        customRecoverable: true,
+      })
+      expect(callImageApi).toHaveBeenCalledWith(expect.objectContaining({ taskId: retried?.id }))
     } finally {
       vi.useRealTimers()
     }
@@ -1766,6 +1945,638 @@ describe('fal task recovery', () => {
       status: 'error',
       error: '已停止生成。',
     })
+  })
+})
+
+describe('managed Sub2API image job cancellation', () => {
+  const jobId = 'imgjob_0123456789abcdef0123456789abcdef'
+
+  beforeEach(async () => {
+    await clearTasks()
+    await clearImages()
+    await clearAgentConversations()
+    vi.mocked(cancelSub2APIImageJob).mockReset()
+    vi.mocked(getCustomQueuedImageResult).mockReset()
+    useStore.setState({
+      tasks: [],
+      settings: managedAsyncSettings(),
+      agentConversations: [],
+      activeAgentConversationId: null,
+      showToast: vi.fn(),
+    })
+  })
+
+  afterEach(() => {
+    clearManagedConfig()
+  })
+
+  const installManagedAgentTask = (overrides: Partial<TaskRecord> = {}) => {
+    const agentTask = task({
+      id: 'managed-agent-task',
+      apiProvider: 'sub2api-async',
+      apiProfileId: 'images',
+      status: 'running',
+      customTaskId: jobId,
+      sourceMode: 'agent',
+      agentConversationId: 'conversation-a',
+      agentRoundId: 'round-a',
+      finishedAt: null,
+      elapsed: null,
+      ...overrides,
+    })
+    useStore.setState({
+      tasks: [agentTask],
+      activeAgentConversationId: 'conversation-a',
+      agentConversations: [agentConversation({
+        id: 'conversation-a',
+        activeRoundId: 'round-a',
+        rounds: [{
+          id: 'round-a',
+          index: 1,
+          parentRoundId: null,
+          userMessageId: 'user-a',
+          assistantMessageId: 'assistant-a',
+          prompt: '画一只猫',
+          inputImageIds: [],
+          outputTaskIds: [agentTask.id],
+          status: 'running',
+          error: null,
+          createdAt: 1,
+          finishedAt: null,
+        }],
+        messages: [
+          { id: 'user-a', role: 'user', content: '画一只猫', roundId: 'round-a', createdAt: 1 },
+          { id: 'assistant-a', role: 'assistant', content: '', roundId: 'round-a', outputTaskIds: [agentTask.id], createdAt: 2 },
+        ],
+      })],
+    })
+    return agentTask
+  }
+
+  it('persists an explicit cancelled terminal state', async () => {
+    const runningTask = task({
+      id: 'managed-running',
+      apiProvider: 'sub2api-async',
+      apiProfileId: 'images',
+      status: 'running',
+      customTaskId: jobId,
+      finishedAt: null,
+      elapsed: null,
+      createdAt: Date.now() - 100,
+    })
+    await putDbTask(runningTask)
+    useStore.setState({ tasks: [runningTask] })
+    vi.mocked(cancelSub2APIImageJob).mockResolvedValueOnce({
+      id: jobId,
+      status: 'cancelled',
+      cancel_requested: true,
+    })
+
+    await expect(cancelManagedImageTask(runningTask.id)).resolves.toBe('cancelled')
+
+    expect(cancelSub2APIImageJob).toHaveBeenCalledWith('managed-key', jobId)
+    expect(useStore.getState().tasks[0]).toMatchObject({
+      status: 'error',
+      error: '已取消生成。',
+      customCancelRequested: false,
+      customRecoverable: false,
+    })
+    expect((await getAllTasks())[0]).toMatchObject({ status: 'error', error: '已取消生成。' })
+  })
+
+  it('keeps polling after a running cancellation acknowledgement', async () => {
+    const runningTask = task({
+      id: 'managed-cancelling',
+      apiProvider: 'sub2api-async',
+      apiProfileId: 'images',
+      status: 'running',
+      customTaskId: jobId,
+      finishedAt: null,
+      elapsed: null,
+    })
+    useStore.setState({ tasks: [runningTask] })
+    vi.mocked(cancelSub2APIImageJob).mockResolvedValueOnce({
+      id: jobId,
+      status: 'running',
+      cancel_requested: true,
+    })
+
+    await expect(cancelManagedImageTask(runningTask.id)).resolves.toBe('running')
+
+    expect(useStore.getState().tasks[0]).toMatchObject({
+      status: 'running',
+      customCancelRequested: true,
+    })
+  })
+
+  it('lets a completed cancellation race recover and retain the image', async () => {
+    const runningTask = task({
+      id: 'managed-completed-race',
+      apiProvider: 'sub2api-async',
+      apiProfileId: 'images',
+      status: 'running',
+      customTaskId: jobId,
+      finishedAt: null,
+      elapsed: null,
+    })
+    useStore.setState({ tasks: [runningTask] })
+    vi.mocked(cancelSub2APIImageJob).mockResolvedValueOnce({
+      id: jobId,
+      status: 'completed',
+      result: { data: [{ b64_json: 'aW1hZ2U=' }] },
+    })
+    vi.mocked(getCustomQueuedImageResult).mockResolvedValueOnce({
+      images: ['data:image/png;base64,completed-race'],
+      actualParams: {},
+      actualParamsList: [{}],
+      revisedPrompts: [],
+    })
+
+    await expect(cancelManagedImageTask(runningTask.id)).resolves.toBe('completed')
+    await vi.waitFor(() => expect(useStore.getState().tasks[0]?.status).toBe('done'))
+
+    expect(useStore.getState().tasks[0].outputImages).toHaveLength(1)
+  })
+
+  it('propagates Agent stop to the durable server job while waiting for its terminal state', async () => {
+    const agentTask = task({
+      id: 'managed-agent-task',
+      apiProvider: 'sub2api-async',
+      apiProfileId: 'images',
+      status: 'running',
+      customTaskId: jobId,
+      sourceMode: 'agent',
+      agentConversationId: 'conversation-a',
+      agentRoundId: 'round-a',
+      finishedAt: null,
+      elapsed: null,
+    })
+    useStore.setState({
+      tasks: [agentTask],
+      activeAgentConversationId: 'conversation-a',
+      agentConversations: [agentConversation({
+        id: 'conversation-a',
+        activeRoundId: 'round-a',
+        rounds: [{
+          id: 'round-a',
+          index: 1,
+          parentRoundId: null,
+          userMessageId: 'user-a',
+          assistantMessageId: 'assistant-a',
+          prompt: '画一只猫',
+          inputImageIds: [],
+          outputTaskIds: [agentTask.id],
+          status: 'running',
+          error: null,
+          createdAt: 1,
+          finishedAt: null,
+        }],
+        messages: [
+          { id: 'user-a', role: 'user', content: '画一只猫', roundId: 'round-a', createdAt: 1 },
+          { id: 'assistant-a', role: 'assistant', content: '', roundId: 'round-a', outputTaskIds: [agentTask.id], createdAt: 2 },
+        ],
+      })],
+    })
+    vi.mocked(cancelSub2APIImageJob).mockResolvedValueOnce({
+      id: jobId,
+      status: 'running',
+      cancel_requested: true,
+    })
+    vi.mocked(getCustomQueuedImageResult).mockImplementationOnce(() => new Promise(() => {}))
+
+    stopAgentResponse('conversation-a')
+    await vi.waitFor(() => expect(cancelSub2APIImageJob).toHaveBeenCalledWith('managed-key', jobId))
+    await vi.waitFor(() => expect(useStore.getState().tasks[0]?.customCancelRequested).toBe(true))
+
+    expect(useStore.getState().agentConversations[0].rounds[0]).toMatchObject({
+      status: 'error',
+      error: '已停止生成。',
+    })
+    expect(useStore.getState().tasks[0]).toMatchObject({
+      status: 'running',
+      customCancelRequested: true,
+    })
+  })
+
+  it('keeps polling an Agent job after stop until cancellation is terminal', async () => {
+    installManagedAgentTask({ id: 'managed-agent-cancelled' })
+    vi.mocked(cancelSub2APIImageJob).mockResolvedValueOnce({
+      id: jobId,
+      status: 'running',
+      cancel_requested: true,
+    })
+    vi.mocked(getCustomQueuedImageResult).mockRejectedValueOnce(new Error('已取消生成。'))
+
+    stopAgentResponse('conversation-a')
+
+    await vi.waitFor(() => expect(useStore.getState().tasks[0]).toMatchObject({
+      status: 'error',
+      error: '已取消生成。',
+      customCancelRequested: false,
+    }))
+    expect(useStore.getState().agentConversations[0].rounds[0]).toMatchObject({
+      status: 'error',
+      error: '已停止生成。',
+    })
+  })
+
+  it('lets verified completion win after an Agent stop cancellation race', async () => {
+    installManagedAgentTask({ id: 'managed-agent-completed' })
+    vi.mocked(cancelSub2APIImageJob).mockResolvedValueOnce({
+      id: jobId,
+      status: 'running',
+      cancel_requested: true,
+    })
+    vi.mocked(getCustomQueuedImageResult).mockResolvedValueOnce({
+      images: ['data:image/png;base64,completed-after-stop'],
+      actualParams: {},
+      actualParamsList: [{}],
+      revisedPrompts: [],
+    })
+
+    stopAgentResponse('conversation-a')
+
+    await vi.waitFor(() => expect(useStore.getState().tasks[0]).toMatchObject({
+      status: 'done',
+      customCancelRequested: false,
+    }))
+    expect(useStore.getState().tasks[0].outputImages).toHaveLength(1)
+    expect(useStore.getState().agentConversations[0].rounds[0]).toMatchObject({
+      status: 'error',
+      error: '已停止生成。',
+    })
+  })
+
+  it('retries an Agent stop cancellation after an ambiguous network failure', async () => {
+    vi.useFakeTimers()
+    try {
+      installManagedAgentTask({ id: 'managed-agent-cancel-retry' })
+      vi.mocked(cancelSub2APIImageJob)
+        .mockRejectedValueOnce(new TypeError('Failed to fetch'))
+        .mockResolvedValueOnce({
+          id: jobId,
+          status: 'cancelled',
+          cancel_requested: true,
+        })
+
+      stopAgentResponse('conversation-a')
+      await vi.advanceTimersByTimeAsync(0)
+      expect(cancelSub2APIImageJob).toHaveBeenCalledTimes(1)
+      expect(useStore.getState().tasks[0]).toMatchObject({
+        status: 'running',
+        customCancelPending: true,
+      })
+
+      await vi.advanceTimersByTimeAsync(10_000)
+      await vi.advanceTimersByTimeAsync(0)
+
+      expect(cancelSub2APIImageJob).toHaveBeenCalledTimes(2)
+      expect(useStore.getState().tasks[0]).toMatchObject({
+        status: 'error',
+        error: '已取消生成。',
+        customCancelPending: false,
+        customCancelRequested: false,
+      })
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('keeps retrying a durable cancellation intent across repeated offline failures', async () => {
+    vi.useFakeTimers()
+    try {
+      installManagedAgentTask({ id: 'managed-agent-cancel-retry-offline' })
+      vi.mocked(cancelSub2APIImageJob)
+        .mockRejectedValueOnce(new TypeError('Failed to fetch'))
+        .mockRejectedValueOnce(new TypeError('Failed to fetch'))
+        .mockResolvedValueOnce({
+          id: jobId,
+          status: 'cancelled',
+          cancel_requested: true,
+        })
+
+      stopAgentResponse('conversation-a')
+      await vi.advanceTimersByTimeAsync(0)
+      expect(cancelSub2APIImageJob).toHaveBeenCalledTimes(1)
+      expect(useStore.getState().tasks[0]).toMatchObject({
+        status: 'running',
+        customCancelPending: true,
+      })
+
+      await vi.advanceTimersByTimeAsync(10_000)
+      await vi.advanceTimersByTimeAsync(0)
+      expect(cancelSub2APIImageJob).toHaveBeenCalledTimes(2)
+      expect(useStore.getState().tasks[0]).toMatchObject({
+        status: 'running',
+        customCancelPending: true,
+      })
+
+      await vi.advanceTimersByTimeAsync(10_000)
+      await vi.advanceTimersByTimeAsync(0)
+      expect(cancelSub2APIImageJob).toHaveBeenCalledTimes(3)
+      expect(useStore.getState().tasks[0]).toMatchObject({
+        status: 'error',
+        error: '已取消生成。',
+        customCancelPending: false,
+        customCancelRequested: false,
+      })
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('cancels a stopped Agent job when idempotent resubmission later obtains its server id', async () => {
+    const pendingTask = task({
+      id: 'managed-agent-resubmit-after-stop',
+      apiProvider: 'sub2api-async',
+      apiProfileId: 'images',
+      apiProfileName: 'Images',
+      apiMode: 'images',
+      apiModel: 'gpt-image-2',
+      status: 'running',
+      customSubmissionPending: true,
+      customCancelPending: true,
+      sourceMode: 'agent',
+      agentConversationId: 'conversation-resubmit-stop',
+      agentRoundId: 'round-resubmit-stop',
+      agentMessageId: 'assistant-resubmit-stop',
+      agentToolCallId: 'tool-resubmit-stop',
+      finishedAt: null,
+      elapsed: null,
+    })
+    const stoppedConversation = agentConversation({
+      id: 'conversation-resubmit-stop',
+      activeRoundId: 'round-resubmit-stop',
+      rounds: [{
+        id: 'round-resubmit-stop',
+        index: 1,
+        parentRoundId: null,
+        userMessageId: 'user-resubmit-stop',
+        assistantMessageId: 'assistant-resubmit-stop',
+        prompt: '画一只猫',
+        inputImageIds: [],
+        outputTaskIds: [pendingTask.id],
+        status: 'error',
+        error: '已停止生成。',
+        createdAt: 1,
+        finishedAt: 2,
+      }],
+      messages: [
+        { id: 'user-resubmit-stop', role: 'user', content: '画一只猫', roundId: 'round-resubmit-stop', createdAt: 1 },
+        { id: 'assistant-resubmit-stop', role: 'assistant', content: '已停止生成。', roundId: 'round-resubmit-stop', outputTaskIds: [pendingTask.id], createdAt: 2 },
+      ],
+    })
+    await putDbTask(pendingTask)
+    await putAgentConversation(stoppedConversation)
+    vi.mocked(callImageApi).mockReset()
+    vi.mocked(callImageApi).mockImplementationOnce(async (opts) => {
+      await opts.onCustomTaskEnqueued?.({ taskId: 'imgjob_77777777777777777777777777777777' })
+      return new Promise(() => {})
+    })
+    vi.mocked(cancelSub2APIImageJob).mockResolvedValueOnce({
+      id: 'imgjob_77777777777777777777777777777777',
+      status: 'running',
+      cancel_requested: true,
+    })
+    vi.mocked(getCustomQueuedImageResult).mockRejectedValueOnce(new Error('已取消生成。'))
+
+    await initStore()
+
+    await vi.waitFor(() => expect(cancelSub2APIImageJob).toHaveBeenCalledWith(
+      'managed-key',
+      'imgjob_77777777777777777777777777777777',
+    ))
+    await vi.waitFor(() => expect(useStore.getState().tasks.find((item) => item.id === pendingTask.id)).toMatchObject({
+      status: 'error',
+      error: '已取消生成。',
+      customSubmissionPending: false,
+      customCancelRequested: false,
+    }))
+  })
+
+  it('can cancel the server job before deleting a running local record', async () => {
+    const runningTask = task({
+      id: 'managed-delete',
+      apiProvider: 'sub2api-async',
+      apiProfileId: 'images',
+      status: 'running',
+      customTaskId: jobId,
+      finishedAt: null,
+      elapsed: null,
+    })
+    await putDbTask(runningTask)
+    useStore.setState({ tasks: [runningTask] })
+    vi.mocked(cancelSub2APIImageJob).mockResolvedValueOnce({
+      id: jobId,
+      status: 'running',
+      cancel_requested: true,
+    })
+
+    await removeTask(runningTask, { cancelServerJob: true })
+
+    expect(cancelSub2APIImageJob).toHaveBeenCalledWith('managed-key', jobId)
+    expect(useStore.getState().tasks).toHaveLength(0)
+    expect(await getAllTasks()).toHaveLength(0)
+  })
+
+  it('preserves tasks added while cancel-before-delete is waiting on the server', async () => {
+    const runningTask = task({
+      id: 'managed-delete-delayed',
+      apiProvider: 'sub2api-async',
+      apiProfileId: 'images',
+      status: 'running',
+      customTaskId: jobId,
+      finishedAt: null,
+      elapsed: null,
+    })
+    const existingTask = task({ id: 'existing-during-delete', prompt: 'old prompt' })
+    useStore.setState({ tasks: [runningTask, existingTask] })
+    let releaseCancel!: (value: { id: string; status: 'running'; cancel_requested: true }) => void
+    vi.mocked(cancelSub2APIImageJob).mockImplementationOnce(() => new Promise((resolve) => {
+      releaseCancel = resolve
+    }))
+
+    const deleting = removeTask(runningTask, { cancelServerJob: true })
+    await vi.waitFor(() => expect(cancelSub2APIImageJob).toHaveBeenCalledOnce())
+    const addedTask = task({ id: 'added-during-delete', prompt: 'new task' })
+    useStore.setState((state) => ({
+      tasks: [addedTask, ...state.tasks.map((item) => item.id === existingTask.id ? { ...item, prompt: 'updated prompt' } : item)],
+    }))
+
+    releaseCancel({ id: jobId, status: 'running', cancel_requested: true })
+    await expect(deleting).resolves.toBe(true)
+
+    expect(useStore.getState().tasks.map((item) => item.id)).toEqual([addedTask.id, existingTask.id])
+    expect(useStore.getState().tasks.find((item) => item.id === existingTask.id)?.prompt).toBe('updated prompt')
+  })
+
+  it('keeps the local record when cancel-before-delete cannot reach the server', async () => {
+    const runningTask = task({
+      id: 'managed-delete-failed',
+      apiProvider: 'sub2api-async',
+      apiProfileId: 'images',
+      status: 'running',
+      customTaskId: jobId,
+      finishedAt: null,
+      elapsed: null,
+    })
+    await putDbTask(runningTask)
+    useStore.setState({ tasks: [runningTask] })
+    vi.mocked(cancelSub2APIImageJob).mockRejectedValueOnce(new TypeError('Failed to fetch'))
+
+    await removeTask(runningTask, { cancelServerJob: true })
+
+    expect(useStore.getState().tasks).toEqual([runningTask])
+    expect(await getAllTasks()).toEqual([runningTask])
+    expect(useStore.getState().showToast).toHaveBeenCalledWith(
+      expect.stringContaining('取消服务端任务失败，未删除记录'),
+      'error',
+    )
+  })
+
+  it('keeps a submission-pending record until its server id can be cancelled', async () => {
+    const pendingTask = task({
+      id: 'managed-delete-pending',
+      apiProvider: 'sub2api-async',
+      apiProfileId: 'images',
+      status: 'running',
+      customSubmissionPending: true,
+      finishedAt: null,
+      elapsed: null,
+    })
+    await putDbTask(pendingTask)
+    useStore.setState({ tasks: [pendingTask] })
+
+    await removeTask(pendingTask, { cancelServerJob: true })
+
+    expect(cancelSub2APIImageJob).not.toHaveBeenCalled()
+    expect(useStore.getState().tasks).toHaveLength(1)
+    expect(useStore.getState().tasks[0]).toMatchObject({ id: pendingTask.id, customCancelPending: true })
+    expect(await getAllTasks()).toEqual([expect.objectContaining({ id: pendingTask.id, customCancelPending: true })])
+    expect(useStore.getState().showToast).toHaveBeenCalledWith(
+      expect.stringContaining('仍在提交中'),
+      'info',
+    )
+  })
+
+  it('honors a Gallery delete cancellation intent after resubmission obtains the server id', async () => {
+    const pendingTask = task({
+      id: 'managed-gallery-resubmit-cancel',
+      apiProvider: 'sub2api-async',
+      apiProfileId: 'images',
+      apiProfileName: 'Images',
+      apiMode: 'images',
+      apiModel: 'gpt-image-2',
+      status: 'error',
+      error: '异步任务提交响应丢失，之后会使用同一幂等键安全重试。',
+      customSubmissionPending: true,
+      customRecoverable: true,
+      customCancelPending: true,
+      finishedAt: Date.now(),
+      elapsed: 1,
+    })
+    await putDbTask(pendingTask)
+    useStore.setState({ tasks: [] })
+    vi.mocked(callImageApi).mockReset()
+    vi.mocked(callImageApi).mockImplementationOnce(async (opts) => {
+      await opts.onCustomTaskEnqueued?.({ taskId: 'imgjob_88888888888888888888888888888888' })
+      return new Promise(() => {})
+    })
+    vi.mocked(cancelSub2APIImageJob).mockResolvedValueOnce({
+      id: 'imgjob_88888888888888888888888888888888',
+      status: 'cancelled',
+      cancel_requested: true,
+    })
+
+    await initStore()
+
+    await vi.waitFor(() => expect(cancelSub2APIImageJob).toHaveBeenCalledWith(
+      'managed-key',
+      'imgjob_88888888888888888888888888888888',
+    ))
+    await vi.waitFor(() => expect(useStore.getState().tasks.find((item) => item.id === pendingTask.id)).toMatchObject({
+      status: 'error',
+      error: '已取消生成。',
+      customSubmissionPending: false,
+      customCancelPending: false,
+    }))
+  })
+
+  it('does not clear a recoverable failed record before its pending server job can be cancelled', async () => {
+    const pendingTask = task({
+      id: 'managed-clear-failed-pending',
+      apiProvider: 'sub2api-async',
+      apiProfileId: 'images',
+      status: 'error',
+      error: '异步任务提交响应丢失，之后会使用同一幂等键安全重试。',
+      customSubmissionPending: true,
+      customRecoverable: true,
+      finishedAt: Date.now(),
+      elapsed: 1,
+    })
+    await putDbTask(pendingTask)
+    useStore.setState({ tasks: [pendingTask] })
+
+    await clearFailedTasks([pendingTask.id])
+
+    expect(useStore.getState().tasks).toHaveLength(1)
+    expect(useStore.getState().tasks[0]).toMatchObject({
+      id: pendingTask.id,
+      customSubmissionPending: true,
+      customCancelPending: true,
+    })
+    expect(await getAllTasks()).toHaveLength(1)
+  })
+
+  it('cancels a durable job before deleting its last favorite collection task', async () => {
+    const collectionA = { id: 'managed-favorite-a', name: '收藏夹 A', createdAt: 1, updatedAt: 1 }
+    const collectionB = { id: 'managed-favorite-b', name: '收藏夹 B', createdAt: 2, updatedAt: 2 }
+    const runningTask = task({
+      id: 'managed-favorite-task',
+      apiProvider: 'sub2api-async',
+      apiProfileId: 'images',
+      status: 'running',
+      customTaskId: jobId,
+      isFavorite: true,
+      favoriteCollectionIds: [collectionA.id],
+      finishedAt: null,
+      elapsed: null,
+    })
+    await putDbTask(runningTask)
+    useStore.setState({
+      tasks: [runningTask],
+      favoriteCollections: [collectionA, collectionB],
+      defaultFavoriteCollectionId: collectionA.id,
+      activeFavoriteCollectionId: collectionA.id,
+    })
+    vi.mocked(cancelSub2APIImageJob).mockResolvedValueOnce({ id: jobId, status: 'running', cancel_requested: true })
+
+    await expect(deleteFavoriteCollection(collectionA.id, true)).resolves.toBe(true)
+
+    expect(cancelSub2APIImageJob).toHaveBeenCalledWith('managed-key', jobId)
+    expect(useStore.getState().tasks).toHaveLength(0)
+    expect(useStore.getState().favoriteCollections).toEqual([collectionB])
+  })
+
+  it('cancels durable jobs before clearing all local task data', async () => {
+    const runningTask = task({
+      id: 'managed-clear-data',
+      apiProvider: 'sub2api-async',
+      apiProfileId: 'images',
+      status: 'running',
+      customTaskId: jobId,
+      finishedAt: null,
+      elapsed: null,
+    })
+    await putDbTask(runningTask)
+    useStore.setState({ tasks: [runningTask] })
+    vi.mocked(cancelSub2APIImageJob).mockResolvedValueOnce({ id: jobId, status: 'running', cancel_requested: true })
+
+    await expect(clearData({ clearConfig: false, clearTasks: true })).resolves.toBe(true)
+
+    expect(cancelSub2APIImageJob).toHaveBeenCalledWith('managed-key', jobId)
+    expect(useStore.getState().tasks).toHaveLength(0)
+    expect(await getAllTasks()).toHaveLength(0)
   })
 })
 

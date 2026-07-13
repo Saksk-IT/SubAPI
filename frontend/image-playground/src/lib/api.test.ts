@@ -2,6 +2,43 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { DEFAULT_PARAMS } from '../types'
 import { DEFAULT_SETTINGS } from './apiProfiles'
 import { callImageApi } from './api'
+import { getCustomQueuedImageResult, isCustomSubmissionOutcomeUnknown } from './openaiCompatibleImageApi'
+
+function durableAsyncTestSettings() {
+  return {
+    ...DEFAULT_SETTINGS,
+    customProviders: [{
+      id: 'sub2api-async',
+      name: 'Sub2API Async',
+      template: 'http-image' as const,
+      submit: {
+        path: 'images/generations/jobs',
+        method: 'POST' as const,
+        contentType: 'json' as const,
+        body: { model: '$profile.model', prompt: '$prompt' },
+        taskIdPath: 'id',
+        useTaskIdAsIdempotencyKey: true,
+      },
+      poll: {
+        path: 'images/jobs/{task_id}',
+        method: 'GET' as const,
+        statusPath: 'status',
+        successValues: ['completed'],
+        failureValues: ['failed', 'cancelled'],
+        result: { b64JsonPaths: ['result.data.*.b64_json'] },
+      },
+    }],
+    profiles: [{
+      ...DEFAULT_SETTINGS.profiles[0],
+      id: 'managed-images',
+      provider: 'sub2api-async',
+      baseUrl: 'https://api.example.com/v1',
+      apiKey: 'test-key',
+      model: 'gpt-image-2',
+    }],
+    activeProfileId: 'managed-images',
+  }
+}
 
 describe('callImageApi', () => {
   afterEach(() => {
@@ -884,6 +921,99 @@ describe('callImageApi', () => {
       images: ['data:image/png;base64,aW1hZ2U='],
     })
     expect(fetchMock).toHaveBeenCalledTimes(3)
+  })
+
+  it('maps an explicit cancelled async job status to the cancellation message', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(new Response(JSON.stringify({
+      status: 'cancelled',
+    }), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json' },
+    }))
+
+    await expect(getCustomQueuedImageResult(
+      {
+        ...DEFAULT_SETTINGS.profiles[0],
+        id: 'managed-images',
+        provider: 'sub2api-async',
+        baseUrl: 'https://api.example.com/v1',
+        apiKey: 'test-key',
+      },
+      {
+        id: 'sub2api-async',
+        name: 'Sub2API Async',
+        template: 'http-image',
+        submit: { path: 'images/generations/jobs', taskIdPath: 'id' },
+        poll: {
+          path: 'images/jobs/{task_id}',
+          statusPath: 'status',
+          successValues: ['completed'],
+          failureValues: ['failed', 'cancelled'],
+          result: { b64JsonPaths: ['result.data.*.b64_json'] },
+        },
+      },
+      'imgjob_0123456789abcdef0123456789abcdef',
+      { ...DEFAULT_PARAMS },
+    )).rejects.toThrow('已取消生成。')
+  })
+
+  it.each([
+    {
+      name: 'a 502 response',
+      response: () => new Response(JSON.stringify({ error: { message: 'bad gateway' } }), {
+        status: 502,
+        headers: { 'Content-Type': 'application/json' },
+      }),
+    },
+    {
+      name: 'a truncated accepted response',
+      response: () => new Response('{', {
+        status: 202,
+        headers: { 'Content-Type': 'application/json' },
+      }),
+    },
+  ])('marks $name as an ambiguous idempotent submission outcome', async ({ response }) => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(response())
+
+    let caught: unknown
+    try {
+      await callImageApi({
+        settings: durableAsyncTestSettings(),
+        taskId: 'local-task-id',
+        prompt: 'prompt',
+        params: { ...DEFAULT_PARAMS },
+        inputImageDataUrls: [],
+      })
+    } catch (error) {
+      caught = error
+    }
+
+    expect(isCustomSubmissionOutcomeUnknown(caught)).toBe(true)
+  })
+
+  it('keeps a deterministic 4xx submission failure terminal', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(new Response(JSON.stringify({
+      error: { message: 'invalid prompt' },
+    }), {
+      status: 400,
+      headers: { 'Content-Type': 'application/json' },
+    }))
+
+    let caught: unknown
+    try {
+      await callImageApi({
+        settings: durableAsyncTestSettings(),
+        taskId: 'local-task-id',
+        prompt: 'prompt',
+        params: { ...DEFAULT_PARAMS },
+        inputImageDataUrls: [],
+      })
+    } catch (error) {
+      caught = error
+    }
+
+    expect(caught).toBeInstanceOf(Error)
+    expect(isCustomSubmissionOutcomeUnknown(caught)).toBe(false)
   })
 
   it('sends the local task id as Idempotency-Key only when the submit mapping explicitly opts in', async () => {

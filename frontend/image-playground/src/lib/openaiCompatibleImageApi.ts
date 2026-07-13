@@ -23,6 +23,25 @@ import {
 import { managedFetch } from './managedMode'
 
 const PROMPT_REWRITE_GUARD_PREFIX = 'Use the following text as the complete prompt. Do not rewrite it:'
+const CUSTOM_SUBMISSION_OUTCOME_UNKNOWN = 'customSubmissionOutcomeUnknown'
+
+type CustomSubmissionOutcomeUnknownError = Error & {
+  customSubmissionOutcomeUnknown: true
+}
+
+function markCustomSubmissionOutcomeUnknown(error: unknown): CustomSubmissionOutcomeUnknownError {
+  const normalized = error instanceof Error ? error : new Error(String(error))
+  ;(normalized as CustomSubmissionOutcomeUnknownError)[CUSTOM_SUBMISSION_OUTCOME_UNKNOWN] = true
+  return normalized as CustomSubmissionOutcomeUnknownError
+}
+
+export function isCustomSubmissionOutcomeUnknown(error: unknown): boolean {
+  return Boolean(
+    error &&
+    typeof error === 'object' &&
+    (error as Partial<CustomSubmissionOutcomeUnknownError>)[CUSTOM_SUBMISSION_OUTCOME_UNKNOWN] === true,
+  )
+}
 
 function getStreamPartialImages(profile: ApiProfile): number {
   return profile.streamPartialImages ?? DEFAULT_STREAM_PARTIAL_IMAGES
@@ -878,16 +897,33 @@ async function submitCustomRequest(mapping: CustomProviderSubmitMapping, opts: C
     }
   }
 
-  const response = await managedFetch(buildApiUrl(profile.baseUrl, path, proxyConfig, useApiProxy), {
-    method,
-    headers,
-    cache: 'no-store',
-    body,
-    signal: controller.signal,
-  })
+  let response: Response
+  try {
+    response = await managedFetch(buildApiUrl(profile.baseUrl, path, proxyConfig, useApiProxy), {
+      method,
+      headers,
+      cache: 'no-store',
+      body,
+      signal: controller.signal,
+    })
+  } catch (error) {
+    if (mapping.useTaskIdAsIdempotencyKey) throw markCustomSubmissionOutcomeUnknown(error)
+    throw error
+  }
 
-  if (!response.ok) throw new Error(await getApiErrorMessage(response))
-  return response.json()
+  if (!response.ok) {
+    const error = new Error(await getApiErrorMessage(response))
+    if (mapping.useTaskIdAsIdempotencyKey && (response.status === 408 || response.status >= 500)) {
+      throw markCustomSubmissionOutcomeUnknown(error)
+    }
+    throw error
+  }
+  try {
+    return await response.json()
+  } catch (error) {
+    if (mapping.useTaskIdAsIdempotencyKey) throw markCustomSubmissionOutcomeUnknown(error)
+    throw error
+  }
 }
 
 async function pollCustomTaskResult(
@@ -933,6 +969,8 @@ async function pollCustomTaskResult(
 
     const state = getTaskState(taskPayload, poll)
     if (state === 'failure') {
+      const status = getByPath(taskPayload, poll.statusPath)
+      if (String(status ?? '').toLowerCase() === 'cancelled') throw new Error('已取消生成。')
       const message = getByPath(taskPayload, poll.errorPath) || getByPath(taskPayload, 'message') || getByPath(taskPayload, 'data.fail_reason') || getByPath(taskPayload, 'error.message')
       throw new Error(typeof message === 'string' && message.trim() ? message : '异步任务失败')
     }
@@ -981,7 +1019,7 @@ async function callCustomHttpImageApi(opts: CallApiOptions, profile: ApiProfile,
     if (submitMapping.taskIdPath && !taskId) {
       const err = new Error('无法从响应中提取异步任务 ID，请查看原始响应内容确认接口实际返回的数据结构，并根据 API 文档调整「自定义服务商」配置中的 taskIdPath。')
       ;(err as any).rawResponsePayload = JSON.stringify(submitPayload, null, 2)
-      throw err
+      throw submitMapping.useTaskIdAsIdempotencyKey ? markCustomSubmissionOutcomeUnknown(err) : err
     }
     if (!taskId) return extractCustomImages(submitPayload, submitMapping.result ?? {}, mime, controller.signal)
     if (!customProvider.poll) throw new Error('异步接口返回了 task_id，但服务商配置缺少 poll')

@@ -184,7 +184,10 @@ export default function HistoryModal({ onClose, ignoreOutsideClickRef }: History
           }
         : undefined,
       action: async (deleteGeneratedImages = false) => {
-        if (deleteGeneratedImages && relatedTaskIds.length > 0) await removeMultipleTasks(relatedTaskIds)
+        if (deleteGeneratedImages && relatedTaskIds.length > 0) {
+          const removed = await removeMultipleTasks(relatedTaskIds, { cancelServerJobs: true })
+          if (!removed) return
+        }
         deleteConversation(id)
         if (conversations.length <= 1) {
           onClose()

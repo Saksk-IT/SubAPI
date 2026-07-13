@@ -47,7 +47,8 @@ import { collectAgentRoundOutputImageSlots, extractAgentReferenceIds, getAgentCu
 import { showBrowserNotification } from './lib/browserNotification'
 import { assertImageInputFileSize, IMAGE_FETCH_CORS_HINT } from './lib/imageApiShared'
 import { getFalErrorMessage, getFalQueuedImageResult } from './lib/falAiImageApi'
-import { getCustomQueuedImageResult } from './lib/openaiCompatibleImageApi'
+import { getCustomQueuedImageResult, isCustomSubmissionOutcomeUnknown } from './lib/openaiCompatibleImageApi'
+import { cancelSub2APIImageJob, isSub2APIImageJobId, type Sub2APIImageJobStatus } from './lib/sub2apiImageJobApi'
 import { validateMaskMatchesImage } from './lib/canvasImage'
 import { orderInputImagesForMask } from './lib/mask'
 import { getChangedParams, normalizeParamsForSettings } from './lib/paramCompatibility'
@@ -80,6 +81,7 @@ const AGENT_INPUT_DRAFT_RETENTION_MS = 3 * 24 * 60 * 60 * 1000
 const AGENT_ROUND_IMAGE_MENTION_RE = /@(?:第)?(\d+)轮图(\d+)/g
 const falRecoveryTimers = new Map<string, ReturnType<typeof setTimeout>>()
 const customRecoveryTimers = new Map<string, ReturnType<typeof setTimeout>>()
+const customRecoveryInFlight = new Set<string>()
 const openAIWatchdogTimers = new Map<string, ReturnType<typeof setTimeout>>()
 const agentRoundControllers = new Map<string, AbortController>()
 const agentRecoveryContinuations = new Set<string>()
@@ -1855,6 +1857,99 @@ export function getTaskApiProfile(settings: AppSettings, task: TaskRecord): ApiP
   return null
 }
 
+export function canCancelManagedImageTask(task: TaskRecord): boolean {
+  return task.apiProvider === 'sub2api-async' &&
+    Boolean(task.customTaskId && isSub2APIImageJobId(task.customTaskId)) &&
+    (task.status === 'running' || Boolean(task.customRecoverable))
+}
+
+export function isDurableManagedImageTask(task: TaskRecord): boolean {
+  return task.apiProvider === 'sub2api-async' &&
+    (Boolean(task.customTaskId && isSub2APIImageJobId(task.customTaskId)) || Boolean(task.customSubmissionPending)) &&
+    (task.status === 'running' || Boolean(task.customRecoverable) || Boolean(task.customSubmissionPending))
+}
+
+function shouldCancelManagedTask(task: TaskRecord): boolean {
+  if (!isDurableManagedImageTask(task)) return false
+  if (task.customCancelPending) return true
+  if (!isAgentTask(task)) return false
+  const conversation = useStore.getState().agentConversations.find((item) => item.id === task.agentConversationId)
+  const round = conversation?.rounds.find((item) => item.id === task.agentRoundId)
+  return Boolean(round && round.status !== 'running' && round.error === AGENT_STOPPED_MESSAGE)
+}
+
+async function requestManagedImageTaskCancellation(task: TaskRecord) {
+  if (!canCancelManagedImageTask(task) || !task.customTaskId) {
+    throw new Error('当前任务不支持服务端取消。')
+  }
+  const profile = getTaskApiProfile(useStore.getState().settings, task)
+  if (!profile || profile.provider !== 'sub2api-async') {
+    throw new Error('找不到此任务所使用的 API 配置，无法取消服务端任务。')
+  }
+  return cancelSub2APIImageJob(profile.apiKey, task.customTaskId)
+}
+
+async function persistLatestTask(taskId: string) {
+  const task = useStore.getState().tasks.find((item) => item.id === taskId)
+  if (task) await putTask(task)
+}
+
+export async function cancelManagedImageTask(
+  taskId: string,
+  options: { silent?: boolean } = {},
+): Promise<Sub2APIImageJobStatus | null> {
+  const task = useStore.getState().tasks.find((item) => item.id === taskId)
+  if (!task) return null
+
+  try {
+    const response = await requestManagedImageTaskCancellation(task)
+    const latestTask = useStore.getState().tasks.find((item) => item.id === task.id)
+    if (!latestTask) return response.status
+    if (latestTask.status === 'done') return response.status
+    if (
+      (response.status === 'running' || response.status === 'queued') &&
+      latestTask.status === 'error' &&
+      !latestTask.customRecoverable &&
+      !latestTask.customSubmissionPending
+    ) {
+      return response.status
+    }
+    if (response.status === 'cancelled') {
+      clearCustomRecoveryTimer(task.id)
+      updateTaskInStore(task.id, {
+        status: 'error',
+        error: '已取消生成。',
+        customSubmissionPending: false,
+        customRecoverable: false,
+        customCancelRequested: false,
+        customCancelPending: false,
+        finishedAt: Date.now(),
+        elapsed: Math.max(0, Date.now() - task.createdAt),
+      })
+      await persistLatestTask(task.id)
+      useStore.getState().showToast('已取消生成', 'info')
+    } else if (response.status === 'completed') {
+      updateTaskInStore(task.id, { customCancelRequested: false, customCancelPending: false })
+      await persistLatestTask(task.id)
+      useStore.getState().showToast('任务已完成，正在获取结果', 'info')
+      void recoverCustomTask(task.id)
+    } else if (response.status === 'running' || response.status === 'queued') {
+      updateTaskInStore(task.id, { customCancelRequested: true, customCancelPending: false })
+      await persistLatestTask(task.id)
+      useStore.getState().showToast('已请求取消，正在等待服务端确认', 'info')
+      clearCustomRecoveryTimer(task.id)
+      scheduleCustomRecovery(task.id, 0)
+    } else {
+      void recoverCustomTask(task.id)
+    }
+    return response.status
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error)
+    if (!options.silent) useStore.getState().showToast(`取消任务失败：${message}`, 'error')
+    return null
+  }
+}
+
 function createSettingsForApiProfile(settings: AppSettings, profile: ApiProfile): AppSettings {
   const normalized = normalizeSettings(settings)
   return normalizeSettings({
@@ -2526,6 +2621,20 @@ function markAgentRoundTasksStopped(conversationId: string, roundId: string, now
   )
 
   for (const task of runningTasks) {
+    // Durable Sub2API jobs keep polling after Agent stop so a late verified
+    // success can still win the cancellation race. The server cancellation
+    // request is sent by stopAgentResponse below.
+    if (isDurableManagedImageTask(task)) {
+      // Keep durable jobs recoverable independently from the aborted Agent
+      // request. Pending submissions are retried with the same idempotency key;
+      // once a server id arrives the enqueue callback requests cancellation.
+      updateTaskInStore(task.id, {
+        customCancelPending: task.customCancelRequested ? false : true,
+      })
+      void persistLatestTask(task.id)
+      scheduleCustomRecovery(task.id, CUSTOM_RECOVERY_POLL_MS)
+      continue
+    }
     clearFalRecoveryTimer(task.id)
     clearCustomRecoveryTimer(task.id)
     updateTaskInStore(task.id, {
@@ -2534,6 +2643,8 @@ function markAgentRoundTasksStopped(conversationId: string, roundId: string, now
       falRecoverable: false,
       customSubmissionPending: false,
       customRecoverable: false,
+      customCancelRequested: false,
+      customCancelPending: false,
       finishedAt: now,
       elapsed: Math.max(0, now - task.createdAt),
     })
@@ -2565,6 +2676,8 @@ function markAgentRoundTasksFailed(
       falRecoverable: false,
       customSubmissionPending: false,
       customRecoverable: false,
+      customCancelRequested: false,
+      customCancelPending: false,
       finishedAt: now,
       elapsed: Math.max(0, now - task.createdAt),
     })
@@ -2677,17 +2790,15 @@ export function stopAgentResponse(conversationId = useStore.getState().activeAge
   const runningRound = activeRunningRound ?? conversation.rounds.find((round) => round.status === 'running')
   if (!runningRound) return
 
-  const controller = agentRoundControllers.get(getAgentRoundControllerKey(conversationId, runningRound.id))
-  if (controller) {
-    controller.abort()
-    if (markAgentRoundStopped(conversationId, runningRound.id)) {
-      useStore.getState().showToast('已停止生成', 'info')
-    }
-    return
-  }
+  const managedTaskIds = useStore.getState().tasks
+    .filter((task) => task.agentConversationId === conversationId && task.agentRoundId === runningRound.id && canCancelManagedImageTask(task))
+    .map((task) => task.id)
 
-  markAgentRoundStopped(conversationId, runningRound.id)
-  useStore.getState().showToast('已停止生成', 'info')
+  const controller = agentRoundControllers.get(getAgentRoundControllerKey(conversationId, runningRound.id))
+  controller?.abort()
+  const stopped = markAgentRoundStopped(conversationId, runningRound.id)
+  for (const taskId of managedTaskIds) void cancelManagedImageTask(taskId)
+  if (stopped) useStore.getState().showToast('已停止生成', 'info')
 }
 
 function getAgentRoundChildren(conversation: AgentConversation, parentRoundId: string | null) {
@@ -3149,18 +3260,28 @@ function scrubTaskRawResponsePayloadForDeletedTasks(task: TaskRecord, conversati
 }
 
 async function scrubAgentOutputPayloadsForDeletedTasks(deletedTasks: TaskRecord[], remainingTasks: TaskRecord[]) {
-  if (deletedTasks.length === 0) return remainingTasks
+  if (deletedTasks.length === 0) return
 
   const conversations = scrubAgentConversationsForDeletedTasks(useStore.getState().agentConversations, deletedTasks)
   const scrubbedTasks = remainingTasks.map((task) => scrubTaskRawResponsePayloadForDeletedTasks(task, conversations, deletedTasks))
   useStore.setState({ agentConversations: conversations })
 
+  const rawPayloadUpdates = new Map<string, string | undefined>()
   for (const task of scrubbedTasks) {
     const previous = remainingTasks.find((item) => item.id === task.id)
-    if (previous?.rawResponsePayload !== task.rawResponsePayload) await putTask(task)
+    if (previous?.rawResponsePayload !== task.rawResponsePayload) rawPayloadUpdates.set(task.id, task.rawResponsePayload)
   }
-
-  return scrubbedTasks
+  if (rawPayloadUpdates.size === 0) return
+  useStore.setState((state) => ({
+    tasks: state.tasks.map((task) => rawPayloadUpdates.has(task.id)
+      ? { ...task, rawResponsePayload: rawPayloadUpdates.get(task.id) }
+      : task),
+  }))
+  await Promise.all(
+    useStore.getState().tasks
+      .filter((task) => rawPayloadUpdates.has(task.id))
+      .map((task) => putTask(task)),
+  )
 }
 
 function sanitizeResponseOutputForInput(output: ResponsesOutputItem[], options: { allowPendingFunctionCalls?: boolean } = {}) {
@@ -3915,6 +4036,10 @@ async function executeAgentRound(
         rawResponsePayload,
         status: 'done',
         error: null,
+        customSubmissionPending: false,
+        customRecoverable: false,
+        customCancelRequested: false,
+        customCancelPending: false,
         finishedAt: Date.now(),
         elapsed: Date.now() - (latestTask?.createdAt ?? startedAt),
         agentToolAction: image.action,
@@ -3937,6 +4062,8 @@ async function executeAgentRound(
         falRecoverable: false,
         customSubmissionPending: false,
         customRecoverable: false,
+        customCancelRequested: false,
+        customCancelPending: false,
         finishedAt: Date.now(),
         elapsed: Date.now() - latestTask.createdAt,
       })
@@ -3944,7 +4071,7 @@ async function executeAgentRound(
 
     const pauseAgentImageTaskForRecovery = (toolCallId: string, err: unknown) => {
       const taskId = taskIdByToolCallId.get(toolCallId)
-      if (!taskId || !isNetworkRecoverableError(err)) return false
+      if (!taskId || (!isNetworkRecoverableError(err) && !isCustomSubmissionOutcomeUnknown(err))) return false
       const latestTask = useStore.getState().tasks.find((task) => task.id === taskId)
       if (!latestTask || latestTask.status !== 'running') return false
 
@@ -4106,13 +4233,22 @@ async function executeAgentRound(
           })
         },
         onCustomTaskEnqueued: async (request) => {
+          const taskBeforeEnqueue = useStore.getState().tasks.find((task) => task.id === opts.taskId)
+          const cancelAfterEnqueue = opts.signal.aborted || Boolean(taskBeforeEnqueue && shouldCancelManagedTask(taskBeforeEnqueue))
           updateTaskInStore(opts.taskId, {
             customTaskId: request.taskId,
             customSubmissionPending: false,
             customRecoverable: false,
+            customCancelRequested: false,
+            customCancelPending: cancelAfterEnqueue,
           })
           const updated = useStore.getState().tasks.find((task) => task.id === opts.taskId)
           if (updated) await putTask(updated)
+          const latestTask = useStore.getState().tasks.find((task) => task.id === opts.taskId)
+          if (cancelAfterEnqueue || (latestTask && shouldCancelManagedTask(latestTask))) {
+            const cancelStatus = await cancelManagedImageTask(opts.taskId)
+            if (cancelStatus == null) scheduleCustomRecovery(opts.taskId, CUSTOM_RECOVERY_POLL_MS)
+          }
         },
       })
       if (opts.signal.aborted) throw createAgentAbortError()
@@ -4704,12 +4840,20 @@ async function executeTask(taskId: string) {
       error: '找不到此任务所使用的 API 配置。',
       falRecoverable: false,
       customRecoverable: false,
+      customCancelRequested: false,
+      customCancelPending: false,
       finishedAt: Date.now(),
       elapsed: Date.now() - task.createdAt,
     })
     return
   }
-  const activeProfile = taskProfile ?? getActiveApiProfile(settings)
+  const selectedProfile = taskProfile ?? getActiveApiProfile(settings)
+  // Replays must preserve the original request semantics for the same
+  // Idempotency-Key. Refresh the credential from the current profile, but do
+  // not silently replace the model captured on TaskRecord.
+  const activeProfile = task.apiModel?.trim()
+    ? { ...selectedProfile, model: task.apiModel.trim() }
+    : selectedProfile
   const requestSettings = createSettingsForApiProfile(settings, activeProfile)
   const taskProvider = task.apiProvider ?? activeProfile.provider
   let falRequestInfo: { requestId: string; endpoint: string } | null = task.falRequestId && task.falEndpoint
@@ -4762,13 +4906,22 @@ async function executeTask(taskId: string) {
       },
       onCustomTaskEnqueued: async (request) => {
         customTaskInfo = request
+        const cancelAfterEnqueue = shouldCancelManagedTask(
+          useStore.getState().tasks.find((item) => item.id === taskId) ?? task,
+        )
         updateTaskInStore(taskId, {
           customTaskId: request.taskId,
           customSubmissionPending: false,
           customRecoverable: false,
+          customCancelRequested: false,
+          customCancelPending: cancelAfterEnqueue,
         })
         const updated = useStore.getState().tasks.find((task) => task.id === taskId)
         if (updated) await putTask(updated)
+        if (updated && (cancelAfterEnqueue || shouldCancelManagedTask(updated))) {
+          const cancelStatus = await cancelManagedImageTask(taskId)
+          if (cancelStatus == null) scheduleCustomRecovery(taskId, CUSTOM_RECOVERY_POLL_MS)
+        }
       },
       onPartialImage: (partial) => {
         useStore.getState().setTaskStreamPreview(taskId, partial.image, partial.requestIndex)
@@ -4843,6 +4996,8 @@ async function executeTask(taskId: string) {
       falRecoverable: false,
       customSubmissionPending: false,
       customRecoverable: false,
+      customCancelRequested: false,
+      customCancelPending: false,
     })
     void deleteUnreferencedImageIds(partialImageIdsToClean)
 
@@ -4882,7 +5037,7 @@ async function executeTask(taskId: string) {
         elapsed: Date.now() - task.createdAt,
       })
       scheduleFalRecovery(taskId)
-    } else if (latestTask.customSubmissionPending && !latestCustomTaskInfo && isNetworkRecoverableError(err)) {
+    } else if (latestTask.customSubmissionPending && !latestCustomTaskInfo && (isNetworkRecoverableError(err) || isCustomSubmissionOutcomeUnknown(err))) {
       updateTaskInStore(taskId, {
         status: 'error',
         error: '异步任务提交响应丢失，之后会使用同一幂等键安全重试。',
@@ -4925,6 +5080,8 @@ async function executeTask(taskId: string) {
         falRecoverable: false,
         customSubmissionPending: false,
         customRecoverable: false,
+        customCancelRequested: false,
+        customCancelPending: false,
         finishedAt: Date.now(),
         elapsed: Date.now() - task.createdAt,
       })
@@ -5078,12 +5235,6 @@ export async function deleteFavoriteCollection(collectionId: string, deleteTasks
   const taskIds = collectionTaskRefs.map(({ task }) => task.id)
   const nextCollections = state.favoriteCollections.filter((item) => item.id !== collectionId)
   const nextCollectionIdSet = new Set(nextCollections.map((item) => item.id))
-  state.setFavoriteCollections(nextCollections)
-  if (state.defaultFavoriteCollectionId === collectionId) {
-    const nextDefaultId = nextCollections[0]?.id
-    if (nextDefaultId) useStore.getState().setDefaultFavoriteCollectionId(nextDefaultId)
-  }
-  if (state.activeFavoriteCollectionId === collectionId) state.setActiveFavoriteCollectionId(null)
   if (deleteTasks) {
     const idsByTaskToKeep = new Map<string, string[]>()
     const taskIdsToDelete: string[] = []
@@ -5095,6 +5246,10 @@ export async function deleteFavoriteCollection(collectionId: string, deleteTasks
         taskIdsToDelete.push(task.id)
       }
     }
+    if (taskIdsToDelete.length) {
+      const removed = await removeMultipleTasks(taskIdsToDelete, { cancelServerJobs: true })
+      if (!removed) return false
+    }
     if (idsByTaskToKeep.size) {
       const latestTasks = useStore.getState().tasks
       const updated = latestTasks.map((task) => {
@@ -5104,7 +5259,6 @@ export async function deleteFavoriteCollection(collectionId: string, deleteTasks
       useStore.getState().setTasks(updated)
       await Promise.all(updated.filter((task) => idsByTaskToKeep.has(task.id)).map((task) => putTask(task)))
     }
-    if (taskIdsToDelete.length) await removeMultipleTasks(taskIdsToDelete)
   } else if (taskIds.length) {
     const idsByTaskId = new Map(collectionTaskRefs.map(({ task, favoriteIds }) => [
       task.id,
@@ -5118,8 +5272,15 @@ export async function deleteFavoriteCollection(collectionId: string, deleteTasks
     state.setTasks(updated)
     await Promise.all(updated.filter((task) => idsByTaskId.has(task.id)).map((task) => putTask(task)))
   }
+  state.setFavoriteCollections(nextCollections)
+  if (state.defaultFavoriteCollectionId === collectionId) {
+    const nextDefaultId = nextCollections[0]?.id
+    if (nextDefaultId) useStore.getState().setDefaultFavoriteCollectionId(nextDefaultId)
+  }
+  if (state.activeFavoriteCollectionId === collectionId) state.setActiveFavoriteCollectionId(null)
   useStore.getState().setSelectedFavoriteCollectionIds((ids) => ids.filter((id) => id !== collectionId))
   useStore.getState().showToast(`已删除收藏夹「${collection.name}」`, 'success')
+  return true
 }
 
 /** 重试失败的任务：创建新任务并执行 */
@@ -5144,6 +5305,7 @@ export async function retryTask(task: TaskRecord) {
     apiProfileName: activeProfile.name,
     apiMode: activeProfile.apiMode,
     apiModel: activeProfile.model,
+    customSubmissionPending: isSafelyResubmittableCustomProviderTask(settings, activeProfile.provider, task.inputImageIds.length > 0),
     inputImageIds: [...task.inputImageIds],
     maskTargetImageId: task.maskTargetImageId ?? null,
     maskImageId: task.maskImageId ?? null,
@@ -5246,37 +5408,72 @@ export async function editOutputs(task: TaskRecord) {
   showToast(`已添加 ${added} 张输出图到输入`, 'success')
 }
 
-/** 删除多条任务 */
-export async function removeMultipleTasks(taskIds: string[]) {
-  const { tasks, setTasks, inputImages, galleryInputDraft, showToast, selectedTaskIds } = useStore.getState()
+export interface RemoveTasksOptions {
+  cancelServerJobs?: boolean
+}
 
-  if (!taskIds.length) return
+/** 删除多条任务 */
+export async function removeMultipleTasks(taskIds: string[], options: RemoveTasksOptions = {}) {
+  const initialState = useStore.getState()
+  const showToast = initialState.showToast
+
+  if (!taskIds.length) return true
 
   const toDelete = new Set(taskIds)
-  const deletedTasks = tasks.filter(t => toDelete.has(t.id))
-  const remaining = await scrubAgentOutputPayloadsForDeletedTasks(deletedTasks, tasks.filter(t => !toDelete.has(t.id)))
+  const deletedTasks = initialState.tasks.filter(t => toDelete.has(t.id))
+  if (options.cancelServerJobs) {
+    const pendingServerTasks = deletedTasks.filter((task) => isDurableManagedImageTask(task) && !canCancelManagedImageTask(task))
+    if (pendingServerTasks.length > 0) {
+      for (const task of pendingServerTasks) {
+        updateTaskInStore(task.id, { customCancelPending: true })
+        scheduleCustomRecovery(task.id, CUSTOM_RECOVERY_POLL_MS)
+      }
+      await Promise.all(pendingServerTasks.map((task) => persistLatestTask(task.id)))
+      showToast('服务端任务仍在提交中，暂不能安全删除，请稍后重试。', 'info')
+      return false
+    }
+    try {
+      await Promise.all(deletedTasks.filter(canCancelManagedImageTask).map(requestManagedImageTaskCancellation))
+    } catch (error) {
+      for (const task of deletedTasks.filter(canCancelManagedImageTask)) {
+        scheduleCustomRecovery(task.id, 0)
+      }
+      const message = error instanceof Error ? error.message : String(error)
+      showToast(`取消服务端任务失败，未删除记录：${message}`, 'error')
+      return false
+    }
+  }
+  // Cancellation can take long enough for other jobs to be added or updated.
+  // Re-read the store so deleting one task never restores an old task snapshot.
+  const stateBeforeScrub = useStore.getState()
+  const deletedBeforeScrub = stateBeforeScrub.tasks.filter((task) => toDelete.has(task.id))
+  await scrubAgentOutputPayloadsForDeletedTasks(
+    deletedBeforeScrub,
+    stateBeforeScrub.tasks.filter((task) => !toDelete.has(task.id)),
+  )
+  const stateBeforeRemoval = useStore.getState()
+  const deletedAtRemoval = stateBeforeRemoval.tasks.filter((task) => toDelete.has(task.id))
 
   // 收集所有被删除任务的关联图片
   const deletedImageIds = new Set<string>()
-  for (const t of tasks) {
-    if (toDelete.has(t.id)) {
-      addTaskReferencedImageIds(deletedImageIds, t)
-    }
+  for (const task of deletedAtRemoval) {
+    addTaskReferencedImageIds(deletedImageIds, task)
   }
 
-  setTasks(remaining)
+  useStore.setState((state) => ({ tasks: state.tasks.filter((task) => !toDelete.has(task.id)) }))
   for (const id of taskIds) {
     await dbDeleteTask(id)
   }
 
   // 找出其他任务仍引用的图片
   const stillUsed = new Set<string>()
-  for (const t of remaining) {
+  for (const t of useStore.getState().tasks) {
     addTaskReferencedImageIds(stillUsed, t)
   }
   addAgentReferencedImageIds(stillUsed)
-  addInputDraftReferencedImageIds(stillUsed, galleryInputDraft)
-  for (const img of inputImages) stillUsed.add(img.id)
+  const latestReferences = useStore.getState()
+  addInputDraftReferencedImageIds(stillUsed, latestReferences.galleryInputDraft)
+  for (const img of latestReferences.inputImages) stillUsed.add(img.id)
 
   // 删除孤立图片
   for (const imgId of deletedImageIds) {
@@ -5288,12 +5485,14 @@ export async function removeMultipleTasks(taskIds: string[]) {
   }
 
   // 如果删除的任务在选中列表中，则移除
-  const newSelection = selectedTaskIds.filter(id => !toDelete.has(id))
-  if (newSelection.length !== selectedTaskIds.length) {
+  const latestSelectedTaskIds = useStore.getState().selectedTaskIds
+  const newSelection = latestSelectedTaskIds.filter(id => !toDelete.has(id))
+  if (newSelection.length !== latestSelectedTaskIds.length) {
     useStore.getState().setSelectedTaskIds(newSelection)
   }
 
   showToast(`已删除 ${taskIds.length} 个任务`, 'success')
+  return true
 }
 
 /** 删除所有失败任务 */
@@ -5310,7 +5509,7 @@ export async function clearFailedTasks(taskIds?: string[]) {
       .map((task) => task.id),
   )
 
-  if (failedTaskIds.length) await removeMultipleTasks(failedTaskIds)
+  if (failedTaskIds.length) await removeMultipleTasks(failedTaskIds, { cancelServerJobs: true })
   if (partialFailedTaskIds.size) {
     const { tasks, setTasks, selectedTaskIds, setSelectedTaskIds, showToast } = useStore.getState()
     const updated = tasks.map((task) => partialFailedTaskIds.has(task.id) ? { ...task, outputErrors: undefined } : task)
@@ -5323,31 +5522,61 @@ export async function clearFailedTasks(taskIds?: string[]) {
 }
 
 /** 删除单条任务 */
-export async function removeTask(task: TaskRecord) {
-  const { tasks, setTasks, inputImages, galleryInputDraft, showToast } = useStore.getState()
+export async function removeTask(task: TaskRecord, options: { cancelServerJob?: boolean } = {}) {
+  const initialState = useStore.getState()
+  const currentTask = initialState.tasks.find((item) => item.id === task.id) ?? task
+  const showToast = initialState.showToast
+
+  if (options.cancelServerJob && isDurableManagedImageTask(currentTask) && !canCancelManagedImageTask(currentTask)) {
+    updateTaskInStore(currentTask.id, { customCancelPending: true })
+    scheduleCustomRecovery(currentTask.id, CUSTOM_RECOVERY_POLL_MS)
+    await persistLatestTask(currentTask.id)
+    showToast('服务端任务仍在提交中，暂不能安全删除，请稍后重试。', 'info')
+    return false
+  }
+
+  if (options.cancelServerJob && canCancelManagedImageTask(currentTask)) {
+    try {
+      await requestManagedImageTaskCancellation(currentTask)
+    } catch (error) {
+      scheduleCustomRecovery(currentTask.id, 0)
+      const message = error instanceof Error ? error.message : String(error)
+      showToast(`取消服务端任务失败，未删除记录：${message}`, 'error')
+      return false
+    }
+  }
+
+  const stateBeforeScrub = useStore.getState()
+  const latestTask = stateBeforeScrub.tasks.find((item) => item.id === task.id)
+  if (!latestTask) return true
+  await scrubAgentOutputPayloadsForDeletedTasks(
+    [latestTask],
+    stateBeforeScrub.tasks.filter((item) => item.id !== task.id),
+  )
+  const taskAtRemoval = useStore.getState().tasks.find((item) => item.id === task.id) ?? latestTask
 
   // 收集此任务关联的图片
   const taskImageIds = new Set([
-    ...(task.inputImageIds || []),
-    ...(task.maskImageId ? [task.maskImageId] : []),
-    ...(task.outputImages || []),
-    ...(task.transparentOriginalImages || []),
-    ...(task.streamPartialImageIds || []),
+    ...(taskAtRemoval.inputImageIds || []),
+    ...(taskAtRemoval.maskImageId ? [taskAtRemoval.maskImageId] : []),
+    ...(taskAtRemoval.outputImages || []),
+    ...(taskAtRemoval.transparentOriginalImages || []),
+    ...(taskAtRemoval.streamPartialImageIds || []),
   ])
 
   // 从列表移除
-  const remaining = await scrubAgentOutputPayloadsForDeletedTasks([task], tasks.filter((t) => t.id !== task.id))
-  setTasks(remaining)
+  useStore.setState((state) => ({ tasks: state.tasks.filter((item) => item.id !== task.id) }))
   await dbDeleteTask(task.id)
 
   // 找出其他任务仍引用的图片
   const stillUsed = new Set<string>()
-  for (const t of remaining) {
+  for (const t of useStore.getState().tasks) {
     addTaskReferencedImageIds(stillUsed, t)
   }
   addAgentReferencedImageIds(stillUsed)
-  addInputDraftReferencedImageIds(stillUsed, galleryInputDraft)
-  for (const img of inputImages) stillUsed.add(img.id)
+  const latestReferences = useStore.getState()
+  addInputDraftReferencedImageIds(stillUsed, latestReferences.galleryInputDraft)
+  for (const img of latestReferences.inputImages) stillUsed.add(img.id)
 
   // 删除孤立图片
   for (const imgId of taskImageIds) {
@@ -5359,6 +5588,7 @@ export async function removeTask(task: TaskRecord) {
   }
 
   showToast('任务已删除', 'success')
+  return true
 }
 
 /** 清空数据选项 */
@@ -5372,6 +5602,27 @@ export async function clearData(options: ClearOptions = { clearConfig: true, cle
   const { setTasks, clearInputImages, clearMaskDraft, setSettings, setParams, showToast } = useStore.getState()
 
   if (options.clearTasks) {
+    const durableTasks = useStore.getState().tasks.filter(isDurableManagedImageTask)
+    const pendingServerTasks = durableTasks.filter((task) => !canCancelManagedImageTask(task))
+    if (pendingServerTasks.length > 0) {
+      for (const task of pendingServerTasks) {
+        updateTaskInStore(task.id, { customCancelPending: true })
+        scheduleCustomRecovery(task.id, CUSTOM_RECOVERY_POLL_MS)
+      }
+      await Promise.all(pendingServerTasks.map((task) => persistLatestTask(task.id)))
+      showToast('仍有服务端任务正在提交，暂不能清空任务数据，请稍后重试。', 'info')
+      return false
+    }
+    try {
+      await Promise.all(durableTasks.filter(canCancelManagedImageTask).map(requestManagedImageTaskCancellation))
+    } catch (error) {
+      for (const task of durableTasks.filter(canCancelManagedImageTask)) {
+        scheduleCustomRecovery(task.id, 0)
+      }
+      const message = error instanceof Error ? error.message : String(error)
+      showToast(`取消服务端任务失败，未清空任务数据：${message}`, 'error')
+      return false
+    }
     await dbClearTasks()
     await dbClearAgentConversations()
     await clearImages()
@@ -5396,6 +5647,7 @@ export async function clearData(options: ClearOptions = { clearConfig: true, cle
   }
 
   showToast('所选数据已清空', 'success')
+  return true
 }
 
 async function completeRecoveredCustomTask(task: TaskRecord, result: Awaited<ReturnType<typeof getCustomQueuedImageResult>>) {
@@ -5421,6 +5673,8 @@ async function completeRecoveredCustomTask(task: TaskRecord, result: Awaited<Ret
     error: null,
     customSubmissionPending: false,
     customRecoverable: false,
+    customCancelRequested: false,
+    customCancelPending: false,
     finishedAt: Date.now(),
     elapsed: Date.now() - task.createdAt,
   })
@@ -5430,6 +5684,16 @@ async function completeRecoveredCustomTask(task: TaskRecord, result: Awaited<Ret
 }
 
 async function recoverCustomTask(taskId: string) {
+  if (customRecoveryInFlight.has(taskId)) return
+  customRecoveryInFlight.add(taskId)
+  try {
+    await recoverCustomTaskOnce(taskId)
+  } finally {
+    customRecoveryInFlight.delete(taskId)
+  }
+}
+
+async function recoverCustomTaskOnce(taskId: string) {
   const { settings, tasks } = useStore.getState()
   const task = tasks.find((item) => item.id === taskId)
   if (!task || task.status === 'done') return
@@ -5447,6 +5711,8 @@ async function recoverCustomTask(taskId: string) {
       status: 'running',
       error: null,
       customRecoverable: false,
+      customCancelRequested: task.customCancelRequested,
+      customCancelPending: task.customCancelPending,
       finishedAt: null,
       elapsed: null,
     })
@@ -5455,6 +5721,16 @@ async function recoverCustomTask(taskId: string) {
   }
 
   if (!task.customTaskId) return
+
+  if (task.customCancelPending && canCancelManagedImageTask(task)) {
+    const cancelStatus = await cancelManagedImageTask(taskId, { silent: true })
+    if (cancelStatus === 'cancelled') return
+    if (cancelStatus == null) {
+      clearCustomRecoveryTimer(taskId)
+      scheduleCustomRecovery(taskId, CUSTOM_RECOVERY_POLL_MS)
+      return
+    }
+  }
 
   try {
     const result = await getCustomQueuedImageResult(profile, customProvider, task.customTaskId, task.params)
@@ -5467,6 +5743,8 @@ async function recoverCustomTask(taskId: string) {
       error: err instanceof Error ? err.message : String(err),
       ...getRawErrorPayload(err),
       customRecoverable: false,
+      customCancelRequested: false,
+      customCancelPending: false,
       finishedAt: Date.now(),
       elapsed: Date.now() - task.createdAt,
     })

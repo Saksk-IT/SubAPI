@@ -234,6 +234,20 @@ function combineSignals(first: AbortSignal | null | undefined, second: AbortSign
   return controller.signal
 }
 
+function hasUnsafeRawManagedRequestTarget(rawUrl: string): boolean {
+  if (rawUrl.startsWith('//') || rawUrl.includes('\\')) return true
+
+  const absolutePrefix = rawUrl.match(/^[a-z][a-z0-9+.-]*:\/\/[^/?#]*/i)?.[0]
+  const rawTarget = absolutePrefix ? rawUrl.slice(absolutePrefix.length) || '/' : rawUrl
+  if (!rawTarget.startsWith('/') || rawTarget.includes('?') || rawTarget.includes('#')) return true
+
+  const separated = rawTarget.replace(/%2f|%5c/gi, '/')
+  return separated.split('/').some((segment) => {
+    const dotsDecoded = segment.replace(/%2e/gi, '.')
+    return dotsDecoded === '.' || dotsDecoded === '..'
+  })
+}
+
 export function managedFetch(input: RequestInfo | URL, init: RequestInit = {}) {
   if (!snapshot) {
     if (managedRuntimeRequirements > 0) {
@@ -242,16 +256,23 @@ export function managedFetch(input: RequestInfo | URL, init: RequestInit = {}) {
     return fetch(input, init)
   }
 
-  const rawUrl = input instanceof Request ? input.url : String(input)
+  // Managed callers only use strings. Request/URL objects have already been
+  // canonicalized by the browser, which would erase raw dot segments before
+  // this allowlist can inspect them.
+  if (typeof input !== 'string') return Promise.reject(new Error('Managed request URL is not allowed'))
+  const rawUrl = input
   const origin = globalThis.location?.origin
   if (!origin) return Promise.reject(new Error('Managed request URL is not allowed'))
+  if (hasUnsafeRawManagedRequestTarget(rawUrl)) {
+    return Promise.reject(new Error('Managed request URL is not allowed'))
+  }
   let url: URL
   try {
     url = new URL(rawUrl, origin)
   } catch {
     return Promise.reject(new Error('Managed request URL is not allowed'))
   }
-  const method = String(init.method ?? (input instanceof Request ? input.method : 'GET')).toUpperCase()
+  const method = String(init.method ?? 'GET').toUpperCase()
   const routeAllowed =
     (url.pathname === '/v1/responses' && method === 'POST') ||
     (url.pathname === '/v1/images/generations/jobs' && method === 'POST') ||

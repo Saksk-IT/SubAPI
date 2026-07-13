@@ -1,5 +1,5 @@
 import { useMemo, useRef, useState, useEffect } from 'react'
-import { ALL_FAVORITES_COLLECTION_ID, getTaskFavoriteCollectionIds, useStore, reuseConfig, editOutputs, removeTask, taskMatchesFilterStatus, taskMatchesSearchQuery } from '../store'
+import { ALL_FAVORITES_COLLECTION_ID, getTaskFavoriteCollectionIds, useStore, reuseConfig, editOutputs, removeTask, taskMatchesFilterStatus, taskMatchesSearchQuery, isDurableManagedImageTask } from '../store'
 import TaskCard from './TaskCard'
 
 export default function TaskGrid() {
@@ -44,10 +44,16 @@ export default function TaskGrid() {
   }, [tasks, searchQuery, filterStatus, filterFavorite, activeFavoriteCollectionId])
 
   const handleDelete = (task: typeof tasks[0]) => {
+    const canCancelServerJob = isDurableManagedImageTask(task)
     setConfirmDialog({
       title: '删除任务',
-      message: '确定要删除这个任务吗？关联的图片资源也会被清理（如果没有其他任务引用）。',
-      action: () => removeTask(task),
+      message: canCancelServerJob
+        ? '该任务仍在服务端运行。确定要删除这个任务吗？关联的图片资源也会被清理（如果没有其他任务引用）。'
+        : '确定要删除这个任务吗？关联的图片资源也会被清理（如果没有其他任务引用）。',
+      ...(canCancelServerJob ? {
+        checkbox: { label: '同时取消服务端生图任务', defaultChecked: true, tone: 'danger' as const },
+      } : {}),
+      action: (cancelServerJob) => removeTask(task, { cancelServerJob: Boolean(cancelServerJob) }),
     })
   }
 

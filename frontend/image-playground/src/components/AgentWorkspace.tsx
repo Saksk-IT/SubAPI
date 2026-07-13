@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState, useRef, useCallback, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent } from 'react'
 import type { AgentConversation, AgentMessage, AgentRound, ResponsesOutputItem, TaskRecord } from '../types'
-import { deleteAgentRoundFromConversation, editOutputs, getActiveAgentRounds, getAgentBranchLeafId, getAgentRoundTaskIds, getAgentSiblingRounds, getCachedImage, ensureImageCached, regenerateAgentAssistantMessage, remapAgentRoundMentionsForPathChange, removeMultipleTasks, removeTask, reuseConfig, useStore } from '../store'
+import { deleteAgentRoundFromConversation, editOutputs, getActiveAgentRounds, getAgentBranchLeafId, getAgentRoundTaskIds, getAgentSiblingRounds, getCachedImage, ensureImageCached, isDurableManagedImageTask, regenerateAgentAssistantMessage, remapAgentRoundMentionsForPathChange, removeMultipleTasks, removeTask, reuseConfig, useStore } from '../store'
 import { getPromptMentionParts } from '../lib/promptImageMentions'
 import { copyTextToClipboard, getClipboardFailureMessage } from '../lib/clipboard'
 import { collectWebSearchCalls, getAgentRoundOutputItems, getWebSearchStatusForCalls, type AgentWebSearchStatus } from '../lib/agentWebSearch'
@@ -577,8 +577,11 @@ export default function AgentWorkspace() {
           }
         : undefined,
       action: async (deleteGeneratedImages = false) => {
+        if (deleteGeneratedImages && relatedTaskIds.length > 0) {
+          const removed = await removeMultipleTasks(relatedTaskIds, { cancelServerJobs: true })
+          if (!removed) return
+        }
         deleteConversation(id)
-        if (deleteGeneratedImages && relatedTaskIds.length > 0) await removeMultipleTasks(relatedTaskIds)
       },
     })
   }
@@ -672,7 +675,10 @@ export default function AgentWorkspace() {
       action: async () => {
         if (isUserMessage) {
           const roundTaskIds = getAgentRoundTaskIds(round, tasks)
-          if (roundTaskIds.length > 0) await removeMultipleTasks(roundTaskIds)
+          if (roundTaskIds.length > 0) {
+            const removed = await removeMultipleTasks(roundTaskIds, { cancelServerJobs: true })
+            if (!removed) return
+          }
 
           useStore.setState((state) => {
             const targetConversationId = conversation?.id
@@ -703,7 +709,10 @@ export default function AgentWorkspace() {
           return
         }
 
-        if (assistantTaskIds.length > 0) await removeMultipleTasks(assistantTaskIds)
+        if (assistantTaskIds.length > 0) {
+          const removed = await removeMultipleTasks(assistantTaskIds, { cancelServerJobs: true })
+          if (!removed) return
+        }
 
         useStore.setState((state) => ({
           agentConversations: state.agentConversations.map((item) =>
@@ -1070,7 +1079,19 @@ export default function AgentWorkspace() {
                                     onClick={() => setDetailTaskId(block.task.id)}
                                     onReuse={() => handleReuse(block.task)}
                                     onEditOutputs={() => editOutputs(block.task)}
-                                    onDelete={() => setConfirmDialog({ title: '删除任务', message: '确定要删除这个任务吗？', action: () => removeTask(block.task) })}
+                                    onDelete={() => {
+                                      const hasServerJob = isDurableManagedImageTask(block.task)
+                                      setConfirmDialog({
+                                        title: '删除任务',
+                                        message: hasServerJob
+                                          ? '该任务仍在服务端运行。确定要删除这个任务吗？'
+                                          : '确定要删除这个任务吗？',
+                                        ...(hasServerJob ? {
+                                          checkbox: { label: '同时取消服务端生图任务', defaultChecked: true, tone: 'danger' as const },
+                                        } : {}),
+                                        action: (cancelServerJob) => removeTask(block.task, { cancelServerJob: Boolean(cancelServerJob) }),
+                                      })
+                                    }}
                                   />
                                 </div>
                               )

@@ -267,11 +267,19 @@ describe('managed Sub2API runtime', () => {
   it.each([
     'https://evil.example/v1/images/generations',
     '//evil.example/v1/images/generations',
+    '//sub2api.example/v1/images/generations/jobs',
     '/v1/chat/completions',
     '/v1/images/tasks/123',
     '/v1/images/jobs/imgjob_0123456789abcdef0123456789abcdef?secret=1',
     '/v1/images/jobs/imgjob_0123456789abcdef0123456789abcdef#fragment',
+    '/v1/images/generations/jobs?',
+    '/v1/images/generations/jobs#',
     '/v1/images/jobs/../responses',
+    '/v1/images/foo/../generations/jobs',
+    '/v1/images/foo/%2e%2e/generations/jobs',
+    '/v1/images/foo/%2E%2e/generations/jobs',
+    '/v1/images/foo\\..\\generations/jobs',
+    'https://sub2api.example/v1/images/foo/%2e%2e/generations/jobs',
     '/v1/images/jobs/not-a-job-id',
     '/v1/images/jobs/imgjob_0123456789abcdef0123456789abcdeg',
     'http://[::1',
@@ -301,6 +309,21 @@ describe('managed Sub2API runtime', () => {
     activateManagedConfig(config(), DEFAULT_SETTINGS)
 
     await expect(managedFetch(url, { method })).rejects.toThrow('Managed request URL is not allowed')
+    expect(fetchMock).not.toHaveBeenCalled()
+    release()
+  })
+
+  it.each([
+    new URL('https://sub2api.example/v1/images/generations/jobs'),
+    new Request('https://sub2api.example/v1/images/generations/jobs', { method: 'POST' }),
+  ])('rejects pre-canonicalized managed request objects', async (input) => {
+    const release = requireManagedRuntime()
+    const fetchMock = vi.fn()
+    vi.stubGlobal('fetch', fetchMock)
+    vi.stubGlobal('location', { origin: 'https://sub2api.example' })
+    activateManagedConfig(config(), DEFAULT_SETTINGS)
+
+    await expect(managedFetch(input, { method: 'POST' })).rejects.toThrow('Managed request URL is not allowed')
     expect(fetchMock).not.toHaveBeenCalled()
     release()
   })

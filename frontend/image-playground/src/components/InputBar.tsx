@@ -1,6 +1,6 @@
 import { useRef, useEffect, useCallback, useState, useMemo, useLayoutEffect } from 'react'
 import { createPortal } from 'react-dom'
-import { ALL_FAVORITES_COLLECTION_ID, deleteFavoriteCollection, getTaskFavoriteCollectionIds, useStore, submitTask, submitAgentMessage, stopAgentResponse, addImageFromFile, createInputImageFromFile, deleteImageIfUnreferenced, removeMultipleTasks, getCachedImage, ensureImageCached, getActiveAgentRounds, taskMatchesFilterStatus, taskMatchesSearchQuery } from '../store'
+import { ALL_FAVORITES_COLLECTION_ID, deleteFavoriteCollection, getTaskFavoriteCollectionIds, useStore, submitTask, submitAgentMessage, stopAgentResponse, addImageFromFile, createInputImageFromFile, deleteImageIfUnreferenced, removeMultipleTasks, getCachedImage, ensureImageCached, getActiveAgentRounds, taskMatchesFilterStatus, taskMatchesSearchQuery, isDurableManagedImageTask } from '../store'
 import { DEFAULT_PARAMS, type TaskRecord } from '../types'
 import { getActiveApiProfile, getAgentImageApiProfile, normalizeSettings } from '../lib/apiProfiles'
 import { DEFAULT_FAL_IMAGE_SIZE, getChangedParams, getOutputImageLimitForSettings, normalizeParamsForSettings } from '../lib/paramCompatibility'
@@ -493,14 +493,20 @@ export default function InputBar() {
   }, [openFavoritePicker, selectedTaskIds])
 
   const handleDeleteSelected = useCallback(() => {
+    const hasRunningServerJobs = tasks.some((task) => selectedTaskIds.includes(task.id) && isDurableManagedImageTask(task))
     setConfirmDialog({
       title: '批量删除',
-      message: `确定要删除选中的 ${selectedTaskIds.length} 个任务吗？`,
-      action: () => {
-        removeMultipleTasks(selectedTaskIds)
+      message: hasRunningServerJobs
+        ? `选中的任务中仍有服务端生图任务在运行。确定要删除这 ${selectedTaskIds.length} 个任务吗？`
+        : `确定要删除选中的 ${selectedTaskIds.length} 个任务吗？`,
+      ...(hasRunningServerJobs ? {
+        checkbox: { label: '同时取消服务端生图任务', defaultChecked: true, tone: 'danger' as const },
+      } : {}),
+      action: (cancelServerJobs) => {
+        removeMultipleTasks(selectedTaskIds, { cancelServerJobs: Boolean(cancelServerJobs) })
       },
     })
-  }, [selectedTaskIds, setConfirmDialog])
+  }, [selectedTaskIds, setConfirmDialog, tasks])
 
   const handleDownloadSelected = useCallback(async () => {
     const selectedTasks = tasks.filter((t) => selectedTaskIds.includes(t.id))
