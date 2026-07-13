@@ -145,6 +145,7 @@ const selectedKeyId = ref<number | null>(null)
 const launching = ref(false)
 const launchError = ref<string | null>(null)
 let activeSession: ImagePlaygroundPopupSession | null = null
+const managedSessions = new Map<ImagePlaygroundPopupSession, number>()
 
 const selectedKey = computed(() => (
   imageGenerationKeys.value.find((apiKey) => apiKey.id === selectedKeyId.value) ?? null
@@ -164,6 +165,16 @@ function abortActiveSession(): void {
   activeSession = null
   if (!session) return
   session.abort()
+}
+
+function retainManagedSession(session: ImagePlaygroundPopupSession, ownerId: number): void {
+  managedSessions.set(session, ownerId)
+  void session.closed.finally(() => managedSessions.delete(session))
+}
+
+function abortManagedSessions(): void {
+  for (const session of managedSessions.keys()) session.abort()
+  managedSessions.clear()
 }
 
 function resetLocalState(): void {
@@ -203,8 +214,8 @@ function launchErrorMessage(code: PopupLaunchErrorCode): string {
 async function openPlayground(): Promise<void> {
   if (launching.value) return
   const apiKey = selectedKey.value
-  const ownerId = authStore.user?.id
-  if (!apiKey || !Number.isSafeInteger(ownerId) || Number(ownerId) <= 0) {
+  const ownerId = Number(authStore.user?.id)
+  if (!apiKey || !Number.isSafeInteger(ownerId) || ownerId <= 0) {
     launchError.value = t('imageGeneration.configurationFailed')
     return
   }
@@ -225,6 +236,7 @@ async function openPlayground(): Promise<void> {
     await session.configured
     if (activeSession !== session || authStore.user?.id !== ownerId) return
     activeSession = null
+    retainManagedSession(session, ownerId)
     closeLauncher()
   } catch (error: unknown) {
     if (activeSession !== session || !launcherStore.isOpen) return
@@ -268,11 +280,16 @@ watch(
 watch(
   () => authStore.user?.id,
   (userId, previousUserId) => {
-    if (previousUserId === undefined || userId === previousUserId || !launcherStore.isOpen) return
+    if (previousUserId === undefined || userId === previousUserId) return
+    abortManagedSessions()
+    if (!launcherStore.isOpen) return
     closeLauncher()
     appStore.showError(t('imageGeneration.userChanged'))
   },
 )
 
-onBeforeUnmount(resetLocalState)
+onBeforeUnmount(() => {
+  resetLocalState()
+  abortManagedSessions()
+})
 </script>

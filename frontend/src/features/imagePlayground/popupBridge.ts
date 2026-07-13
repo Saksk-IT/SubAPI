@@ -32,7 +32,6 @@ type PopupOpener = (url: string, target: string) => Window | null
 
 interface PopupLaunchSnapshot {
   readonly nonce: string
-  readonly requestId: number
   readonly origin: string
   readonly timeoutMs: number
   readonly popupName: string
@@ -53,6 +52,7 @@ export interface OpenImagePlaygroundPopupOptions {
 
 export interface ImagePlaygroundPopupSession {
   readonly configured: Promise<void>
+  readonly closed: Promise<void>
   abort(): void
 }
 
@@ -70,12 +70,13 @@ type SessionState =
   | 'waiting-ready'
   | 'waiting-connected'
   | 'waiting-configured'
-  | 'settled'
+  | 'ended'
 
 function failedSession(code: PopupLaunchErrorCode): ImagePlaygroundPopupSession {
   const configured = Promise.reject<void>(new PopupLaunchError(code))
   return Object.freeze({
     configured,
+    closed: Promise.resolve(),
     abort() {},
   })
 }
@@ -88,7 +89,6 @@ function normalizeTimeoutMs(timeoutMs: number | undefined): number {
 
 function captureLaunchSnapshot(options: OpenImagePlaygroundPopupOptions): PopupLaunchSnapshot {
   const nonce = crypto.randomUUID()
-  const requestId = 1
   const origin = new URL(window.location.origin).origin
   if (origin === 'null') {
     throw new Error('window origin must be non-opaque')
@@ -101,14 +101,13 @@ function captureLaunchSnapshot(options: OpenImagePlaygroundPopupOptions): PopupL
 
   return Object.freeze({
     nonce,
-    requestId,
     origin,
     timeoutMs,
     popupName: createFrameName(nonce),
     openWindow,
     configureMessage: buildConfigureMessage({
       nonce,
-      requestId,
+      requestId: 1,
       apiKey: options.apiKey,
       apiKeyId: options.apiKeyId,
       apiKeyName: options.apiKeyName,
@@ -124,6 +123,15 @@ function isPopupClosed(popup: Window): boolean {
     return popup.closed
   } catch {
     return true
+  }
+}
+
+function isExpectedPopupLocation(popup: Window, origin: string): boolean {
+  try {
+    const url = new URL(popup.location.href)
+    return url.origin === origin && url.pathname === POPUP_URL && url.search === '' && url.hash === ''
+  } catch {
+    return false
   }
 }
 
@@ -151,14 +159,16 @@ export function openImagePlaygroundPopup(
   const popup = openedPopup
   const {
     nonce,
-    requestId,
     origin,
     timeoutMs,
     configureMessage,
   } = snapshot
   let state: SessionState = 'waiting-ready'
+  let requestId = 0
+  let hasConfigured = false
   let resolveConfigured!: () => void
   let rejectConfigured!: (reason: PopupLaunchError) => void
+  let resolveClosed!: () => void
   let timeoutHandle: number | null = null
   let closePollHandle: number | null = null
   let port1: MessagePort | null = null
@@ -170,6 +180,9 @@ export function openImagePlaygroundPopup(
     resolveConfigured = resolve
     rejectConfigured = reject
   })
+  const closed = new Promise<void>((resolve) => {
+    resolveClosed = resolve
+  })
 
   function closePort(port: MessagePort | null): void {
     if (!port) return
@@ -178,6 +191,17 @@ export function openImagePlaygroundPopup(
     } catch {
       // A transferred port may already be detached; cleanup remains best-effort.
     }
+  }
+
+  function cleanupChannel(): void {
+    if (port1 && portListenerAttached) {
+      port1.removeEventListener('message', onPortMessage)
+      portListenerAttached = false
+    }
+    closePort(port1)
+    closePort(port2)
+    port1 = null
+    port2 = null
   }
 
   function cleanup(): void {
@@ -193,32 +217,33 @@ export function openImagePlaygroundPopup(
       window.clearTimeout(closePollHandle)
       closePollHandle = null
     }
-    if (port1 && portListenerAttached) {
-      port1.removeEventListener('message', onPortMessage)
-      portListenerAttached = false
-    }
-    closePort(port1)
-    closePort(port2)
-    port1 = null
-    port2 = null
+    cleanupChannel()
+    resolveClosed()
   }
 
   function fail(code: Exclude<PopupLaunchErrorCode, 'popup_blocked'>): void {
-    if (state === 'settled') return
-    state = 'settled'
+    if (state === 'ended') return
+    state = 'ended'
     cleanup()
     try {
       popup.close()
     } catch {
       // Cleanup and rejection must still complete if the browser refuses close().
     }
-    rejectConfigured(new PopupLaunchError(code))
+    if (!hasConfigured) rejectConfigured(new PopupLaunchError(code))
   }
 
   function succeed(): void {
-    if (state === 'settled') return
-    state = 'settled'
-    cleanup()
+    if (state !== 'waiting-configured') return
+    cleanupChannel()
+    state = 'waiting-ready'
+    if (hasConfigured) return
+
+    hasConfigured = true
+    if (timeoutHandle !== null) {
+      window.clearTimeout(timeoutHandle)
+      timeoutHandle = null
+    }
     resolveConfigured()
   }
 
@@ -228,7 +253,8 @@ export function openImagePlaygroundPopup(
 
       state = 'waiting-configured'
       try {
-        port1?.postMessage(configureMessage)
+        requestId += 1
+        port1?.postMessage({ ...configureMessage, requestId })
       } catch {
         fail('configuration_failed')
       }
@@ -250,7 +276,7 @@ export function openImagePlaygroundPopup(
       expectedOrigin: origin,
       expectedSource: popup,
       expectedNonce: nonce,
-    })) {
+    }) || !isExpectedPopupLocation(popup, origin)) {
       return
     }
 
@@ -271,7 +297,7 @@ export function openImagePlaygroundPopup(
   function scheduleClosePoll(): void {
     closePollHandle = window.setTimeout(() => {
       closePollHandle = null
-      if (state === 'settled') return
+      if (state === 'ended') return
 
       if (isPopupClosed(popup)) {
         fail('popup_closed')
@@ -282,7 +308,7 @@ export function openImagePlaygroundPopup(
   }
 
   const abort = () => {
-    if (state === 'settled') return
+    if (state === 'ended') return
     fail('aborted')
   }
 
@@ -290,10 +316,10 @@ export function openImagePlaygroundPopup(
   windowListenerAttached = true
   timeoutHandle = window.setTimeout(() => {
     timeoutHandle = null
-    if (state === 'settled') return
+    if (state === 'ended' || hasConfigured) return
     fail(isPopupClosed(popup) ? 'popup_closed' : 'connection_timeout')
   }, timeoutMs)
   scheduleClosePoll()
 
-  return Object.freeze({ configured, abort })
+  return Object.freeze({ configured, closed, abort })
 }

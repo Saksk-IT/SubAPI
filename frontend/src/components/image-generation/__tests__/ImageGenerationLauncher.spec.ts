@@ -220,8 +220,9 @@ describe('ImageGenerationLauncher', () => {
 
   it('opens synchronously with the selected key and closes after configuration succeeds', async () => {
     const deferred = createDeferred<void>()
+    const closed = createDeferred<void>()
     const abort = vi.fn()
-    openPopup.mockReturnValue({ configured: deferred.promise, abort })
+    openPopup.mockReturnValue({ configured: deferred.promise, closed: closed.promise, abort })
     const wrapper = mountLauncher()
     const launcher = useImageGenerationLauncherStore()
     launcher.open()
@@ -246,12 +247,18 @@ describe('ImageGenerationLauncher', () => {
     await flushPromises()
     expect(launcher.isOpen).toBe(false)
     expect(accessState.clearImageGenerationKeys).toHaveBeenCalled()
+    expect(abort).not.toHaveBeenCalled()
+
+    authStore.user = { id: 43 }
+    await flushPromises()
+    expect(abort).toHaveBeenCalledOnce()
   })
 
   it('keeps the modal open and shows a friendly popup error without exposing credentials', async () => {
     const deferred = createDeferred<void>()
     openPopup.mockReturnValue({
       configured: deferred.promise,
+      closed: Promise.resolve(),
       abort: vi.fn(),
     })
     const wrapper = mountLauncher()
@@ -271,7 +278,7 @@ describe('ImageGenerationLauncher', () => {
   it('closes and aborts the active launch when the feature is disabled or the user changes', async () => {
     const deferred = createDeferred<void>()
     const abort = vi.fn()
-    openPopup.mockReturnValue({ configured: deferred.promise, abort })
+    openPopup.mockReturnValue({ configured: deferred.promise, closed: Promise.resolve(), abort })
     const wrapper = mountLauncher()
     const launcher = useImageGenerationLauncherStore()
     launcher.open()

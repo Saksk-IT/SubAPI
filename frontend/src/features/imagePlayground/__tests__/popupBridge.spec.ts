@@ -68,6 +68,7 @@ class FakeMessageChannel {
 
 class FakePopup {
   closed = false
+  readonly location = { href: `${ORIGIN}/image-playground/` }
   readonly postMessage = vi.fn()
   readonly close = vi.fn(() => {
     this.closed = true
@@ -317,6 +318,11 @@ describe('image playground popup bridge', () => {
     }
 
     expect(FakeMessageChannel.instances).toHaveLength(0)
+    popup.location.href = `${ORIGIN}/dashboard`
+    dispatchWindowMessage({ popup, nonce })
+    expect(FakeMessageChannel.instances).toHaveLength(0)
+
+    popup.location.href = `${ORIGIN}/image-playground/`
     dispatchWindowMessage({ popup, nonce })
 
     expect(FakeMessageChannel.instances).toHaveLength(1)
@@ -374,7 +380,7 @@ describe('image playground popup bridge', () => {
     })
   })
 
-  it('resolves only for the exact configured acknowledgement and cleans up everything', async () => {
+  it('resolves only for the exact configured acknowledgement and keeps the session ready for reload', async () => {
     const popup = new FakePopup()
     const { openWindow, session } = openSession(popup)
     const nonce = nonceFromOpenCall(openWindow)
@@ -400,10 +406,27 @@ describe('image playground popup bridge', () => {
     channel.port1.emitMessage(configuredAck(nonce, requestId))
     await expect(session.configured).resolves.toBeUndefined()
 
-    expect(messageListenerCalls(removeEventListenerSpy)).toHaveLength(1)
+    expect(messageListenerCalls(removeEventListenerSpy)).toHaveLength(0)
     expect(channel.port1.listenerCount()).toBe(0)
     expect(channel.port1.closed).toBe(true)
     expect(channel.port2.closed).toBe(true)
+    expect(vi.getTimerCount()).toBe(1)
+
+    const reloadedChannel = connectPopup(popup, nonce)
+    const reloadedRequestId = requestIdFromConfigure(reloadedChannel)
+    expect(reloadedRequestId).toBe(requestId + 1)
+    expect(reloadedChannel.port1.messages[0]).toMatchObject({
+      payload: { apiKey: API_KEY, apiKeyId: 7 },
+    })
+
+    reloadedChannel.port1.emitMessage(configuredAck(nonce, reloadedRequestId))
+    expect(reloadedChannel.port1.listenerCount()).toBe(0)
+    expect(reloadedChannel.port1.closed).toBe(true)
+    expect(reloadedChannel.port2.closed).toBe(true)
+
+    session.abort()
+    await expect(session.closed).resolves.toBeUndefined()
+    expect(messageListenerCalls(removeEventListenerSpy)).toHaveLength(1)
     expect(vi.getTimerCount()).toBe(0)
   })
 

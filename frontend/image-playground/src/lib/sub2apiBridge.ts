@@ -168,7 +168,7 @@ function clearLaunchCapabilities(target: BridgeWindow): boolean {
 
 export function startSub2ApiBridge(options: StartBridgeOptions) {
   const nonce = parseBridgeNonce(options.window.name)
-  let opener = options.window.opener
+  const opener = options.window.opener
   let port: BridgePort | null = null
   let resolveConfigured: (config: ManagedConfig) => void = () => undefined
   let acceptedConfiguration = false
@@ -286,11 +286,9 @@ export function startSub2ApiBridge(options: StartBridgeOptions) {
     const connectedPort = event.ports[0]
     port = connectedPort
     options.window.removeEventListener('message', handleWindowMessage)
-    if (!clearLaunchCapabilities(options.window)) {
-      closePort()
-      return
-    }
-    opener = null
+
+    // 保留不含密钥的 nonce 与同源 opener，页面刷新后才能重新建立一次性端口。
+    // 父页仍会严格校验 origin、WindowProxy 与 nonce，密钥只经新的 MessagePort 下发。
 
     try {
       connectedPort.onmessage = handlePortMessage

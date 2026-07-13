@@ -188,7 +188,7 @@ describe('Sub2API popup bridge', () => {
     expect(h.childWindow.opener).toBe(h.opener)
   })
 
-  it('locks onto the first valid port, severs opener capabilities and reports connected', () => {
+  it('locks onto the first valid port, preserves reload capabilities and reports connected', () => {
     const h = harness()
     startSub2ApiBridge({ window: h.childWindow, onConfigure: vi.fn() })
     const port = connect(h)
@@ -201,10 +201,31 @@ describe('Sub2API popup bridge', () => {
       type: 'connected',
       nonce: NONCE,
     }])
-    expect(h.childWindow.name).toBe('')
-    expect(h.childWindow.opener).toBeNull()
+    expect(h.childWindow.name).toBe(`sub2api-image-playground:${NONCE}`)
+    expect(h.childWindow.opener).toBe(h.opener)
     expect(h.childWindow.removeEventListener).toHaveBeenCalled()
     expect(secondPort.started).toBe(false)
+  })
+
+  it('reconnects after a document reload without persisting the API key in browser storage', async () => {
+    const h = harness()
+    const firstPort = new FakePort()
+    const firstConfigure = vi.fn()
+    const firstBridge = startSub2ApiBridge({ window: h.childWindow, onConfigure: firstConfigure })
+    connect(h, firstPort)
+    firstPort.dispatch(configureMessage())
+    await expect(firstBridge.configured).resolves.toEqual(config())
+    firstBridge.dispose()
+
+    const reloadedPort = new FakePort()
+    const reloadedConfigure = vi.fn()
+    const reloadedBridge = startSub2ApiBridge({ window: h.childWindow, onConfigure: reloadedConfigure })
+    connect(h, reloadedPort)
+    reloadedPort.dispatch(configureMessage(config(), { requestId: 2 }))
+
+    await expect(reloadedBridge.configured).resolves.toEqual(config())
+    expect(reloadedConfigure).toHaveBeenCalledWith(config())
+    expect(h.opener.postMessage).toHaveBeenCalledTimes(2)
   })
 
   it.each([
