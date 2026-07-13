@@ -25,6 +25,7 @@ import (
 func f64p(v float64) *float64 { return &v }
 
 type httpUpstreamRecorder struct {
+	mu           sync.Mutex
 	lastReq      *http.Request
 	lastBody     []byte
 	lastProxyURL string
@@ -52,6 +53,8 @@ func (r passthroughErrReadCloser) Close() error {
 }
 
 func (u *httpUpstreamRecorder) Do(req *http.Request, proxyURL string, accountID int64, accountConcurrency int) (*http.Response, error) {
+	u.mu.Lock()
+	defer u.mu.Unlock()
 	u.lastReq = req
 	u.lastProxyURL = proxyURL
 	if req != nil && req.Body != nil {
