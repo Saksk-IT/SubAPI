@@ -2473,8 +2473,8 @@ func (c *Config) Validate() error {
 		return fmt.Errorf("redis.min_idle_conns cannot exceed redis.pool_size")
 	}
 	if c.OpenAIImageJobs.Enabled {
-		if c.OpenAIImageJobs.WorkerCount <= 0 {
-			return fmt.Errorf("openai_image_jobs.worker_count must be positive")
+		if c.OpenAIImageJobs.WorkerCount <= 0 || c.OpenAIImageJobs.WorkerCount > 64 {
+			return fmt.Errorf("openai_image_jobs.worker_count must be between 1 and 64")
 		}
 		if c.OpenAIImageJobs.PollIntervalSeconds <= 0 {
 			return fmt.Errorf("openai_image_jobs.poll_interval_seconds must be positive")
@@ -2513,11 +2513,11 @@ func (c *Config) Validate() error {
 		if c.OpenAIImageJobs.MaxActiveGlobal < c.OpenAIImageJobs.MaxActivePerUser {
 			return fmt.Errorf("openai_image_jobs.max_active_global must be at least max_active_per_user")
 		}
-		if c.OpenAIImageJobs.BillingMaxAttempts <= 0 {
-			return fmt.Errorf("openai_image_jobs.billing_max_attempts must be positive")
+		if c.OpenAIImageJobs.BillingMaxAttempts <= 0 || c.OpenAIImageJobs.BillingMaxAttempts > 10 {
+			return fmt.Errorf("openai_image_jobs.billing_max_attempts must be between 1 and 10")
 		}
-		if c.OpenAIImageJobs.BillingRetryDelayMS < 0 {
-			return fmt.Errorf("openai_image_jobs.billing_retry_delay_ms must be non-negative")
+		if c.OpenAIImageJobs.BillingRetryDelayMS < 0 || c.OpenAIImageJobs.BillingRetryDelayMS > 10000 {
+			return fmt.Errorf("openai_image_jobs.billing_retry_delay_ms must be between 0 and 10000")
 		}
 	}
 	if c.BatchImage.QueueEnabled {

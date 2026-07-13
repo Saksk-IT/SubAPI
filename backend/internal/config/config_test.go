@@ -312,6 +312,28 @@ func TestLoadOpenAIImageJobsConfigFromEnv(t *testing.T) {
 	require.Equal(t, 6, cfg.OpenAIImageJobs.MaxActivePerUser)
 }
 
+func TestLoadRejectsUnsafeOpenAIImageJobBounds(t *testing.T) {
+	tests := []struct {
+		name  string
+		env   string
+		value string
+		want  string
+	}{
+		{name: "too many workers", env: "OPENAI_IMAGE_JOBS_WORKER_COUNT", value: "65", want: "worker_count"},
+		{name: "too many billing attempts", env: "OPENAI_IMAGE_JOBS_BILLING_MAX_ATTEMPTS", value: "11", want: "billing_max_attempts"},
+		{name: "excessive billing retry delay", env: "OPENAI_IMAGE_JOBS_BILLING_RETRY_DELAY_MS", value: "10001", want: "billing_retry_delay_ms"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			resetViperWithJWTSecret(t)
+			t.Setenv(tt.env, tt.value)
+
+			_, err := Load()
+			require.ErrorContains(t, err, tt.want)
+		})
+	}
+}
+
 func TestLoadIdempotencyConfigFromEnv(t *testing.T) {
 	resetViperWithJWTSecret(t)
 	t.Setenv("IDEMPOTENCY_OBSERVE_ONLY", "false")
