@@ -191,7 +191,13 @@
 import { computed, h, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
-import { useAdminSettingsStore, useAppStore, useAuthStore, useOnboardingStore } from '@/stores'
+import {
+  useAdminSettingsStore,
+  useAppStore,
+  useAuthStore,
+  useImageGenerationLauncherStore,
+  useOnboardingStore,
+} from '@/stores'
 import VersionBadge from '@/components/common/VersionBadge.vue'
 import { sanitizeSvg } from '@/utils/sanitize'
 import { sanitizeUrl } from '@/utils/url'
@@ -204,6 +210,7 @@ interface NavItem {
   path: string
   label: string
   icon: unknown
+  action?: 'image-generation'
   iconSvg?: string
   url?: string
   openInNewTab?: boolean
@@ -246,6 +253,7 @@ const appStore = useAppStore()
 const authStore = useAuthStore()
 const onboardingStore = useOnboardingStore()
 const adminSettingsStore = useAdminSettingsStore()
+const imageGenerationLauncherStore = useImageGenerationLauncherStore()
 const { canUseBatchImage, refreshBatchImageAccess } = useBatchImageAccess()
 const { canUseImageGeneration, refreshImageGenerationAccess } = useImageGenerationAccess()
 
@@ -708,7 +716,9 @@ const flagRiskControl = makeSidebarFlag(FeatureFlags.riskControl)
 const flagOpsMonitoring = () => adminSettingsStore.opsMonitoringEnabled
 const flagAdminPayment = () => adminSettingsStore.paymentEnabled
 const flagBatchImageAccess = () => canUseBatchImage.value
-const flagImageGenerationAccess = () => canUseImageGeneration.value
+const flagImageGeneration = makeSidebarFlag(FeatureFlags.imageGeneration)
+const flagImageGenerationEntry = () =>
+  flagImageGeneration() && canUseImageGeneration.value
 
 // buildSelfNavItems 构造用户自己的导航项（用户端主菜单和管理员的"我的账户"子菜单共享这组声明）。
 // withDashboard=true 时包含仪表盘（用户端），false 时不含（管理员的个人区已经有独立仪表盘入口）。
@@ -722,7 +732,13 @@ function buildSelfNavItems(withDashboard: boolean): NavItem[] {
   }
   items.push(
     { path: '/keys', label: t('nav.apiKeys'), icon: KeyIcon },
-    { path: '/image-generation', label: t('nav.imageGeneration'), icon: ImageGenerationIcon, featureFlag: flagImageGenerationAccess },
+    {
+      path: '/image-generation',
+      label: t('nav.imageGeneration'),
+      icon: ImageGenerationIcon,
+      action: 'image-generation',
+      featureFlag: flagImageGenerationEntry,
+    },
     { path: '/batch-image', label: t('nav.batchImage'), icon: BatchImageIcon, hideInSimpleMode: true, featureFlag: flagBatchImageAccess },
     { path: '/usage', label: t('nav.usage'), icon: ChartIcon, hideInSimpleMode: true },
     { path: '/available-channels', label: t('nav.availableChannels'), icon: ChannelIcon, hideInSimpleMode: true, featureFlag: flagAvailableChannels },
@@ -846,8 +862,13 @@ const adminNavItems = computed((): NavItem[] => {
   if (authStore.isSimpleMode) {
     const filtered = visible.filter(item => !item.hideInSimpleMode)
     filtered.push({ path: '/keys', label: t('nav.apiKeys'), icon: KeyIcon })
-    if (flagImageGenerationAccess()) {
-      filtered.push({ path: '/image-generation', label: t('nav.imageGeneration'), icon: ImageGenerationIcon })
+    if (flagImageGenerationEntry()) {
+      filtered.push({
+        path: '/image-generation',
+        label: t('nav.imageGeneration'),
+        icon: ImageGenerationIcon,
+        action: 'image-generation',
+      })
     }
     filtered.push({ path: '/admin/settings', label: t('nav.settings'), icon: CogIcon })
     for (const cm of customMenuItemsForAdmin.value) {
@@ -914,6 +935,11 @@ function resolveMenuItemOpenUrl(item: NavItem): string {
 }
 
 function handleMenuItemClick(item: NavItem, event?: MouseEvent) {
+  if (item.action === 'image-generation') {
+    event?.preventDefault()
+    imageGenerationLauncherStore.open()
+  }
+
   if (item.openInNewTab) {
     event?.preventDefault()
     window.open(resolveMenuItemOpenUrl(item), '_blank', 'noopener,noreferrer')

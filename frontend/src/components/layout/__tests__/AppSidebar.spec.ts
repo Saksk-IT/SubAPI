@@ -49,14 +49,24 @@ describe('AppSidebar v0.1.149 merge', () => {
 
   it('adds a gated image generation entry without replacing batch image', () => {
     expect(componentSource).toContain("import { useImageGenerationAccess } from '@/composables/useImageGenerationAccess'")
-    expect(componentSource).toContain("{ path: '/image-generation', label: t('nav.imageGeneration'), icon: ImageGenerationIcon")
-    expect(componentSource).toContain('featureFlag: flagImageGenerationAccess')
+    expect(componentSource).toMatch(
+      /path: '\/image-generation',[\s\S]*?label: t\('nav\.imageGeneration'\),[\s\S]*?icon: ImageGenerationIcon/,
+    )
+    expect(componentSource).toContain("action: 'image-generation'")
+    expect(componentSource).toContain('featureFlag: flagImageGenerationEntry')
+    expect(componentSource).toContain('makeSidebarFlag(FeatureFlags.imageGeneration)')
     expect(componentSource).toContain('refreshImageGenerationAccess(true)')
     expect(componentSource).toContain("{ path: '/batch-image', label: t('nav.batchImage'), icon: BatchImageIcon")
 
     expect(componentSource.indexOf("path: '/image-generation'")).toBeLessThan(
       componentSource.indexOf("path: '/batch-image'")
     )
+  })
+
+  it('prevents image-generation route navigation and opens the global launcher action', () => {
+    expect(componentSource).toContain("if (item.action === 'image-generation')")
+    expect(componentSource).toContain('event?.preventDefault()')
+    expect(componentSource).toContain('imageGenerationLauncherStore.open()')
   })
 
   it('adds the upstream batch image entry behind its access gate', () => {

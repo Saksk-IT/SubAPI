@@ -13,5 +13,6 @@ describe('image generation route', () => {
     expect(routerSource).toContain("name: 'ImageGeneration'")
     expect(routerSource).toContain("component: () => import('@/views/user/ImageGenerationView.vue')")
     expect(routerSource).toMatch(/path: '\/image-generation'[\s\S]*?requiresAuth: true/)
+    expect(routerSource).toMatch(/path: '\/image-generation'[\s\S]*?requiresImageGeneration: true/)
   })
 })
