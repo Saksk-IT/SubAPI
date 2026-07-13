@@ -8,19 +8,22 @@
 
 1. 修改 `frontend/src/content/guides-v2/` 中的 Markdown 或媒体清单。
 2. 执行 `pnpm --dir frontend guides:v2:manifest` 更新并校验内容 manifest。
-3. 使用 Codex 捆绑文档运行时生成九份 Word 成品：
+3. 生成九份 Word 成品：
 
    ```bash
-   /Users/sak/.cache/codex-runtimes/codex-primary-runtime/dependencies/python/bin/python3 tools/export_word_guides.py --edition v2
-   /Users/sak/.cache/codex-runtimes/codex-primary-runtime/dependencies/python/bin/python3 tools/export_word_guides.py --edition v2 --check
+   python3 tools/export_word_guides.py --edition v2
+   python3 tools/export_word_guides.py --edition v2 --check
    ```
 
 4. 如需自包含 Markdown 归档，执行：
 
    ```bash
-   /Users/sak/.cache/codex-runtimes/codex-primary-runtime/dependencies/python/bin/python3 tools/export_feishu_guides.py --edition v2
-   /Users/sak/.cache/codex-runtimes/codex-primary-runtime/dependencies/python/bin/python3 tools/export_feishu_guides.py --edition v2 --check
+   python3 tools/export_feishu_guides.py --edition v2
+   python3 tools/export_feishu_guides.py --edition v2 --check
    ```
+
+运行环境需要 `python-docx>=1.2` 与 Pillow。系统 Python 缺少依赖时，可将
+上述 `python3` 替换为 Codex 捆绑文档运行时的 Python 可执行文件。
 
 V2 默认生成目录为：
 

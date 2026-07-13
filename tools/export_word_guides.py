@@ -74,6 +74,10 @@ TABLE_SEPARATOR_PATTERN = re.compile(
 INLINE_PATTERN = re.compile(
     r"(\*\*.+?\*\*|`[^`]+`|\[[^\]]+\]\(https?://[^)]+\)|<https?://[^>]+>)"
 )
+RFONTS_ELEMENT_PATTERN = re.compile(rb"<w:rFonts\b[^>]*>")
+RFONTS_ATTRIBUTE_PATTERN = re.compile(
+    rb"\bw:(ascii|hAnsi|eastAsia|cs)=(['\"])(.*?)\2"
+)
 
 
 def parse_args() -> argparse.Namespace:
@@ -739,6 +743,43 @@ def render_markdown_to_document(
     return doc
 
 
+def _normalize_rfonts_attributes(
+    payload: bytes,
+    *,
+    body_font: str | None = None,
+    east_asia_font: str | None = None,
+) -> bytes:
+    body_font_bytes = body_font.encode() if body_font else None
+    east_asia_font_bytes = east_asia_font.encode() if east_asia_font else None
+
+    def replace_rfonts(element_match: re.Match[bytes]) -> bytes:
+        def replace_attribute(attribute_match: re.Match[bytes]) -> bytes:
+            attribute = attribute_match.group(1)
+            quote = attribute_match.group(2)
+            value = attribute_match.group(3)
+            replacement = value
+            if (
+                body_font_bytes
+                and attribute in {b"ascii", b"hAnsi"}
+                and value == BODY_FONT.encode()
+            ):
+                replacement = body_font_bytes
+            if (
+                east_asia_font_bytes
+                and attribute in {b"eastAsia", b"cs"}
+                and value == EAST_ASIA_FONT.encode()
+            ):
+                replacement = east_asia_font_bytes
+            return b"w:" + attribute + b"=" + quote + replacement + quote
+
+        return RFONTS_ATTRIBUTE_PATTERN.sub(
+            replace_attribute,
+            element_match.group(0),
+        )
+
+    return RFONTS_ELEMENT_PATTERN.sub(replace_rfonts, payload)
+
+
 def normalize_docx_package(
     raw_docx: bytes,
     *,
@@ -759,12 +800,13 @@ def normalize_docx_package(
             normalized_info.create_system = 3
             normalized_info.external_attr = source_info.external_attr
             payload = source_archive.read(source_info.filename)
-            if body_font and source_info.filename.endswith(".xml"):
-                payload = payload.replace(BODY_FONT.encode(), body_font.encode())
-            if east_asia_font and source_info.filename.endswith(".xml"):
-                payload = payload.replace(
-                    EAST_ASIA_FONT.encode(),
-                    east_asia_font.encode(),
+            if source_info.filename.endswith(".xml") and (
+                body_font or east_asia_font
+            ):
+                payload = _normalize_rfonts_attributes(
+                    payload,
+                    body_font=body_font,
+                    east_asia_font=east_asia_font,
                 )
             destination_archive.writestr(normalized_info, payload)
     return destination_buffer.getvalue()

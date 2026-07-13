@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import base64
 import hashlib
+import io
 import json
 import os
 import re
@@ -13,6 +14,9 @@ import tempfile
 from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
 from typing import Iterable
+
+from PIL import Image as PillowImage
+from PIL import UnidentifiedImageError
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -200,12 +204,17 @@ def _validated_repo_relative(path_value: str, label: str) -> Path:
     return Path(*path.parts)
 
 
-def _png_data_uri(path: Path, expected_hash: str | None = None) -> str:
+def _png_data_uri(path: Path, expected_hash: str) -> str:
     image_bytes = path.read_bytes()
-    if len(image_bytes) < 33 or not image_bytes.startswith(PNG_SIGNATURE):
-        raise ValueError(f"V2 导出图片不是有效 PNG: {path}")
-    if expected_hash and hashlib.sha256(image_bytes).hexdigest() != expected_hash:
+    if hashlib.sha256(image_bytes).hexdigest() != expected_hash:
         raise ValueError(f"V2 导出图片哈希不匹配: {path}")
+    try:
+        with PillowImage.open(io.BytesIO(image_bytes)) as image:
+            if image.format != "PNG":
+                raise ValueError(f"V2 导出图片不是有效 PNG: {path}")
+            image.verify()
+    except (UnidentifiedImageError, OSError, SyntaxError) as error:
+        raise ValueError(f"V2 导出图片不是有效 PNG: {path}") from error
     return "data:image/png;base64," + base64.b64encode(image_bytes).decode("ascii")
 
 
@@ -224,8 +233,15 @@ def load_media(content_dir: Path = CONTENT_DIR) -> dict[str, tuple[MediaSpec, st
             raise ValueError("V2 媒体 manifest entry 无效")
         web_path = entry.get("webPath")
         export_path = entry.get("exportPath")
+        png_sha256 = entry.get("pngSha256")
         if not isinstance(web_path, str) or not isinstance(export_path, str):
             raise ValueError("V2 媒体路径缺失")
+        if not isinstance(png_sha256, str) or not SHA256_PATTERN.fullmatch(
+            png_sha256
+        ):
+            raise ValueError(f"V2 媒体 pngSha256 无效: {web_path}")
+        if web_path in media:
+            raise ValueError(f"V2 媒体 webPath 重复: {web_path}")
         relative = _validated_repo_relative(export_path, "V2 媒体 exportPath")
         image_path = _safe_regular_file(
             REPO_ROOT / relative,
@@ -244,7 +260,7 @@ def load_media(content_dir: Path = CONTENT_DIR) -> dict[str, tuple[MediaSpec, st
                 else None
             ),
         )
-        media[web_path] = (spec, _png_data_uri(image_path, entry.get("pngSha256")))
+        media[web_path] = (spec, _png_data_uri(image_path, png_sha256))
     return media
 
 
@@ -382,6 +398,8 @@ def atomic_export_tree(
         raise ValueError("导出路径重复")
     if output_dir.is_symlink():
         raise ValueError(f"导出目录拒绝符号链接: {output_dir}")
+    if output_dir.exists() and not output_dir.is_dir():
+        raise ValueError(f"导出路径已存在且不是目录: {output_dir}")
     parent = output_dir.parent
     parent.mkdir(parents=True, exist_ok=True)
     staging = Path(tempfile.mkdtemp(prefix=f".{output_dir.name}.staging-", dir=parent))

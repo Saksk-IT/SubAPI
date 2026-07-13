@@ -3,8 +3,9 @@ from __future__ import annotations
 import base64
 import hashlib
 import json
-import subprocess
 import shutil
+import subprocess
+import sys
 import tempfile
 import unittest
 import zipfile
@@ -13,10 +14,6 @@ from xml.etree import ElementTree
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-PYTHON = Path(
-    "/Users/sak/.cache/codex-runtimes/codex-primary-runtime/"
-    "dependencies/python/bin/python3"
-)
 MARKDOWN_EXPORTER = REPO_ROOT / "tools" / "export_feishu_guides.py"
 WORD_EXPORTER = REPO_ROOT / "tools" / "export_word_guides.py"
 CONTENT_DIR = REPO_ROOT / "frontend" / "src" / "content" / "guides-v2"
@@ -45,7 +42,7 @@ def run_export(
 ) -> subprocess.CompletedProcess[str]:
     return subprocess.run(
         [
-            str(PYTHON),
+            sys.executable,
             str(script),
             "--edition",
             "v2",
@@ -70,6 +67,19 @@ def document_text(path: Path) -> str:
 
 
 class V2GuideExportTests(unittest.TestCase):
+    def write_media_manifest(self, root: Path, entries: list[dict]) -> None:
+        root.mkdir(parents=True, exist_ok=True)
+        (root / "media-manifest.json").write_text(
+            json.dumps({"version": "v2", "media": entries}),
+            "utf-8",
+        )
+
+    def first_media_entry(self) -> dict:
+        manifest = json.loads(
+            (CONTENT_DIR / "media-manifest.json").read_text("utf-8")
+        )
+        return dict(manifest["media"][0])
+
     def test_manifest_hashes_match_all_nine_sources(self) -> None:
         manifest = json.loads(
             (CONTENT_DIR / "manifest.generated.json").read_text("utf-8")
@@ -249,6 +259,56 @@ class V2GuideExportTests(unittest.TestCase):
             self.assertIn("视频链接：https://example.com/demo.mp4", rendered)
             self.assertNotIn("<video", rendered)
 
+    def test_media_manifest_requires_png_sha256(self) -> None:
+        from tools import export_guides_v2 as exporter
+
+        for invalid_hash in (None, "", "A" * 64, "0" * 63):
+            with (
+                self.subTest(invalid_hash=invalid_hash),
+                tempfile.TemporaryDirectory() as temporary_directory,
+            ):
+                root = Path(temporary_directory)
+                entry = self.first_media_entry()
+                if invalid_hash is None:
+                    entry.pop("pngSha256")
+                else:
+                    entry["pngSha256"] = invalid_hash
+                self.write_media_manifest(root, [entry])
+                with self.assertRaisesRegex(ValueError, "pngSha256"):
+                    exporter.load_media(root)
+
+    def test_media_manifest_rejects_duplicate_web_path(self) -> None:
+        from tools import export_guides_v2 as exporter
+
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            root = Path(temporary_directory)
+            entry = self.first_media_entry()
+            self.write_media_manifest(root, [entry, dict(entry)])
+            with self.assertRaisesRegex(ValueError, "webPath.*重复"):
+                exporter.load_media(root)
+
+    def test_media_manifest_rejects_png_hash_mismatch(self) -> None:
+        from tools import export_guides_v2 as exporter
+
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            root = Path(temporary_directory)
+            entry = self.first_media_entry()
+            entry["pngSha256"] = "0" * 64
+            self.write_media_manifest(root, [entry])
+            with self.assertRaisesRegex(ValueError, "哈希不匹配"):
+                exporter.load_media(root)
+
+    def test_png_validation_rejects_truncated_image_with_valid_signature(self) -> None:
+        from tools import export_guides_v2 as exporter
+
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            image_path = Path(temporary_directory) / "broken.png"
+            image_bytes = b"\x89PNG\r\n\x1a\n" + b"\0" * 64
+            image_path.write_bytes(image_bytes)
+            digest = hashlib.sha256(image_bytes).hexdigest()
+            with self.assertRaisesRegex(ValueError, str(image_path)):
+                exporter._png_data_uri(image_path, digest)
+
     def test_v2_transaction_rejects_escape_and_symlink_without_partial_output(self) -> None:
         from tools import export_guides_v2 as exporter
 
@@ -277,6 +337,22 @@ class V2GuideExportTests(unittest.TestCase):
                     ((f"{OUTPUT_PARENT}/one.md", b"one"),),
                 )
             self.assertEqual(tuple(outside.iterdir()), ())
+
+    def test_v2_transaction_rejects_existing_regular_file_without_moving_it(self) -> None:
+        from tools import export_guides_v2 as exporter
+
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            output = Path(temporary_directory) / "output"
+            output.write_bytes(b"keep-original")
+            with self.assertRaisesRegex(ValueError, "不是目录"):
+                exporter.atomic_export_tree(
+                    output,
+                    ((f"{OUTPUT_PARENT}/one.md", b"one"),),
+                )
+            self.assertTrue(output.is_file())
+            self.assertEqual(output.read_bytes(), b"keep-original")
+            self.assertFalse((output.parent / ".output.backup").exists())
+            self.assertFalse(tuple(output.parent.glob(".output.staging-*")))
 
 
 if __name__ == "__main__":

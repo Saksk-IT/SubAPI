@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import io
 import subprocess
 import sys
 import tempfile
@@ -72,6 +73,37 @@ class WordGuideExportTests(unittest.TestCase):
             text=True,
             check=False,
         )
+
+    def test_package_font_normalization_preserves_font_names_in_body_text(self) -> None:
+        from tools import export_word_guides as exporter
+
+        document_xml = (
+            '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+            f'<w:document xmlns:w="{WORD_NS}"><w:body><w:p><w:r>'
+            '<w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" '
+            'w:eastAsia="PingFang SC" w:cs="PingFang SC"/></w:rPr>'
+            '<w:t>正文保留 Arial 与 PingFang SC</w:t>'
+            '</w:r></w:p></w:body></w:document>'
+        ).encode("utf-8")
+        source = io.BytesIO()
+        with zipfile.ZipFile(source, "w") as archive:
+            archive.writestr("word/document.xml", document_xml)
+
+        normalized = exporter.normalize_docx_package(
+            source.getvalue(),
+            body_font="Calibri",
+            east_asia_font="Hiragino Sans GB",
+        )
+        with zipfile.ZipFile(io.BytesIO(normalized)) as archive:
+            root = ElementTree.fromstring(archive.read("word/document.xml"))
+
+        text = "".join(node.text or "" for node in root.iter(f"{{{WORD_NS}}}t"))
+        fonts = next(root.iter(f"{{{WORD_NS}}}rFonts"))
+        self.assertEqual(text, "正文保留 Arial 与 PingFang SC")
+        self.assertEqual(fonts.attrib[f"{{{WORD_NS}}}ascii"], "Calibri")
+        self.assertEqual(fonts.attrib[f"{{{WORD_NS}}}hAnsi"], "Calibri")
+        self.assertEqual(fonts.attrib[f"{{{WORD_NS}}}eastAsia"], "Hiragino Sans GB")
+        self.assertEqual(fonts.attrib[f"{{{WORD_NS}}}cs"], "Hiragino Sans GB")
 
     def test_exports_exact_parent_and_six_child_word_files(self) -> None:
         with tempfile.TemporaryDirectory() as temporary_directory:
