@@ -57,6 +57,18 @@ def run_export(
     )
 
 
+def run_without_site_packages(
+    *arguments: str,
+) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(
+        [sys.executable, "-S", str(MARKDOWN_EXPORTER), *arguments],
+        cwd=REPO_ROOT,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+
 def document_text(path: Path) -> str:
     with zipfile.ZipFile(path) as archive:
         root = ElementTree.fromstring(archive.read("word/document.xml"))
@@ -79,6 +91,33 @@ class V2GuideExportTests(unittest.TestCase):
             (CONTENT_DIR / "media-manifest.json").read_text("utf-8")
         )
         return dict(manifest["media"][0])
+
+    def test_v1_help_and_default_export_do_not_require_pillow(self) -> None:
+        help_result = run_without_site_packages("--help")
+        self.assertEqual(help_result.returncode, 0, help_result.stderr)
+        self.assertIn("--edition", help_result.stdout)
+
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            output_dir = Path(temporary_directory)
+            export_result = run_without_site_packages(
+                "--output-dir",
+                str(output_dir),
+            )
+            self.assertEqual(export_result.returncode, 0, export_result.stderr)
+            self.assertEqual(len(tuple(output_dir.rglob("*.md"))), 7)
+
+    def test_v2_missing_pillow_reports_clear_error(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            result = run_without_site_packages(
+                "--edition",
+                "v2",
+                "--output-dir",
+                temporary_directory,
+            )
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("V2", result.stderr)
+        self.assertIn("Pillow", result.stderr)
+        self.assertNotIn("Traceback", result.stderr)
 
     def test_manifest_hashes_match_all_nine_sources(self) -> None:
         manifest = json.loads(

@@ -15,10 +15,6 @@ from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
 from typing import Iterable
 
-from PIL import Image as PillowImage
-from PIL import UnidentifiedImageError
-
-
 REPO_ROOT = Path(__file__).resolve().parents[1]
 CONTENT_DIR = REPO_ROOT / "frontend" / "src" / "content" / "guides-v2"
 MANIFEST_PATH = CONTENT_DIR / "manifest.generated.json"
@@ -205,6 +201,14 @@ def _validated_repo_relative(path_value: str, label: str) -> Path:
 
 
 def _png_data_uri(path: Path, expected_hash: str) -> str:
+    try:
+        from PIL import Image as PillowImage
+        from PIL import UnidentifiedImageError
+    except ImportError as error:
+        raise ValueError(
+            "V2 PNG 校验需要 Pillow；请安装 Pillow 后重试。"
+        ) from error
+
     image_bytes = path.read_bytes()
     if hashlib.sha256(image_bytes).hexdigest() != expected_hash:
         raise ValueError(f"V2 导出图片哈希不匹配: {path}")
