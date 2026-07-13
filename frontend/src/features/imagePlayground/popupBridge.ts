@@ -207,6 +207,11 @@ export function openImagePlaygroundPopup(
     if (state === 'settled') return
     state = 'settled'
     cleanup()
+    try {
+      popup.close()
+    } catch {
+      // Cleanup and rejection must still complete if the browser refuses close().
+    }
     rejectConfigured(new PopupLaunchError(code))
   }
 
@@ -279,11 +284,6 @@ export function openImagePlaygroundPopup(
   const abort = () => {
     if (state === 'settled') return
     fail('aborted')
-    try {
-      popup.close()
-    } catch {
-      // The session is already cleaned up even if the browser refuses close().
-    }
   }
 
   window.addEventListener('message', onWindowMessage)

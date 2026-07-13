@@ -431,6 +431,7 @@ describe('image playground popup bridge', () => {
     expect(channel.port1.closed).toBe(true)
     expect(channel.port2.closed).toBe(true)
     expect(vi.getTimerCount()).toBe(0)
+    expect(popup.close).toHaveBeenCalledOnce()
   })
 
   it('rejects on timeout and removes its listener and polling timer', async () => {
@@ -442,6 +443,7 @@ describe('image playground popup bridge', () => {
     await expect(session.configured).rejects.toMatchObject({ code: 'connection_timeout' })
     expect(messageListenerCalls(removeEventListenerSpy)).toHaveLength(1)
     expect(vi.getTimerCount()).toBe(0)
+    expect(popup.close).toHaveBeenCalledOnce()
   })
 
   it('reports popup_closed when the popup closes just before the timeout callback', async () => {

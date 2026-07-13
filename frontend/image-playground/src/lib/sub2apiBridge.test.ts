@@ -49,19 +49,22 @@ class FakePort {
   }
 }
 
-function harness(name = `sub2api-image-playground:${NONCE}`) {
-  const parent = { postMessage: vi.fn() }
+function harness({
+  name = `sub2api-image-playground:${NONCE}`,
+  withOpener = true,
+}: { name?: string; withOpener?: boolean } = {}) {
+  const opener = { postMessage: vi.fn() }
   const listeners = new Set<(event: any) => void>()
   const childWindow = {
     name,
     location: { origin: 'https://sub2api.example' },
-    parent,
+    opener: withOpener ? opener : null,
     addEventListener: vi.fn((_type: string, listener: (event: any) => void) => listeners.add(listener)),
     removeEventListener: vi.fn((_type: string, listener: (event: any) => void) => listeners.delete(listener)),
   }
   return {
     childWindow,
-    parent,
+    opener,
     dispatch: (event: unknown) => listeners.forEach((listener) => listener(event)),
   }
 }
@@ -88,7 +91,17 @@ function configureMessage(payload: unknown = config(), overrides: Record<string,
   }
 }
 
-describe('Sub2API managed bridge', () => {
+function connect(h: ReturnType<typeof harness>, port = new FakePort()) {
+  h.dispatch({
+    origin: 'https://sub2api.example',
+    source: h.opener,
+    data: connectMessage(),
+    ports: [port],
+  })
+  return port
+}
+
+describe('Sub2API popup bridge', () => {
   it('waits for child load before starting the handshake', () => {
     let load: () => void = () => undefined
     const start = vi.fn()
@@ -116,35 +129,37 @@ describe('Sub2API managed bridge', () => {
     expect(target.addEventListener).not.toHaveBeenCalled()
   })
 
-  it('reads only a high-entropy nonce from iframe.name', () => {
+  it('reads only a high-entropy nonce from window.name', () => {
     expect(parseBridgeNonce(`sub2api-image-playground:${NONCE}`)).toBe(NONCE)
     expect(parseBridgeNonce('sub2api-image-playground:short')).toBeNull()
     expect(parseBridgeNonce(`other:${NONCE}`)).toBeNull()
   })
 
-  it('does not start when opened directly', () => {
-    const h = harness('')
-    const bridge = startSub2ApiBridge({
-      window: h.childWindow,
-      onConfigure: vi.fn(),
-      onClear: vi.fn(),
-    })
+  it.each([
+    ['missing name', { name: '', withOpener: true }],
+    ['missing opener', { name: `sub2api-image-playground:${NONCE}`, withOpener: false }],
+  ])('stays in direct mode with %s', (_name, options) => {
+    const h = harness(options)
+    const bridge = startSub2ApiBridge({ window: h.childWindow, onConfigure: vi.fn() })
 
     expect(bridge.mode).toBe('direct')
-    expect(h.parent.postMessage).not.toHaveBeenCalled()
+    expect(h.opener.postMessage).not.toHaveBeenCalled()
+    expect(h.childWindow.addEventListener).not.toHaveBeenCalled()
+    expect(h.childWindow.name).toBe('')
+    expect(h.childWindow.opener).toBeNull()
   })
 
-  it('announces readiness to the exact same origin without secrets', () => {
+  it('announces readiness only to the exact opener and same origin without secrets', () => {
     const h = harness()
-    startSub2ApiBridge({ window: h.childWindow, onConfigure: vi.fn(), onClear: vi.fn() })
+    startSub2ApiBridge({ window: h.childWindow, onConfigure: vi.fn() })
 
-    expect(h.parent.postMessage).toHaveBeenCalledWith({
+    expect(h.opener.postMessage).toHaveBeenCalledWith({
       protocol: SUB2API_BRIDGE_PROTOCOL,
       version: SUB2API_BRIDGE_VERSION,
       type: 'ready',
       nonce: NONCE,
     }, 'https://sub2api.example')
-    expect(JSON.stringify(h.parent.postMessage.mock.calls)).not.toContain('sk-managed-secret')
+    expect(JSON.stringify(h.opener.postMessage.mock.calls)).not.toContain('sk-managed-secret')
   })
 
   it.each([
@@ -158,17 +173,38 @@ describe('Sub2API managed bridge', () => {
   ])('rejects connect with %s', (_name, patch) => {
     const h = harness()
     const port = new FakePort()
-    startSub2ApiBridge({ window: h.childWindow, onConfigure: vi.fn(), onClear: vi.fn() })
+    startSub2ApiBridge({ window: h.childWindow, onConfigure: vi.fn() })
 
     h.dispatch({
       origin: 'https://sub2api.example',
-      source: h.parent,
+      source: h.opener,
       data: connectMessage(),
       ports: [port],
       ...patch,
     })
 
     expect(port.started).toBe(false)
+    expect(h.childWindow.name).toBe(`sub2api-image-playground:${NONCE}`)
+    expect(h.childWindow.opener).toBe(h.opener)
+  })
+
+  it('locks onto the first valid port, severs opener capabilities and reports connected', () => {
+    const h = harness()
+    startSub2ApiBridge({ window: h.childWindow, onConfigure: vi.fn() })
+    const port = connect(h)
+    const secondPort = connect(h)
+
+    expect(port.started).toBe(true)
+    expect(port.sent).toEqual([{
+      protocol: SUB2API_BRIDGE_PROTOCOL,
+      version: SUB2API_BRIDGE_VERSION,
+      type: 'connected',
+      nonce: NONCE,
+    }])
+    expect(h.childWindow.name).toBe('')
+    expect(h.childWindow.opener).toBeNull()
+    expect(h.childWindow.removeEventListener).toHaveBeenCalled()
+    expect(secondPort.started).toBe(false)
   })
 
   it.each([
@@ -179,18 +215,30 @@ describe('Sub2API managed bridge', () => {
     ['fal profile mode', config({ profiles: [{ id: 'fal', name: 'fal', apiMode: 'fal' as any, model: 'x' }, config().profiles[1]] })],
     ['unknown payload field', { ...config(), proxy: true }],
     ['profile secret field', { ...config(), profiles: [{ ...config().profiles[0], apiKey: 'leak' }, config().profiles[1]] }],
-  ])('rejects invalid configure payload: %s', async (_name, payload) => {
+  ])('rejects invalid configure payload with a secret-free error: %s', async (_name, payload) => {
     const h = harness()
-    const port = new FakePort()
     const onConfigure = vi.fn()
-    startSub2ApiBridge({ window: h.childWindow, onConfigure, onClear: vi.fn() })
-    h.dispatch({ origin: 'https://sub2api.example', source: h.parent, data: connectMessage(), ports: [port] })
+    const port = new FakePort()
+    startSub2ApiBridge({ window: h.childWindow, onConfigure })
+    connect(h, port)
 
     port.dispatch(configureMessage(payload))
-    await Promise.resolve()
+    await vi.waitFor(() => expect(port.closed).toBe(true))
 
     expect(onConfigure).not.toHaveBeenCalled()
-    expect(port.sent).toEqual([])
+    expect(port.sent.at(-1)).toEqual({
+      protocol: SUB2API_BRIDGE_PROTOCOL,
+      version: SUB2API_BRIDGE_VERSION,
+      type: 'ack',
+      nonce: NONCE,
+      status: 'error',
+      requestId: 1,
+      error: {
+        code: 'invalid_configuration',
+        message: 'The image playground configuration is invalid',
+      },
+    })
+    expect(JSON.stringify(port.sent)).not.toContain('sk-managed-secret')
   })
 
   it('treats the API key as an opaque bounded string', async () => {
@@ -198,10 +246,11 @@ describe('Sub2API managed bridge', () => {
     const port = new FakePort()
     const onConfigure = vi.fn()
     const opaqueKeyConfig = config({ apiKey: ' key-with-significant-spaces ' })
-    startSub2ApiBridge({ window: h.childWindow, onConfigure, onClear: vi.fn() })
-    h.dispatch({ origin: 'https://sub2api.example', source: h.parent, data: connectMessage(), ports: [port] })
+    startSub2ApiBridge({ window: h.childWindow, onConfigure })
+    connect(h, port)
 
     port.dispatch(configureMessage(opaqueKeyConfig))
+
     await vi.waitFor(() => expect(onConfigure).toHaveBeenCalledWith(opaqueKeyConfig))
   })
 
@@ -211,12 +260,12 @@ describe('Sub2API managed bridge', () => {
     ['fractional request id', { requestId: 1.5 }],
     ['unsafe request id', { requestId: Number.MAX_SAFE_INTEGER + 1 }],
     ['unknown top-level field', { extra: true }],
-  ])('rejects configure with %s', async (_name, overrides) => {
+  ])('ignores malformed configure with %s', async (_name, overrides) => {
     const h = harness()
     const port = new FakePort()
     const onConfigure = vi.fn()
-    startSub2ApiBridge({ window: h.childWindow, onConfigure, onClear: vi.fn() })
-    h.dispatch({ origin: 'https://sub2api.example', source: h.parent, data: connectMessage(), ports: [port] })
+    startSub2ApiBridge({ window: h.childWindow, onConfigure })
+    connect(h, port)
 
     const message = configureMessage(config(), overrides)
     if ('requestId' in overrides && overrides.requestId === undefined) {
@@ -226,38 +275,28 @@ describe('Sub2API managed bridge', () => {
     await Promise.resolve()
 
     expect(onConfigure).not.toHaveBeenCalled()
-    expect(port.sent).toEqual([])
+    expect(port.sent).toHaveLength(1)
+    expect(port.closed).toBe(false)
   })
 
-  it('serializes configure requests and echoes each positive request id in its ack', async () => {
+  it('applies one strict configuration, acknowledges it, then closes the port', async () => {
     const h = harness()
     const port = new FakePort()
-    let releaseFirst: () => void = () => undefined
-    const firstPending = new Promise<void>((resolve) => {
-      releaseFirst = resolve
-    })
-    const applied: string[] = []
-    const onConfigure = vi.fn(async (payload: ManagedConfig) => {
-      if (payload.apiKey === 'sk-first') await firstPending
-      applied.push(payload.apiKey)
-    })
-    startSub2ApiBridge({ window: h.childWindow, onConfigure, onClear: vi.fn() })
-    h.dispatch({ origin: 'https://sub2api.example', source: h.parent, data: connectMessage(), ports: [port] })
+    const onConfigure = vi.fn()
+    const bridge = startSub2ApiBridge({ window: h.childWindow, onConfigure })
+    connect(h, port)
 
-    port.dispatch(configureMessage(config({ apiKey: 'sk-first' }), { requestId: 1 }))
-    port.dispatch(configureMessage(config({ apiKey: 'sk-second' }), { requestId: 2 }))
-    await Promise.resolve()
+    port.dispatch(configureMessage())
 
-    expect(onConfigure).toHaveBeenCalledTimes(1)
-    expect(port.sent).toEqual([])
-
-    releaseFirst()
-    await vi.waitFor(() => expect(onConfigure).toHaveBeenCalledTimes(2))
-    await vi.waitFor(() => expect(port.sent).toHaveLength(2))
-
-    expect(applied).toEqual(['sk-first', 'sk-second'])
-    expect(applied.at(-1)).toBe('sk-second')
+    await expect(bridge.configured).resolves.toEqual(config())
+    expect(onConfigure).toHaveBeenCalledOnce()
     expect(port.sent).toEqual([
+      {
+        protocol: SUB2API_BRIDGE_PROTOCOL,
+        version: SUB2API_BRIDGE_VERSION,
+        type: 'connected',
+        nonce: NONCE,
+      },
       {
         protocol: SUB2API_BRIDGE_PROTOCOL,
         version: SUB2API_BRIDGE_VERSION,
@@ -266,18 +305,14 @@ describe('Sub2API managed bridge', () => {
         status: 'configured',
         requestId: 1,
       },
-      {
-        protocol: SUB2API_BRIDGE_PROTOCOL,
-        version: SUB2API_BRIDGE_VERSION,
-        type: 'ack',
-        nonce: NONCE,
-        status: 'configured',
-        requestId: 2,
-      },
     ])
+    expect(port.closed).toBe(true)
+
+    port.dispatch(configureMessage(config({ apiKey: 'sk-second' }), { requestId: 2 }))
+    expect(onConfigure).toHaveBeenCalledOnce()
   })
 
-  it('queues clear behind an in-flight configure operation', async () => {
+  it('ignores a second configuration while the first one is still applying', async () => {
     const h = harness()
     const port = new FakePort()
     let releaseConfigure: () => void = () => undefined
@@ -285,60 +320,58 @@ describe('Sub2API managed bridge', () => {
       releaseConfigure = resolve
     })
     const onConfigure = vi.fn(() => pendingConfigure)
-    const onClear = vi.fn()
-    startSub2ApiBridge({ window: h.childWindow, onConfigure, onClear })
-    h.dispatch({ origin: 'https://sub2api.example', source: h.parent, data: connectMessage(), ports: [port] })
+    startSub2ApiBridge({ window: h.childWindow, onConfigure })
+    connect(h, port)
 
-    port.dispatch(configureMessage())
-    port.dispatch({
-      protocol: SUB2API_BRIDGE_PROTOCOL,
-      version: SUB2API_BRIDGE_VERSION,
-      type: 'clear',
-      nonce: NONCE,
-    })
-    await Promise.resolve()
+    port.dispatch(configureMessage(config({ apiKey: 'sk-first' }), { requestId: 1 }))
+    port.dispatch(configureMessage(config({ apiKey: 'sk-second' }), { requestId: 2 }))
 
     expect(onConfigure).toHaveBeenCalledOnce()
-    expect(onClear).not.toHaveBeenCalled()
-
     releaseConfigure()
-    await vi.waitFor(() => expect(onClear).toHaveBeenCalledOnce())
-    expect(port.sent.map((message: any) => message.status)).toEqual(['configured', 'cleared'])
+    await vi.waitFor(() => expect(port.closed).toBe(true))
+    expect(port.sent.filter((message: any) => message.type === 'ack')).toEqual([
+      expect.objectContaining({ status: 'configured', requestId: 1 }),
+    ])
   })
 
-  it('accepts strict configure updates and clear messages on the transferred port', async () => {
+  it('returns a generic secret-free error when applying configuration fails', async () => {
     const h = harness()
     const port = new FakePort()
-    const onConfigure = vi.fn()
-    const onClear = vi.fn()
-    const bridge = startSub2ApiBridge({ window: h.childWindow, onConfigure, onClear })
-    h.dispatch({ origin: 'https://sub2api.example', source: h.parent, data: connectMessage(), ports: [port] })
+    const onConfigure = vi.fn(() => {
+      throw new Error('failed while using sk-managed-secret')
+    })
+    startSub2ApiBridge({ window: h.childWindow, onConfigure })
+    connect(h, port)
 
     port.dispatch(configureMessage())
-    await Promise.resolve()
+    await vi.waitFor(() => expect(port.closed).toBe(true))
 
-    expect(port.started).toBe(true)
-    expect(onConfigure).toHaveBeenCalledWith(config())
-    await expect(bridge.configured).resolves.toEqual(config())
-    expect(port.sent).toContainEqual({
+    expect(port.sent.at(-1)).toEqual({
       protocol: SUB2API_BRIDGE_PROTOCOL,
       version: SUB2API_BRIDGE_VERSION,
       type: 'ack',
       nonce: NONCE,
-      status: 'configured',
+      status: 'error',
       requestId: 1,
+      error: {
+        code: 'configuration_failed',
+        message: 'The image playground configuration could not be applied',
+      },
     })
+    expect(JSON.stringify(port.sent)).not.toContain('sk-managed-secret')
+  })
 
-    port.dispatch({
-      protocol: SUB2API_BRIDGE_PROTOCOL,
-      version: SUB2API_BRIDGE_VERSION,
-      type: 'clear',
-      nonce: NONCE,
-    })
-    await vi.waitFor(() => expect(onClear).toHaveBeenCalledOnce())
-    await vi.waitFor(() => expect(port.sent).toContainEqual(expect.objectContaining({ type: 'ack', status: 'cleared' })))
+  it('disposes a connected port without accepting later configuration', () => {
+    const h = harness()
+    const port = new FakePort()
+    const onConfigure = vi.fn()
+    const bridge = startSub2ApiBridge({ window: h.childWindow, onConfigure })
+    connect(h, port)
 
     bridge.dispose()
+    port.dispatch(configureMessage())
+
     expect(port.closed).toBe(true)
+    expect(onConfigure).not.toHaveBeenCalled()
   })
 })

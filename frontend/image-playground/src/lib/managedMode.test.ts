@@ -14,6 +14,7 @@ import {
   managedFetch,
   redactSettingsSecrets,
   requireManagedRuntime,
+  runManagedConfigurationTransaction,
   updateManagedPresentationConfig,
 } from './managedMode'
 import type { ManagedConfig } from './sub2apiBridge'
@@ -190,6 +191,32 @@ describe('managed Sub2API runtime', () => {
     expect(redacted.apiKey).toBe('')
     expect(redacted.profiles.every((profile) => profile.apiKey === '')).toBe(true)
     expect(JSON.stringify(redacted)).not.toContain('sk-first')
+  })
+
+  it('clears managed credentials and runs runtime redaction when configuration fails', async () => {
+    const failure = new Error('configuration failed')
+    const redactRuntime = vi.fn()
+
+    await expect(runManagedConfigurationTransaction(async () => {
+      activateManagedConfig(config(), DEFAULT_SETTINGS)
+      throw failure
+    }, redactRuntime)).rejects.toBe(failure)
+
+    expect(getManagedSnapshot()).toBeNull()
+    expect(redactRuntime).toHaveBeenCalledOnce()
+  })
+
+  it('preserves the original configuration error if runtime redaction also fails', async () => {
+    const failure = new Error('original configuration failure')
+
+    await expect(runManagedConfigurationTransaction(async () => {
+      activateManagedConfig(config(), DEFAULT_SETTINGS)
+      throw failure
+    }, () => {
+      throw new Error('redaction failed')
+    })).rejects.toBe(failure)
+
+    expect(getManagedSnapshot()).toBeNull()
   })
 
   it('fails closed after clear without invoking fetch', async () => {

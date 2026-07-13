@@ -113,6 +113,23 @@ export function clearManagedConfig() {
   generation += 1
 }
 
+export async function runManagedConfigurationTransaction<T>(
+  operation: () => T | Promise<T>,
+  redactRuntimeSettings: () => void = () => undefined,
+): Promise<T> {
+  try {
+    return await operation()
+  } catch (error) {
+    clearManagedConfig()
+    try {
+      redactRuntimeSettings()
+    } catch {
+      // Preserve the original configuration failure after clearing the snapshot.
+    }
+    throw error
+  }
+}
+
 export function isManagedMode() {
   return snapshot !== null
 }

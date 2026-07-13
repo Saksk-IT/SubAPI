@@ -14,6 +14,7 @@ import {
   hasSameManagedCredentialIdentity,
   redactSettingsSecrets,
   requireManagedRuntime,
+  runManagedConfigurationTransaction,
   updateManagedPresentationConfig,
 } from './lib/managedMode'
 import { prepareManagedServiceWorker } from './lib/managedServiceWorker'
@@ -57,38 +58,40 @@ async function configureApp(config: Parameters<typeof activateManagedConfig>[0])
     return
   }
 
-  if (hasSameManagedCredentialIdentity(config)) {
-    updateManagedPresentationConfig(config)
-    applyManagedPresentation(config)
-    return
+  try {
+    await runManagedConfigurationTransaction(async () => {
+      if (hasSameManagedCredentialIdentity(config)) {
+        updateManagedPresentationConfig(config)
+        applyManagedPresentation(config)
+        return
+      }
+
+      const previousSettings = appModules?.useStore.getState().settings ?? DEFAULT_SETTINGS
+      activateManagedConfig(config, previousSettings)
+      applyManagedPresentation(config)
+      appModules ??= await loadAppModules()
+      const settings = enforceManagedSettings(appModules.useStore.getState().settings)
+      appModules.useStore.getState().setSettings(settings)
+
+      if (!appInitialized) {
+        await appModules.initStore()
+        appInitialized = true
+      }
+
+      root.render(
+        <StrictMode>
+          <appModules.App />
+        </StrictMode>,
+      )
+    }, () => {
+      if (!appModules) return
+      const state = appModules.useStore.getState()
+      state.setSettings(redactSettingsSecrets(state.settings))
+    })
+  } catch (error) {
+    renderStatus('无法安全启动生图功能', '生图配置未能完成，密钥已从当前标签页内存清除。')
+    throw error
   }
-
-  const previousSettings = appModules?.useStore.getState().settings ?? DEFAULT_SETTINGS
-  activateManagedConfig(config, previousSettings)
-  applyManagedPresentation(config)
-  appModules ??= await loadAppModules()
-  const settings = enforceManagedSettings(appModules.useStore.getState().settings)
-  appModules.useStore.getState().setSettings(settings)
-
-  if (!appInitialized) {
-    await appModules.initStore()
-    appInitialized = true
-  }
-
-  root.render(
-    <StrictMode>
-      <appModules.App />
-    </StrictMode>,
-  )
-}
-
-function clearApp() {
-  clearManagedConfig()
-  if (appModules) {
-    const state = appModules.useStore.getState()
-    state.setSettings(redactSettingsSecrets(state.settings))
-  }
-  root.render(<StatusView title="连接已断开" detail="API 密钥已从生图页面内存清除，请重新选择密钥后继续。" />)
 }
 
 async function startManagedBridge() {
@@ -103,7 +106,6 @@ async function startManagedBridge() {
   bridge = startSub2ApiBridge({
     window: window as any,
     onConfigure: configureApp,
-    onClear: clearApp,
   })
 
   if (bridge.mode === 'direct') {

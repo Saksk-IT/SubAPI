@@ -39,10 +39,14 @@ interface BridgeMessageEvent {
   ports?: BridgePort[]
 }
 
+interface BridgeOpener {
+  postMessage(message: unknown, targetOrigin: string): void
+}
+
 interface BridgeWindow {
   name: string
   location: { origin: string }
-  parent: { postMessage(message: unknown, targetOrigin: string): void }
+  opener: BridgeOpener | null
   addEventListener(type: 'message', listener: (event: BridgeMessageEvent) => void): void
   removeEventListener(type: 'message', listener: (event: BridgeMessageEvent) => void): void
 }
@@ -50,7 +54,6 @@ interface BridgeWindow {
 interface StartBridgeOptions {
   window: BridgeWindow
   onConfigure(config: ManagedConfig): void | Promise<void>
-  onClear(): void | Promise<void>
 }
 
 interface ReadyDocument {
@@ -121,7 +124,7 @@ function parseManagedConfig(value: unknown): ManagedConfig | null {
   }
 }
 
-function isProtocolMessage(value: unknown, type: 'connect' | 'configure' | 'clear', nonce: string) {
+function isProtocolMessage(value: unknown, type: 'connect' | 'configure', nonce: string) {
   if (!isRecord(value)) return false
   const required = type === 'configure'
     ? ['protocol', 'version', 'type', 'nonce', 'requestId', 'payload']
@@ -153,70 +156,160 @@ export function runAfterWindowLoad(document: ReadyDocument, target: LoadTarget, 
   return () => target.removeEventListener('load', handleLoad)
 }
 
+function clearLaunchCapabilities(target: BridgeWindow): boolean {
+  try {
+    target.name = ''
+    target.opener = null
+    return target.name === '' && target.opener === null
+  } catch {
+    return false
+  }
+}
+
 export function startSub2ApiBridge(options: StartBridgeOptions) {
   const nonce = parseBridgeNonce(options.window.name)
+  let opener = options.window.opener
   let port: BridgePort | null = null
   let resolveConfigured: (config: ManagedConfig) => void = () => undefined
-  let configuredOnce = false
-  let operationQueue = Promise.resolve()
+  let acceptedConfiguration = false
+  let disposed = false
   const configured = new Promise<ManagedConfig>((resolve) => {
     resolveConfigured = resolve
   })
 
-  if (!nonce) {
+  if (!nonce || !opener) {
+    clearLaunchCapabilities(options.window)
     return { mode: 'direct' as const, configured, dispose: () => undefined }
   }
 
-  const sendAck = (status: 'configured' | 'cleared', requestId?: number) => {
-    port?.postMessage({
+  const closePort = () => {
+    if (!port) return
+    const activePort = port
+    port = null
+    activePort.onmessage = null
+    try {
+      activePort.close()
+    } catch {
+      // Cleanup is best-effort after the one-time channel has settled.
+    }
+  }
+
+  const postToPort = (message: unknown): boolean => {
+    if (!port) return false
+    try {
+      port.postMessage(message)
+      return true
+    } catch {
+      return false
+    }
+  }
+
+  const sendConfiguredAck = (requestId: number) => {
+    return postToPort({
       protocol: SUB2API_BRIDGE_PROTOCOL,
       version: SUB2API_BRIDGE_VERSION,
       type: 'ack',
       nonce,
-      status,
-      ...(requestId === undefined ? {} : { requestId }),
+      status: 'configured',
+      requestId,
     })
   }
 
-  const enqueueOperation = (operation: () => void | Promise<void>) => {
-    operationQueue = operationQueue.then(operation).catch(() => undefined)
+  const sendErrorAck = (
+    requestId: number,
+    code: 'invalid_configuration' | 'configuration_failed',
+    message: string,
+  ) => {
+    return postToPort({
+      protocol: SUB2API_BRIDGE_PROTOCOL,
+      version: SUB2API_BRIDGE_VERSION,
+      type: 'ack',
+      nonce,
+      status: 'error',
+      requestId,
+      error: { code, message },
+    })
   }
 
   const handlePortMessage = (event: { data: unknown }) => {
-    if (isProtocolMessage(event.data, 'configure', nonce)) {
-      const message = event.data as Record<string, unknown>
-      const payload = parseManagedConfig(message.payload)
-      if (!payload) return
-      const requestId = Number(message.requestId)
-      enqueueOperation(async () => {
-        await options.onConfigure(payload)
-        if (!configuredOnce) {
-          configuredOnce = true
-          resolveConfigured(payload)
-        }
-        sendAck('configured', requestId)
-      })
+    if (
+      disposed ||
+      acceptedConfiguration ||
+      !isProtocolMessage(event.data, 'configure', nonce)
+    ) {
       return
     }
-    if (!isProtocolMessage(event.data, 'clear', nonce)) return
-    enqueueOperation(async () => {
-      await options.onClear()
-      sendAck('cleared')
-    })
+
+    acceptedConfiguration = true
+    const message = event.data as Record<string, unknown>
+    const requestId = Number(message.requestId)
+    const payload = parseManagedConfig(message.payload)
+    if (!payload) {
+      try {
+        sendErrorAck(
+          requestId,
+          'invalid_configuration',
+          'The image playground configuration is invalid',
+        )
+      } finally {
+        closePort()
+      }
+      return
+    }
+
+    void (async () => {
+      try {
+        await options.onConfigure(payload)
+        if (disposed) return
+        if (sendConfiguredAck(requestId)) {
+          resolveConfigured(payload)
+        }
+      } catch {
+        if (disposed) return
+        sendErrorAck(
+          requestId,
+          'configuration_failed',
+          'The image playground configuration could not be applied',
+        )
+      } finally {
+        closePort()
+      }
+    })()
   }
 
   const handleWindowMessage = (event: BridgeMessageEvent) => {
-    if (event.origin !== options.window.location.origin || event.source !== options.window.parent) return
+    if (disposed || port) return
+    if (event.origin !== options.window.location.origin || event.source !== opener) return
     if (!isProtocolMessage(event.data, 'connect', nonce)) return
     if (!Array.isArray(event.ports) || event.ports.length !== 1) return
-    port = event.ports[0]
-    port.onmessage = handlePortMessage
-    port.start()
+
+    const connectedPort = event.ports[0]
+    port = connectedPort
     options.window.removeEventListener('message', handleWindowMessage)
+    if (!clearLaunchCapabilities(options.window)) {
+      closePort()
+      return
+    }
+    opener = null
+
+    try {
+      connectedPort.onmessage = handlePortMessage
+      connectedPort.start()
+      if (!postToPort({
+        protocol: SUB2API_BRIDGE_PROTOCOL,
+        version: SUB2API_BRIDGE_VERSION,
+        type: 'connected',
+        nonce,
+      })) {
+        closePort()
+      }
+    } catch {
+      closePort()
+    }
   }
 
   options.window.addEventListener('message', handleWindowMessage)
-  options.window.parent.postMessage({
+  opener.postMessage({
     protocol: SUB2API_BRIDGE_PROTOCOL,
     version: SUB2API_BRIDGE_VERSION,
     type: 'ready',
@@ -224,14 +317,12 @@ export function startSub2ApiBridge(options: StartBridgeOptions) {
   }, options.window.location.origin)
 
   return {
-    mode: 'embedded' as const,
+    mode: 'popup' as const,
     configured,
     dispose: () => {
+      disposed = true
       options.window.removeEventListener('message', handleWindowMessage)
-      if (!port) return
-      port.onmessage = null
-      port.close()
-      port = null
+      closePort()
     },
   }
 }
