@@ -77,12 +77,16 @@ Desktop.ini
 # ===================
 # 临时文件
 # ===================
+.venv/
+__pycache__/
+*.py[cod]
 tmp/
 temp/
 *.tmp
 *.temp
 *.log
 *.bak
+*.bak.*
 .cache/
 .dev/
 .serena/
@@ -127,6 +131,7 @@ code-reviews/
 AGENTS.md
 backend/cmd/server/server
 deploy/docker-compose.override.yml
+deploy/.rollback-sub2api-image
 .gocache/
 vite.config.js
 docs/*
