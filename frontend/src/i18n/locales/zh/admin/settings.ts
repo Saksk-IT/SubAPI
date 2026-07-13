@@ -30,6 +30,11 @@ export default {
           enabled: '启用可用渠道',
           enabledHint: '关闭后用户端侧边栏入口隐藏，接口返回空数组。',
         },
+        imageGeneration: {
+          title: '生图功能',
+          description: '在侧边栏显示生图入口；用户打开时仍需选择可用密钥。',
+          enabled: '启用生图功能',
+        },
         riskControl: {
           title: '风控中心',
           description: '启用内容审计菜单和全端点请求审核入口。默认关闭。',

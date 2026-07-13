@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { defineComponent, h } from "vue";
 import { flushPromises, mount } from "@vue/test-utils";
 
+import ToggleComponent from "@/components/common/Toggle.vue";
 import SettingsView from "../SettingsView.vue";
 
 const _localStorageMock = vi.hoisted(() => {
@@ -186,6 +187,9 @@ vi.mock("vue-i18n", async () => {
     "admin.settings.openaiExperimentalScheduler.description": "默认关闭。开启后仅影响本网关在 OpenAI 账号间的实验性调度选择逻辑，不代表上游 OpenAI 官方能力。",
     "admin.settings.customMenu.openInNewTab": "新标签页打开",
     "admin.settings.customMenu.openInNewTabHint": "开启后，点击侧边栏菜单项时直接在新标签页打开页面 URL。",
+    "admin.settings.features.imageGeneration.title": "生图功能",
+    "admin.settings.features.imageGeneration.description": "在侧边栏显示生图入口；用户打开时仍需选择可用密钥。",
+    "admin.settings.features.imageGeneration.enabled": "启用生图功能",
     "admin.settings.openaiExperimentalScheduler.stickyWeightedTitle": "粘性加权",
     "admin.settings.openaiExperimentalScheduler.stickyWeightedDescription": "开启后 previous_response_id 和 session_hash 粘性进入高级调度打分；关闭时仍按旧逻辑硬命中粘性账号。",
     "admin.settings.openaiExperimentalScheduler.subscriptionPriorityTitle": "订阅优先",
@@ -503,13 +507,13 @@ const baseSettingsResponse = {
   },
 };
 
-function mountView() {
+function mountView(useRealToggle = false) {
   return mount(SettingsView, {
     global: {
       stubs: {
         AppLayout: AppLayoutStub,
         Select: SelectStub,
-        Toggle: ToggleStub,
+        Toggle: useRealToggle ? ToggleComponent : ToggleStub,
         Icon: true,
         ConfirmDialog: true,
         PaymentProviderList: true,
@@ -554,7 +558,17 @@ async function openUsersTab(wrapper: ReturnType<typeof mountView>) {
   await flushPromises();
 }
 
-describe("admin SettingsView payment visible method controls", () => {
+async function openFeaturesTab(wrapper: ReturnType<typeof mountView>) {
+  const featuresTabButton = wrapper
+    .findAll("button")
+    .find((node) => node.text().includes("admin.settings.tabs.features"));
+
+  expect(featuresTabButton).toBeDefined();
+  await featuresTabButton?.trigger("click");
+  await flushPromises();
+}
+
+describe("admin SettingsView settings controls", () => {
   beforeEach(() => {
     getSettings.mockReset();
     updateSettings.mockReset();
@@ -641,6 +655,104 @@ describe("admin SettingsView payment visible method controls", () => {
 
     expect(wrapper.text()).not.toContain("可见方式");
     expect(wrapper.text()).not.toContain("支付来源");
+  });
+
+  it("renders image generation copy and defaults a missing backend value to enabled", async () => {
+    const wrapper = mountView();
+
+    await flushPromises();
+    await openFeaturesTab(wrapper);
+
+    expect(wrapper.text()).toContain("生图功能");
+    expect(wrapper.text()).toContain(
+      "在侧边栏显示生图入口；用户打开时仍需选择可用密钥。",
+    );
+    expect(wrapper.text()).toContain("启用生图功能");
+    expect(
+      (
+        wrapper.get('[data-testid="image-generation-enabled"]')
+          .element as HTMLInputElement
+      ).checked,
+    ).toBe(true);
+  });
+
+  it("binds an explicit disabled backend value to the image generation toggle", async () => {
+    getSettings.mockResolvedValueOnce({
+      ...baseSettingsResponse,
+      image_generation_enabled: false,
+    });
+    const wrapper = mountView();
+
+    await flushPromises();
+    await openFeaturesTab(wrapper);
+
+    expect(
+      (
+        wrapper.get('[data-testid="image-generation-enabled"]')
+          .element as HTMLInputElement
+      ).checked,
+    ).toBe(false);
+  });
+
+  it("uses the visible image generation label as the switch accessible name", async () => {
+    const wrapper = mountView(true);
+
+    await flushPromises();
+    await openFeaturesTab(wrapper);
+
+    const label = wrapper.get('label[for="image-generation-enabled"]');
+    const toggle = wrapper.get('[data-testid="image-generation-enabled"]');
+
+    expect(label.attributes("id")).toBe("image-generation-enabled-label");
+    expect(label.text()).toBe("启用生图功能");
+    expect(toggle.attributes("id")).toBe("image-generation-enabled");
+    expect(toggle.attributes("role")).toBe("switch");
+    expect(toggle.attributes("aria-labelledby")).toBe(
+      "image-generation-enabled-label",
+    );
+  });
+
+  it("toggles exactly once from either the image generation label or switch", async () => {
+    getSettings.mockResolvedValueOnce({
+      ...baseSettingsResponse,
+      image_generation_enabled: false,
+    });
+    const wrapper = mountView(true);
+
+    await flushPromises();
+    await openFeaturesTab(wrapper);
+
+    const label = wrapper.get('label[for="image-generation-enabled"]');
+    const toggle = wrapper.get('[data-testid="image-generation-enabled"]');
+    expect(toggle.attributes("aria-checked")).toBe("false");
+
+    (label.element as HTMLLabelElement).click();
+    await flushPromises();
+    expect(toggle.attributes("aria-checked")).toBe("true");
+
+    await toggle.trigger("click");
+    expect(toggle.attributes("aria-checked")).toBe("false");
+  });
+
+  it("submits the switched image generation value", async () => {
+    getSettings.mockResolvedValueOnce({
+      ...baseSettingsResponse,
+      image_generation_enabled: false,
+    });
+    const wrapper = mountView();
+
+    await flushPromises();
+    await openFeaturesTab(wrapper);
+    await wrapper
+      .get('[data-testid="image-generation-enabled"]')
+      .setValue(true);
+    await wrapper.find("form").trigger("submit.prevent");
+    await flushPromises();
+
+    expect(updateSettings).toHaveBeenCalledTimes(1);
+    expect(updateSettings).toHaveBeenCalledWith(
+      expect.objectContaining({ image_generation_enabled: true }),
+    );
   });
 
   it("links payment guidance to README sections instead of removed payment docs", async () => {

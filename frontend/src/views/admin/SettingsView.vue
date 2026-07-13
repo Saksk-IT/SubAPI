@@ -5918,6 +5918,34 @@
         <div class="card">
           <div class="border-b border-gray-100 px-6 py-4 dark:border-dark-700">
             <h2 class="text-lg font-semibold text-gray-900 dark:text-white">
+              {{ t('admin.settings.features.imageGeneration.title') }}
+            </h2>
+            <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
+              {{ t('admin.settings.features.imageGeneration.description') }}
+            </p>
+          </div>
+          <div class="p-6">
+            <div class="flex min-h-11 items-center justify-between gap-4">
+              <label
+                id="image-generation-enabled-label"
+                for="image-generation-enabled"
+                class="flex min-h-11 min-w-0 flex-1 cursor-pointer items-center text-sm font-medium text-gray-700 dark:text-gray-300"
+              >
+                {{ t('admin.settings.features.imageGeneration.enabled') }}
+              </label>
+              <Toggle
+                id="image-generation-enabled"
+                v-model="form.image_generation_enabled"
+                aria-labelledby="image-generation-enabled-label"
+                data-testid="image-generation-enabled"
+              />
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="border-b border-gray-100 px-6 py-4 dark:border-dark-700">
+            <h2 class="text-lg font-semibold text-gray-900 dark:text-white">
               {{ t('admin.settings.features.riskControl.title') }}
             </h2>
             <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
@@ -8369,6 +8397,8 @@ const form = reactive<SettingsForm>({
   channel_monitor_default_interval_seconds: 60,
   // Available Channels feature switch
   available_channels_enabled: false,
+  // Image generation entry switch
+  image_generation_enabled: true,
   // Affiliate (邀请返利) feature switch
   affiliate_enabled: false,
   // Allow user view error requests
@@ -9161,6 +9191,8 @@ async function loadSettings() {
         (form as Record<string, unknown>)[key] = value;
       }
     }
+    form.image_generation_enabled =
+      settings.image_generation_enabled !== false;
     form.custom_menu_items = normalizeCustomMenuItems(
       settings.custom_menu_items,
     );
@@ -9775,6 +9807,8 @@ async function saveSettings() {
         Number(form.channel_monitor_default_interval_seconds) || 60,
       // Available Channels feature switch
       available_channels_enabled: form.available_channels_enabled,
+      // Image generation entry switch
+      image_generation_enabled: form.image_generation_enabled,
       // Affiliate (邀请返利) feature switch
       affiliate_enabled: form.affiliate_enabled,
       allow_user_view_error_requests: form.allow_user_view_error_requests,

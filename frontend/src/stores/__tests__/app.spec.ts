@@ -55,6 +55,7 @@ function createPublicSettings(overrides: Partial<PublicSettings> = {}): PublicSe
     channel_monitor_enabled: true,
     channel_monitor_default_interval_seconds: 60,
     available_channels_enabled: false,
+    image_generation_enabled: true,
     service_quota_enabled: false,
     affiliate_enabled: false,
     ...overrides,
@@ -330,6 +331,15 @@ describe('useAppStore', () => {
   // --- 公开设置 ---
 
   describe('公开设置加载', () => {
+    it('缓存标记已加载但设置缺失时默认开启生图入口', async () => {
+      const store = useAppStore()
+      store.publicSettingsLoaded = true
+
+      await expect(store.fetchPublicSettings()).resolves.toMatchObject({
+        image_generation_enabled: true,
+      })
+    })
+
     it('fetchPublicSettings 从 meta 注入配置返回 Promise 并跳过 API', async () => {
       const settings = createPublicSettings({ site_name: 'Meta Site' })
       const meta = document.createElement('meta')
