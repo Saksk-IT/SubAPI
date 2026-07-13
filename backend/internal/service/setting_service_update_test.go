@@ -255,6 +255,27 @@ func TestSettingService_UpdateSettings_RegistrationEmailSuffixWhitelist_Normaliz
 	require.Equal(t, `["@example.com","@foo.bar","*.edu.cn"]`, repo.updates[SettingKeyRegistrationEmailSuffixWhitelist])
 }
 
+func TestSettingService_GetAllSettings_ImageGenerationDefaultsEnabled(t *testing.T) {
+	svc := NewSettingService(&settingGetAllRepoStub{values: map[string]string{}}, &config.Config{})
+
+	settings, err := svc.GetAllSettings(context.Background())
+	require.NoError(t, err)
+	require.True(t, settings.ImageGenerationEnabled)
+}
+
+func TestSettingService_UpdateSettings_PersistsDisabledImageGeneration(t *testing.T) {
+	repo := &settingUpdateRepoStub{}
+	svc := NewSettingService(repo, &config.Config{})
+	settings := &SystemSettings{}
+	settings.SetImageGenerationEnabled(false)
+
+	err := svc.UpdateSettings(context.Background(), settings)
+	require.NoError(t, err)
+	value, ok := repo.updates[SettingKeyImageGenerationEnabled]
+	require.True(t, ok, "image_generation_enabled was not persisted")
+	require.Equal(t, "false", value)
+}
+
 func TestSettingService_UpdateSettings_RegistrationEmailSuffixWhitelist_Invalid(t *testing.T) {
 	repo := &settingUpdateRepoStub{}
 	svc := NewSettingService(repo, &config.Config{})

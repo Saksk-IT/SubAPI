@@ -367,6 +367,10 @@ const (
 	// sidebar entry is hidden. Defaults to false (opt-in feature).
 	SettingKeyAvailableChannelsEnabled = "available_channels_enabled"
 
+	// SettingKeyImageGenerationEnabled controls the user-facing image generation entry.
+	// It does not affect the /v1 image generation APIs. Defaults to true.
+	SettingKeyImageGenerationEnabled = "image_generation_enabled"
+
 	// =========================
 	// Overload Cooldown (529)
 	// =========================

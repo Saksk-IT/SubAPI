@@ -52,6 +52,28 @@ func TestPublicSettingsInjectionPayload_SchemaDoesNotDrift(t *testing.T) {
 	}
 }
 
+func TestSettingsImageGenerationEnabledSchemas(t *testing.T) {
+	const jsonField = "image_generation_enabled"
+
+	tests := []struct {
+		name string
+		typ  reflect.Type
+	}{
+		{name: "admin settings", typ: reflect.TypeOf(SystemSettings{})},
+		{name: "public settings", typ: reflect.TypeOf(PublicSettings{})},
+		{name: "injected settings", typ: reflect.TypeOf(service.PublicSettingsInjectionPayload{})},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, ok := jsonTags(tt.typ)[jsonField]
+			if !ok {
+				t.Fatalf("%s schema is missing %q", tt.name, jsonField)
+			}
+		})
+	}
+}
+
 func jsonTags(t reflect.Type) map[string]struct{} {
 	out := make(map[string]struct{})
 	for i := 0; i < t.NumField(); i++ {

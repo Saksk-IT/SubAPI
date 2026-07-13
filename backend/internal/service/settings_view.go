@@ -179,6 +179,10 @@ type SystemSettings struct {
 	// Available Channels feature (user-facing aggregate view)
 	AvailableChannelsEnabled bool `json:"available_channels_enabled"`
 
+	// Image generation entry (does not gate /v1 APIs)
+	ImageGenerationEnabled    bool `json:"image_generation_enabled"`
+	imageGenerationEnabledSet bool
+
 	// Claude Code version check
 	MinClaudeCodeVersion string
 	MaxClaudeCodeVersion string
@@ -261,6 +265,15 @@ type SystemSettings struct {
 	AllowUserViewErrorRequests bool
 }
 
+// SetImageGenerationEnabled marks the optional setting as explicitly provided for persistence.
+func (s *SystemSettings) SetImageGenerationEnabled(enabled bool) {
+	if s == nil {
+		return
+	}
+	s.ImageGenerationEnabled = enabled
+	s.imageGenerationEnabledSet = true
+}
+
 type DefaultSubscriptionSetting struct {
 	GroupID      int64 `json:"group_id"`
 	ValidityDays int   `json:"validity_days"`
@@ -323,6 +336,9 @@ type PublicSettings struct {
 
 	// Available Channels feature (user-facing aggregate view)
 	AvailableChannelsEnabled bool `json:"available_channels_enabled"`
+
+	// Image generation entry (does not gate /v1 APIs)
+	ImageGenerationEnabled bool `json:"image_generation_enabled"`
 
 	// Affiliate (邀请返利) feature toggle
 	AffiliateEnabled bool `json:"affiliate_enabled"`

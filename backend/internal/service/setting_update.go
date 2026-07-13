@@ -332,6 +332,11 @@ func (s *SettingService) buildSystemSettingsUpdates(ctx context.Context, setting
 	// Available channels feature switch
 	updates[SettingKeyAvailableChannelsEnabled] = strconv.FormatBool(settings.AvailableChannelsEnabled)
 
+	// Image generation entry switch
+	if settings.imageGenerationEnabledSet {
+		updates[SettingKeyImageGenerationEnabled] = strconv.FormatBool(settings.ImageGenerationEnabled)
+	}
+
 	// Affiliate (邀请返利) feature switch
 	updates[SettingKeyAffiliateEnabled] = strconv.FormatBool(settings.AffiliateEnabled)
 

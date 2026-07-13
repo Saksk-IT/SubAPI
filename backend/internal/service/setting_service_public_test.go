@@ -4,6 +4,7 @@ package service
 
 import (
 	"context"
+	"encoding/json"
 	"testing"
 
 	"github.com/Wei-Shaw/sub2api/internal/config"
@@ -102,6 +103,52 @@ func TestSettingService_GetPublicSettings_ExposesAllowUserViewErrorRequests(t *t
 	settings, err := svc.GetPublicSettings(context.Background())
 	require.NoError(t, err)
 	require.True(t, settings.AllowUserViewErrorRequests)
+}
+
+func TestSettingService_GetPublicSettings_ImageGenerationDefaultsEnabled(t *testing.T) {
+	svc := NewSettingService(&settingPublicRepoStub{values: map[string]string{}}, &config.Config{})
+
+	settings, err := svc.GetPublicSettings(context.Background())
+	require.NoError(t, err)
+	require.True(t, settings.ImageGenerationEnabled)
+}
+
+func TestSettingService_GetPublicSettings_ExposesDisabledImageGeneration(t *testing.T) {
+	svc := NewSettingService(&settingPublicRepoStub{
+		values: map[string]string{SettingKeyImageGenerationEnabled: "false"},
+	}, &config.Config{})
+
+	settings, err := svc.GetPublicSettings(context.Background())
+	require.NoError(t, err)
+	require.False(t, settings.ImageGenerationEnabled)
+}
+
+func TestSettingService_GetPublicSettingsForInjection_ExposesImageGeneration(t *testing.T) {
+	tests := []struct {
+		name   string
+		values map[string]string
+		want   bool
+	}{
+		{name: "defaults enabled", values: map[string]string{}, want: true},
+		{name: "explicitly disabled", values: map[string]string{SettingKeyImageGenerationEnabled: "false"}, want: false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			svc := NewSettingService(&settingPublicRepoStub{values: tt.values}, &config.Config{})
+
+			payload, err := svc.GetPublicSettingsForInjection(context.Background())
+			require.NoError(t, err)
+			raw, err := json.Marshal(payload)
+			require.NoError(t, err)
+
+			var data map[string]any
+			require.NoError(t, json.Unmarshal(raw, &data))
+			value, ok := data["image_generation_enabled"]
+			require.True(t, ok, "injected settings are missing image_generation_enabled")
+			require.Equal(t, tt.want, value)
+		})
+	}
 }
 
 func TestSettingService_GetPublicSettings_ExposesWeChatOAuthModeCapabilities(t *testing.T) {

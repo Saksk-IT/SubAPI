@@ -299,6 +299,9 @@ type UpdateSettingsRequest struct {
 	// Available Channels feature switch (user-facing)
 	AvailableChannelsEnabled *bool `json:"available_channels_enabled"`
 
+	// Image generation entry switch (user-facing; does not gate /v1 APIs)
+	ImageGenerationEnabled *bool `json:"image_generation_enabled"`
+
 	// Affiliate (邀请返利) feature switch
 	AffiliateEnabled *bool `json:"affiliate_enabled"`
 
@@ -1505,6 +1508,7 @@ func (h *SettingHandler) UpdateSettings(c *gin.Context) {
 			}
 			return previousSettings.AvailableChannelsEnabled
 		}(),
+		ImageGenerationEnabled: previousSettings.ImageGenerationEnabled,
 		AffiliateEnabled: func() bool {
 			if req.AffiliateEnabled != nil {
 				return *req.AffiliateEnabled
@@ -1529,6 +1533,9 @@ func (h *SettingHandler) UpdateSettings(c *gin.Context) {
 			}
 			return previousSettings.CyberSessionBlockTTLSeconds
 		}(),
+	}
+	if req.ImageGenerationEnabled != nil {
+		settings.SetImageGenerationEnabled(*req.ImageGenerationEnabled)
 	}
 
 	// req.AuthSourceXxxPlatformQuotas 为 nil 表示本次请求未包含该 source 的 quota 配置（保留 previousAuthSourceDefaults 中的值）；
@@ -1880,6 +1887,8 @@ func (h *SettingHandler) UpdateSettings(c *gin.Context) {
 		ChannelMonitorDefaultIntervalSeconds: updatedSettings.ChannelMonitorDefaultIntervalSeconds,
 
 		AvailableChannelsEnabled: updatedSettings.AvailableChannelsEnabled,
+
+		ImageGenerationEnabled: updatedSettings.ImageGenerationEnabled,
 
 		AffiliateEnabled: updatedSettings.AffiliateEnabled,
 

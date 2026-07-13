@@ -5,6 +5,7 @@ package server_test
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"io"
 	"math"
@@ -935,6 +936,7 @@ func TestAPIContracts(t *testing.T) {
 					"channel_monitor_enabled": true,
 					"channel_monitor_default_interval_seconds": 60,
 					"available_channels_enabled": false,
+					"image_generation_enabled": true,
 					"risk_control_enabled": false,
 					"cyber_session_block_enabled": false,
 					"cyber_session_block_ttl_seconds": 3600,
@@ -1205,6 +1207,7 @@ func TestAPIContracts(t *testing.T) {
 					"channel_monitor_enabled": true,
 					"channel_monitor_default_interval_seconds": 60,
 					"available_channels_enabled": false,
+					"image_generation_enabled": true,
 					"risk_control_enabled": false,
 					"cyber_session_block_enabled": false,
 					"cyber_session_block_ttl_seconds": 3600,
@@ -1305,6 +1308,30 @@ func TestAPIContracts(t *testing.T) {
 	}
 }
 
+func TestPublicSettingsImageGenerationContract(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	deps := newContractDeps(t)
+
+	assertImageGenerationEnabled := func(want bool) {
+		t.Helper()
+
+		status, body := doRequest(t, deps.router, http.MethodGet, "/api/v1/settings/public", "", nil)
+		require.Equal(t, http.StatusOK, status)
+
+		var payload struct {
+			Data map[string]any `json:"data"`
+		}
+		require.NoError(t, json.Unmarshal([]byte(body), &payload))
+		value, ok := payload.Data["image_generation_enabled"]
+		require.True(t, ok, "public settings are missing image_generation_enabled: %s", body)
+		require.Equal(t, want, value)
+	}
+
+	assertImageGenerationEnabled(true)
+	deps.settingRepo.SetAll(map[string]string{service.SettingKeyImageGenerationEnabled: "false"})
+	assertImageGenerationEnabled(false)
+}
+
 type contractDeps struct {
 	now         time.Time
 	router      http.Handler
@@ -1372,6 +1399,7 @@ func newContractDeps(t *testing.T) *contractDeps {
 
 	adminService := service.NewAdminService(userRepo, groupRepo, &accountRepo, proxyRepo, apiKeyRepo, redeemRepo, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
 	authHandler := handler.NewAuthHandler(cfg, nil, userService, settingService, nil, redeemService, nil, nil)
+	publicSettingHandler := handler.NewSettingHandler(settingService, "test-version")
 	apiKeyHandler := handler.NewAPIKeyHandler(apiKeyService)
 	usageHandler := handler.NewUsageHandler(usageService, apiKeyService, nil, nil)
 	adminSettingHandler := adminhandler.NewSettingHandler(settingService, nil, nil, nil, nil, nil, nil)
@@ -1397,6 +1425,7 @@ func newContractDeps(t *testing.T) *contractDeps {
 	r := gin.New()
 
 	v1 := r.Group("/api/v1")
+	v1.GET("/settings/public", publicSettingHandler.GetPublicSettings)
 
 	v1Auth := v1.Group("")
 	v1Auth.Use(jwtAuth)

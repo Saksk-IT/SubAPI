@@ -325,6 +325,8 @@ func (h *SettingHandler) GetSettings(c *gin.Context) {
 
 		AvailableChannelsEnabled: settings.AvailableChannelsEnabled,
 
+		ImageGenerationEnabled: settings.ImageGenerationEnabled,
+
 		AffiliateEnabled: settings.AffiliateEnabled,
 
 		AllowUserViewErrorRequests: settings.AllowUserViewErrorRequests,
