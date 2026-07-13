@@ -771,6 +771,31 @@ idempotency:
   cleanup_batch_size: 500
 
 # =============================================================================
+# Durable OpenAI Images Jobs
+# OpenAI 单图异步任务（避免长连接受 CDN 超时限制）
+# =============================================================================
+openai_image_jobs:
+  enabled: true
+  worker_count: 2
+  poll_interval_seconds: 1
+  heartbeat_interval_seconds: 10
+  lease_duration_seconds: 120
+  execution_timeout_seconds: 900
+  # 完成结果保留 72 小时；任务元数据保留 30 天。
+  result_retention_hours: 72
+  queued_retention_hours: 24
+  metadata_retention_days: 30
+  cleanup_interval_seconds: 3600
+  cleanup_batch_size: 100
+  shutdown_wait_seconds: 10
+  # 原子限制 queued + running 数量，防止单用户或全局队列无限增长。
+  max_active_per_user: 10
+  max_active_global: 1000
+  # 上游成功后的同步计费重试；不会重发图片生成请求。
+  billing_max_attempts: 3
+  billing_retry_delay_ms: 250
+
+# =============================================================================
 # Concurrency Wait Configuration
 # 并发等待配置
 # =============================================================================
