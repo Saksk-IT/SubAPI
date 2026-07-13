@@ -202,6 +202,24 @@ func TestOpenAIImageJobPublicSerializationIncludesTerminalError(t *testing.T) {
 	}
 }
 
+func TestOpenAIImageJobPublicSerializationIncludesCancelledError(t *testing.T) {
+	t.Parallel()
+
+	public := OpenAIImageJobToPublic(&OpenAIImageJob{
+		JobID:  "imgjob_cancelled",
+		Status: OpenAIImageJobStatusCancelled,
+	})
+	if public == nil || public.Error == nil {
+		t.Fatalf("cancelled job must expose a public error: %#v", public)
+	}
+	if public.Error.Code != "cancelled" || public.Error.Message == "" {
+		t.Fatalf("unexpected cancelled error: %#v", public.Error)
+	}
+	if public.Result != nil {
+		t.Fatalf("cancelled job exposed a result: %#v", public)
+	}
+}
+
 func TestOpenAIImageJobQueuedCancellation(t *testing.T) {
 	t.Parallel()
 
@@ -256,6 +274,23 @@ func TestOpenAIImageJobCompletionWinsCancelRace(t *testing.T) {
 	}
 	if len(job.RequestBody) != 0 || job.FinishedAt == nil {
 		t.Fatalf("completion must clear request and finish: %#v", job)
+	}
+}
+
+func TestOpenAIImageJobCompletionRequiresResultExpiry(t *testing.T) {
+	t.Parallel()
+
+	job := &OpenAIImageJob{Status: OpenAIImageJobStatusRunning, RequestBody: []byte("payload")}
+	err := job.MarkCompleted(OpenAIImageJobResponse{
+		StatusCode:  200,
+		ContentType: "application/json",
+		Body:        []byte(`{"data":[]}`),
+	}, time.Now().UTC())
+	if !errors.Is(err, ErrOpenAIImageJobResultExpiryRequired) {
+		t.Fatalf("error = %v, want result expiry required", err)
+	}
+	if job.Status != OpenAIImageJobStatusRunning || len(job.RequestBody) == 0 {
+		t.Fatalf("invalid completion mutated job: %#v", job)
 	}
 }
 

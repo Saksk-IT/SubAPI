@@ -36,6 +36,8 @@ CREATE TABLE IF NOT EXISTS openai_image_jobs (
         CHECK (endpoint IN ('/v1/images/generations', '/v1/images/edits')),
     CONSTRAINT openai_image_jobs_status_check
         CHECK (status IN ('queued', 'running', 'completed', 'failed', 'cancelled')),
+    CONSTRAINT openai_image_jobs_completed_expiry_check
+        CHECK (status <> 'completed' OR result_expires_at IS NOT NULL),
     CONSTRAINT openai_image_jobs_attempt_count_check CHECK (attempt_count >= 0),
     CONSTRAINT openai_image_jobs_version_check CHECK (version >= 0)
 );

@@ -210,6 +210,9 @@ func (r *openAIImageJobRepository) Heartbeat(ctx context.Context, jobID, workerI
 }
 
 func (r *openAIImageJobRepository) Complete(ctx context.Context, jobID, workerID string, response service.OpenAIImageJobResponse) error {
+	if response.ResultExpiresAt.IsZero() {
+		return service.ErrOpenAIImageJobResultExpiryRequired
+	}
 	result, err := r.db.ExecContext(ctx, `
 		UPDATE openai_image_jobs
 		SET status = $1,
@@ -365,6 +368,7 @@ func (r *openAIImageJobRepository) PurgeExpiredPayloads(ctx context.Context, now
 		SET request_body = NULL,
 			response_body = CASE
 				WHEN result_expires_at IS NOT NULL AND result_expires_at <= $1 THEN NULL
+				WHEN result_expires_at IS NULL AND finished_at IS NOT NULL AND finished_at < $2 THEN NULL
 				ELSE response_body
 			END
 		WHERE status IN ('completed', 'failed', 'cancelled')
@@ -375,7 +379,13 @@ func (r *openAIImageJobRepository) PurgeExpiredPayloads(ctx context.Context, now
 					AND result_expires_at IS NOT NULL
 					AND result_expires_at <= $1
 				)
-			)`, now)
+				OR (
+					response_body IS NOT NULL
+					AND result_expires_at IS NULL
+					AND finished_at IS NOT NULL
+					AND finished_at < $2
+				)
+			)`, now, recordCutoff)
 	if err != nil {
 		return 0, 0, err
 	}

@@ -220,6 +220,100 @@ func TestOpenAIImageJobRepositoryTerminalWriteReportsLeaseLoss(t *testing.T) {
 	}
 }
 
+func TestOpenAIImageJobRepositoryCompleteRequiresResultExpiry(t *testing.T) {
+	t.Parallel()
+
+	_, mock, repo := newOpenAIImageJobRepositoryMock(t)
+	err := repo.Complete(context.Background(), "imgjob_no_expiry", "worker-owner", service.OpenAIImageJobResponse{
+		StatusCode:  200,
+		ContentType: "application/json",
+		Body:        []byte(`{"data":[]}`),
+	})
+	if !errors.Is(err, service.ErrOpenAIImageJobResultExpiryRequired) {
+		t.Fatalf("error = %v, want result expiry required", err)
+	}
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Fatalf("zero expiry should not reach SQL: %v", err)
+	}
+}
+
+func TestOpenAIImageJobRepositoryCancelForUserStateAndOwnership(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, time.July, 14, 10, 0, 0, 0, time.UTC)
+	tests := []struct {
+		name             string
+		jobID            string
+		row              []driver.Value
+		wantStatus       string
+		wantRequest      bool
+		wantCancellation bool
+	}{
+		{
+			name:             "queued becomes cancelled and clears request",
+			jobID:            "imgjob_queued",
+			row:              openAIImageJobCancelRow("imgjob_queued", service.OpenAIImageJobStatusCancelled, false, true, now),
+			wantStatus:       service.OpenAIImageJobStatusCancelled,
+			wantRequest:      false,
+			wantCancellation: true,
+		},
+		{
+			name:             "running only records cancellation intent",
+			jobID:            "imgjob_running",
+			row:              openAIImageJobCancelRow("imgjob_running", service.OpenAIImageJobStatusRunning, true, true, now),
+			wantStatus:       service.OpenAIImageJobStatusRunning,
+			wantRequest:      true,
+			wantCancellation: true,
+		},
+		{
+			name:             "terminal completion remains authoritative",
+			jobID:            "imgjob_completed",
+			row:              openAIImageJobCancelRow("imgjob_completed", service.OpenAIImageJobStatusCompleted, false, false, now),
+			wantStatus:       service.OpenAIImageJobStatusCompleted,
+			wantRequest:      false,
+			wantCancellation: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			_, mock, repo := newOpenAIImageJobRepositoryMock(t)
+			mock.ExpectQuery(`(?s)UPDATE openai_image_jobs.*status IN \('queued', 'running'\).*status = CASE WHEN status = 'queued' THEN 'cancelled' ELSE status END.*WHERE user_id = \$1 AND job_id = \$2`).
+				WithArgs(int64(12), tt.jobID).
+				WillReturnRows(openAIImageJobRows().AddRow(tt.row...))
+
+			job, err := repo.CancelForUser(context.Background(), 12, tt.jobID)
+			if err != nil {
+				t.Fatalf("cancel for user: %v", err)
+			}
+			if job.Status != tt.wantStatus || (len(job.RequestBody) > 0) != tt.wantRequest || job.CancelRequested != tt.wantCancellation {
+				t.Fatalf("unexpected cancellation result: %#v", job)
+			}
+			if err := mock.ExpectationsWereMet(); err != nil {
+				t.Fatal(err)
+			}
+		})
+	}
+}
+
+func TestOpenAIImageJobRepositoryCancelForUserHidesOtherUsersJob(t *testing.T) {
+	t.Parallel()
+
+	_, mock, repo := newOpenAIImageJobRepositoryMock(t)
+	mock.ExpectQuery(`(?s)UPDATE openai_image_jobs.*WHERE user_id = \$1 AND job_id = \$2`).
+		WithArgs(int64(99), "imgjob_owned_by_12").
+		WillReturnRows(openAIImageJobRows())
+
+	job, err := repo.CancelForUser(context.Background(), 99, "imgjob_owned_by_12")
+	if job != nil || !errors.Is(err, service.ErrOpenAIImageJobNotFound) {
+		t.Fatalf("job=%#v error=%v, want not found", job, err)
+	}
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestOpenAIImageJobRepositoryFailExpiredLeasesOnlyTouchesExpiredRows(t *testing.T) {
 	t.Parallel()
 
@@ -241,6 +335,33 @@ func TestOpenAIImageJobRepositoryFailExpiredLeasesOnlyTouchesExpiredRows(t *test
 	}
 	if affected != 2 {
 		t.Fatalf("affected = %d, want 2", affected)
+	}
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestOpenAIImageJobRepositoryPurgeExpiredPayloadsUsesTwoStageTransaction(t *testing.T) {
+	t.Parallel()
+
+	_, mock, repo := newOpenAIImageJobRepositoryMock(t)
+	now := time.Date(2026, time.July, 17, 10, 0, 0, 0, time.UTC)
+	recordCutoff := now.Add(-30 * 24 * time.Hour)
+	mock.ExpectBegin()
+	mock.ExpectExec(`(?s)UPDATE openai_image_jobs.*response_body = CASE.*result_expires_at <= \$1.*result_expires_at IS NULL.*finished_at < \$2`).
+		WithArgs(now, recordCutoff).
+		WillReturnResult(sqlmock.NewResult(0, 3))
+	mock.ExpectExec(`(?s)DELETE FROM openai_image_jobs.*finished_at < \$1.*request_body IS NULL.*response_body IS NULL`).
+		WithArgs(recordCutoff).
+		WillReturnResult(sqlmock.NewResult(0, 2))
+	mock.ExpectCommit()
+
+	payloads, records, err := repo.PurgeExpiredPayloads(context.Background(), now, recordCutoff)
+	if err != nil {
+		t.Fatalf("purge expired payloads: %v", err)
+	}
+	if payloads != 3 || records != 2 {
+		t.Fatalf("payloads=%d records=%d, want 3 and 2", payloads, records)
 	}
 	if err := mock.ExpectationsWereMet(); err != nil {
 		t.Fatal(err)
@@ -291,4 +412,22 @@ func openAIImageJobRowValues(jobID string, userID, apiKeyID int64, status, reque
 		status, nil, nil, nil, nil, nil, false, false, nil, nil, 0, 0, nil,
 		now, now, nil, nil,
 	}
+}
+
+func openAIImageJobCancelRow(jobID, status string, hasRequest, cancelRequested bool, now time.Time) []driver.Value {
+	row := openAIImageJobRowValues(jobID, 12, 34, status, "request-hash", service.HashIdempotencyKey(jobID), now)
+	if !hasRequest {
+		row[7] = nil
+	}
+	row[19] = cancelRequested
+	if status == service.OpenAIImageJobStatusCompleted {
+		row[13] = int64(200)
+		row[14] = "application/json"
+		row[15] = []byte(`{"data":[]}`)
+		row[24] = now.Add(72 * time.Hour)
+	}
+	if service.IsTerminalOpenAIImageJobStatus(status) {
+		row[28] = now
+	}
+	return row
 }

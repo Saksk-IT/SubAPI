@@ -53,6 +53,11 @@ var (
 		"OPENAI_IMAGE_JOB_LEASE_LOST",
 		"image generation job worker lease was lost",
 	)
+	ErrOpenAIImageJobResultExpiryRequired = infraerrors.New(
+		http.StatusInternalServerError,
+		"OPENAI_IMAGE_JOB_RESULT_EXPIRY_REQUIRED",
+		"completed image generation job requires a result expiry",
+	)
 )
 
 // OpenAIImageJob contains the complete durable execution state for one Images
@@ -304,6 +309,12 @@ func OpenAIImageJobToPublic(job *OpenAIImageJob) *OpenAIImageJobPublic {
 			Message: derefOpenAIImageJobString(job.ErrorMessage, "image generation failed"),
 		}
 	}
+	if job.Status == OpenAIImageJobStatusCancelled {
+		public.Error = &OpenAIImageJobPublicError{
+			Code:    "cancelled",
+			Message: "image generation was cancelled",
+		}
+	}
 	return public
 }
 
@@ -343,6 +354,9 @@ func (job *OpenAIImageJob) MarkCompleted(response OpenAIImageJobResponse, now ti
 	}
 	if !CanTransitionOpenAIImageJob(job.Status, OpenAIImageJobStatusCompleted) {
 		return ErrOpenAIImageJobInvalidTransition
+	}
+	if response.ResultExpiresAt.IsZero() {
+		return ErrOpenAIImageJobResultExpiryRequired
 	}
 	job.Status = OpenAIImageJobStatusCompleted
 	job.ResponseStatus = response.StatusCode
