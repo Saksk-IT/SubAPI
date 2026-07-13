@@ -58,6 +58,19 @@ func RegisterGatewayRoutes(
 			})
 		}
 	}
+	imageJobSubmitHandler := func(c *gin.Context) {
+		if !isOpenAIGatewayPlatform(c) {
+			service.MarkOpsClientBusinessLimited(c, service.OpsClientBusinessLimitedReasonLocalFeatureGate)
+			c.JSON(http.StatusNotFound, gin.H{
+				"error": gin.H{
+					"type":    "not_found_error",
+					"message": "Asynchronous Images API is not supported for this platform",
+				},
+			})
+			return
+		}
+		h.OpenAIImageJob.Submit(c)
+	}
 	videoGenerationHandler := func(c *gin.Context) {
 		if getGroupPlatform(c) == service.PlatformGrok {
 			h.OpenAIGateway.GrokVideoGeneration(c)
@@ -173,6 +186,8 @@ func RegisterGatewayRoutes(
 		})
 		gateway.POST("/images/generations", imagesHandler)
 		gateway.POST("/images/edits", imagesHandler)
+		gateway.POST("/images/generations/jobs", imageJobSubmitHandler)
+		gateway.POST("/images/edits/jobs", imageJobSubmitHandler)
 		gateway.POST("/images/batches", h.BatchImage.Submit)
 		gateway.GET("/images/batches", h.BatchImage.List)
 		gateway.GET("/images/batches/models", h.BatchImage.Models)
@@ -185,6 +200,21 @@ func RegisterGatewayRoutes(
 		gateway.DELETE("/images/batches/:id/outputs", h.BatchImage.DeleteOutputs)
 		gateway.POST("/videos/generations", videoGenerationHandler)
 		gateway.GET("/videos/:request_id", videoStatusHandler)
+	}
+
+	// Status and cancellation authenticate only the current key owner. They do
+	// not reapply generation eligibility: a completed result must remain
+	// retrievable after the accepted job consumes quota or balance.
+	imageJobs := r.Group("/v1/images/jobs")
+	imageJobs.Use(bodyLimit)
+	imageJobs.Use(clientRequestID)
+	imageJobs.Use(opsErrorLogger)
+	imageJobs.Use(endpointNorm)
+	imageJobs.Use(middleware.APIKeyIdentityOnly())
+	imageJobs.Use(gin.HandlerFunc(apiKeyAuth))
+	{
+		imageJobs.GET("/:id", h.OpenAIImageJob.Get)
+		imageJobs.POST("/:id/cancel", h.OpenAIImageJob.Cancel)
 	}
 
 	// Gemini 原生 API 兼容层（Gemini SDK/CLI 直连）

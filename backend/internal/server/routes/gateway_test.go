@@ -26,8 +26,9 @@ func newGatewayRoutesTestRouter(platform ...string) *gin.Engine {
 	RegisterGatewayRoutes(
 		router,
 		&handler.Handlers{
-			Gateway:       &handler.GatewayHandler{},
-			OpenAIGateway: &handler.OpenAIGatewayHandler{},
+			Gateway:        &handler.GatewayHandler{},
+			OpenAIGateway:  &handler.OpenAIGatewayHandler{},
+			OpenAIImageJob: handler.NewOpenAIImageJobHandler(nil, nil),
 		},
 		servermiddleware.APIKeyAuthMiddleware(func(c *gin.Context) {
 			groupID := int64(1)
@@ -45,6 +46,66 @@ func newGatewayRoutesTestRouter(platform ...string) *gin.Engine {
 	)
 
 	return router
+}
+
+func TestGatewayRoutesOpenAIImageJobPathsAreRegistered(t *testing.T) {
+	router := newGatewayRoutesTestRouter()
+	want := map[string]bool{
+		http.MethodPost + " /v1/images/generations/jobs": false,
+		http.MethodPost + " /v1/images/edits/jobs":       false,
+		http.MethodGet + " /v1/images/jobs/:id":          false,
+		http.MethodPost + " /v1/images/jobs/:id/cancel":  false,
+	}
+	for _, route := range router.Routes() {
+		key := route.Method + " " + route.Path
+		if _, ok := want[key]; ok {
+			want[key] = true
+		}
+	}
+	for route, registered := range want {
+		require.True(t, registered, "route %s is not registered", route)
+	}
+}
+
+func TestGatewayRoutesUseIdentityOnlyAuthOnlyForStatusAndCancel(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	router := gin.New()
+	seenIdentityOnly := make([]bool, 0, 2)
+	auth := servermiddleware.APIKeyAuthMiddleware(func(c *gin.Context) {
+		identityOnly, _ := c.Get(string(servermiddleware.ContextKeyAPIKeyIdentityOnly))
+		seenIdentityOnly = append(seenIdentityOnly, identityOnly == true)
+		groupID := int64(1)
+		user := &service.User{ID: 41, Status: service.StatusActive}
+		group := &service.Group{ID: groupID, Status: service.StatusActive, Platform: service.PlatformOpenAI, AllowImageGeneration: true}
+		c.Set(string(servermiddleware.ContextKeyAPIKey), &service.APIKey{ID: 73, UserID: user.ID, User: user, GroupID: &groupID, Group: group, Status: service.StatusAPIKeyActive})
+		c.Set(string(servermiddleware.ContextKeyUser), servermiddleware.AuthSubject{UserID: user.ID})
+		c.Next()
+	})
+
+	RegisterGatewayRoutes(
+		router,
+		&handler.Handlers{
+			Gateway:        &handler.GatewayHandler{},
+			OpenAIGateway:  &handler.OpenAIGatewayHandler{},
+			OpenAIImageJob: handler.NewOpenAIImageJobHandler(nil, nil),
+		},
+		auth,
+		nil,
+		nil,
+		nil,
+		nil,
+		&config.Config{},
+	)
+
+	submit := httptest.NewRequest(http.MethodPost, "/v1/images/generations/jobs", strings.NewReader(`{"model":"gpt-image-2","prompt":"cat"}`))
+	submit.Header.Set("Content-Type", "application/json")
+	submit.Header.Set("Idempotency-Key", "task-1")
+	router.ServeHTTP(httptest.NewRecorder(), submit)
+
+	status := httptest.NewRequest(http.MethodGet, "/v1/images/jobs/imgjob_123", nil)
+	router.ServeHTTP(httptest.NewRecorder(), status)
+
+	require.Equal(t, []bool{false, true}, seenIdentityOnly)
 }
 
 func TestGatewayRoutesOpenAIResponsesCompactPathIsRegistered(t *testing.T) {
