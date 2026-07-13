@@ -25,7 +25,7 @@ ARG NPM_CONFIG_REGISTRY
 ARG PNPM_VERSION
 
 WORKDIR /app/frontend
-ENV NODE_OPTIONS=--max-old-space-size=1536
+ENV NODE_OPTIONS=--max-old-space-size=4096
 
 # sharp/libvips uses Fontconfig when rasterizing the SVG guide sources during
 # manifest validation. Keep Arial-compatible Latin and CJK fonts in the builder
