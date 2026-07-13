@@ -27,6 +27,11 @@ ARG PNPM_VERSION
 WORKDIR /app/frontend
 ENV NODE_OPTIONS=--max-old-space-size=1536
 
+# sharp/libvips uses Fontconfig when rasterizing the SVG guide sources during
+# manifest validation. Keep Arial-compatible Latin and CJK fonts in the builder
+# so the rendered source matches the committed PNG/WebP assets across platforms.
+RUN apk add --no-cache fontconfig font-liberation font-noto-cjk
+
 # Install pnpm (pinned to v9 to match CI and keep builds reproducible)
 RUN npm install -g --no-audit --no-fund pnpm@${PNPM_VERSION} && pnpm --version
 
