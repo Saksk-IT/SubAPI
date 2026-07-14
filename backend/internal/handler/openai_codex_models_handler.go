@@ -30,13 +30,10 @@ func (h *OpenAIGatewayHandler) CodexModels(c *gin.Context) {
 		return
 	}
 
-	account, err := h.gatewayService.SelectAccountForModel(c.Request.Context(), apiKey.GroupID, "", "")
-	if err != nil {
-		h.errorResponse(c, http.StatusServiceUnavailable, "upstream_error", "No available OpenAI accounts")
-		return
+	manifest, account, err := h.gatewayService.FetchCodexModelsManifestForGroup(c.Request.Context(), apiKey.GroupID, c.Query("client_version"), c.GetHeader("If-None-Match"))
+	if account != nil {
+		setOpsSelectedAccount(c, account.ID, account.Platform)
 	}
-
-	manifest, err := h.gatewayService.FetchCodexModelsManifest(c.Request.Context(), account, c.Query("client_version"), c.GetHeader("If-None-Match"))
 	if err != nil {
 		h.errorResponse(c, infraerrors.Code(err), "upstream_error", infraerrors.Message(err))
 		return

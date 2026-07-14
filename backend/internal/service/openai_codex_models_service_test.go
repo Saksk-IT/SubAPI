@@ -5,7 +5,73 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
+
+	infraerrors "github.com/Wei-Shaw/sub2api/internal/pkg/errors"
 )
+
+type codexModelsTokenCacheStub struct {
+	token string
+}
+
+func (s *codexModelsTokenCacheStub) GetAccessToken(context.Context, string) (string, error) {
+	return s.token, nil
+}
+
+func (s *codexModelsTokenCacheStub) SetAccessToken(context.Context, string, string, time.Duration) error {
+	return nil
+}
+
+func (s *codexModelsTokenCacheStub) DeleteAccessToken(context.Context, string) error {
+	return nil
+}
+
+func (s *codexModelsTokenCacheStub) AcquireRefreshLock(context.Context, string, time.Duration) (bool, error) {
+	return false, nil
+}
+
+func (s *codexModelsTokenCacheStub) ReleaseRefreshLock(context.Context, string) error {
+	return nil
+}
+
+type codexModelsAccountRepoStub struct {
+	AccountRepository
+	accounts []Account
+}
+
+func (r *codexModelsAccountRepoStub) ListSchedulableByGroupIDAndPlatform(context.Context, int64, string) ([]Account, error) {
+	return append([]Account(nil), r.accounts...), nil
+}
+
+func (r *codexModelsAccountRepoStub) GetByID(_ context.Context, id int64) (*Account, error) {
+	for i := range r.accounts {
+		if r.accounts[i].ID == id {
+			account := r.accounts[i]
+			return &account, nil
+		}
+	}
+	return nil, ErrNoAvailableAccounts
+}
+
+func newSchedulableCodexModelsAccount(id int64, accountType string, token string, priority int) Account {
+	credentials := map[string]any{}
+	if accountType == AccountTypeOAuth && token != "" {
+		credentials["access_token"] = token
+	}
+	if accountType == AccountTypeAPIKey {
+		credentials["api_key"] = token
+	}
+	return Account{
+		ID:          id,
+		Platform:    PlatformOpenAI,
+		Type:        accountType,
+		Status:      StatusActive,
+		Schedulable: true,
+		Concurrency: 1,
+		Priority:    priority,
+		Credentials: credentials,
+	}
+}
 
 func newCodexModelsTestAccount() *Account {
 	return &Account{
@@ -134,5 +200,87 @@ func TestFetchCodexModelsManifestMissingToken(t *testing.T) {
 	s := &OpenAIGatewayService{}
 	if _, err := s.FetchCodexModelsManifest(context.Background(), account, "0.137.0", ""); err == nil {
 		t.Fatal("expected error for missing access token, got nil")
+	} else if got := infraerrors.Reason(err); got != "OPENAI_CODEX_MODELS_TOKEN_UNAVAILABLE" {
+		t.Fatalf("error reason: got %q", got)
+	}
+}
+
+func TestFetchCodexModelsManifestUsesTokenProviderCache(t *testing.T) {
+	var gotAuth string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotAuth = r.Header.Get("Authorization")
+		_, _ = w.Write([]byte(`{"models":[]}`))
+	}))
+	defer server.Close()
+
+	original := chatgptCodexModelsURL
+	chatgptCodexModelsURL = server.URL
+	defer func() { chatgptCodexModelsURL = original }()
+
+	account := newCodexModelsTestAccount()
+	delete(account.Credentials, "access_token")
+	provider := NewOpenAITokenProvider(nil, &codexModelsTokenCacheStub{token: "cached-access-token"}, nil)
+	s := &OpenAIGatewayService{openAITokenProvider: provider}
+
+	if _, err := s.FetchCodexModelsManifest(context.Background(), account, "0.144.3", ""); err != nil {
+		t.Fatalf("FetchCodexModelsManifest returned error: %v", err)
+	}
+	if gotAuth != "Bearer cached-access-token" {
+		t.Fatalf("authorization header: got %q", gotAuth)
+	}
+}
+
+func TestFetchCodexModelsManifestRejectsAPIKeyAccount(t *testing.T) {
+	account := newSchedulableCodexModelsAccount(1, AccountTypeAPIKey, "sk-test", 0)
+	s := &OpenAIGatewayService{}
+
+	_, err := s.FetchCodexModelsManifest(context.Background(), &account, "0.144.3", "")
+	if err == nil {
+		t.Fatal("expected API-key account to be rejected")
+	}
+	if got := infraerrors.Reason(err); got != "OPENAI_CODEX_MODELS_OAUTH_REQUIRED" {
+		t.Fatalf("error reason: got %q", got)
+	}
+}
+
+func TestFetchCodexModelsManifestForGroupSkipsAPIKeyAccount(t *testing.T) {
+	accounts := []Account{
+		newSchedulableCodexModelsAccount(1, AccountTypeAPIKey, "sk-test", 0),
+		newSchedulableCodexModelsAccount(2, AccountTypeOAuth, "oauth-token", 1),
+	}
+	assertCodexModelsGroupSelectsAccount(t, accounts, 2)
+}
+
+func TestFetchCodexModelsManifestForGroupRetriesMissingOAuthToken(t *testing.T) {
+	accounts := []Account{
+		newSchedulableCodexModelsAccount(1, AccountTypeOAuth, "", 0),
+		newSchedulableCodexModelsAccount(2, AccountTypeOAuth, "oauth-token", 1),
+	}
+	assertCodexModelsGroupSelectsAccount(t, accounts, 2)
+}
+
+func assertCodexModelsGroupSelectsAccount(t *testing.T, accounts []Account, wantAccountID int64) {
+	t.Helper()
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte(`{"models":[]}`))
+	}))
+	defer server.Close()
+
+	original := chatgptCodexModelsURL
+	chatgptCodexModelsURL = server.URL
+	defer func() { chatgptCodexModelsURL = original }()
+
+	repo := &codexModelsAccountRepoStub{accounts: accounts}
+	s := &OpenAIGatewayService{accountRepo: repo}
+	groupID := int64(10)
+	manifest, account, err := s.FetchCodexModelsManifestForGroup(context.Background(), &groupID, "0.144.3", "")
+	if err != nil {
+		t.Fatalf("FetchCodexModelsManifestForGroup returned error: %v", err)
+	}
+	if manifest == nil {
+		t.Fatal("expected manifest")
+	}
+	if account == nil || account.ID != wantAccountID {
+		t.Fatalf("selected account: got %#v, want ID %d", account, wantAccountID)
 	}
 }
