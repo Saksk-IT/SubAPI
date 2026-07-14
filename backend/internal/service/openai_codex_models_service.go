@@ -31,14 +31,16 @@ const (
 	codexModelsManifestCacheTTL              = 30 * time.Second
 	codexModelsManifestCacheStaleTTL         = 5 * time.Minute
 	codexModelsManifestRequestTimeout        = 15 * time.Second
+	codexModelsEmptyManifest                 = `{"models":[]}`
 )
 
 // CodexModelsManifest carries the raw upstream manifest payload plus caching
-// metadata so handlers can pass both through to the client untouched.
+// and API-key fallback metadata used by the handler.
 type CodexModelsManifest struct {
-	Body        []byte
-	ETag        string
-	NotModified bool
+	Body                   []byte
+	ETag                   string
+	NotModified            bool
+	BundledCatalogFallback bool
 }
 
 type codexModelsManifestUpstreamError struct {
@@ -429,6 +431,16 @@ func (s *OpenAIGatewayService) fetchCodexModelsManifestUpstream(ctx context.Cont
 	}
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		body, _ := io.ReadAll(io.LimitReader(resp.Body, 2048))
+		if request.useAPIKeyUpstream && isAPIKeyCodexModelsManifestUnsupported(body) {
+			// API-key-only relays can proxy /responses successfully while their
+			// Codex-specific /models route still requires a ChatGPT OAuth token.
+			// An empty remote catalog is a valid Codex response and makes API-key
+			// clients retain their bundled model catalog instead of logging a 502.
+			return &CodexModelsManifest{
+				Body:                   []byte(codexModelsEmptyManifest),
+				BundledCatalogFallback: true,
+			}, nil
+		}
 		message := strings.TrimSpace(string(body))
 		if message == "" {
 			message = resp.Status
@@ -448,6 +460,23 @@ func (s *OpenAIGatewayService) fetchCodexModelsManifestUpstream(ctx context.Cont
 		}
 	}
 	return &CodexModelsManifest{Body: body, ETag: resp.Header.Get("ETag")}, nil
+}
+
+func isAPIKeyCodexModelsManifestUnsupported(body []byte) bool {
+	message := strings.ToLower(strings.TrimSpace(string(body)))
+	if message == "" {
+		return false
+	}
+	for _, marker := range []string{
+		"account has no codex backend access token",
+		"failed to select an openai account for codex models",
+		"codex models manifest requires a custom api key upstream base url",
+	} {
+		if strings.Contains(message, marker) {
+			return true
+		}
+	}
+	return false
 }
 
 func buildCodexModelsManifestCacheKey(request codexModelsManifestRequest) string {
@@ -472,7 +501,11 @@ func codexModelsManifestForClient(manifest *CodexModelsManifest, ifNoneMatch str
 		return nil
 	}
 	if codexModelsManifestETagMatches(ifNoneMatch, manifest.ETag) {
-		return &CodexModelsManifest{ETag: manifest.ETag, NotModified: true}
+		return &CodexModelsManifest{
+			ETag:                   manifest.ETag,
+			NotModified:            true,
+			BundledCatalogFallback: manifest.BundledCatalogFallback,
+		}
 	}
 	return manifest
 }

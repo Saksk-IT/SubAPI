@@ -39,11 +39,17 @@ func (h *OpenAIGatewayHandler) CodexModels(c *gin.Context) {
 	failedAccountIDs := make(map[int64]struct{})
 	switchCount := 0
 	var lastUpstreamErr error
+	var bundledCatalogFallback *service.CodexModelsManifest
 
 	for {
 		account, err := h.gatewayService.SelectAccountForModelWithExclusions(c.Request.Context(), apiKey.GroupID, "", "", failedAccountIDs)
 		if err != nil {
 			if c.Request.Context().Err() != nil {
+				return
+			}
+			if bundledCatalogFallback != nil &&
+				(lastUpstreamErr == nil || service.IsCodexModelsManifestAccountError(lastUpstreamErr)) {
+				c.Data(http.StatusOK, "application/json", bundledCatalogFallback.Body)
 				return
 			}
 			if lastUpstreamErr != nil {
@@ -76,6 +82,11 @@ func (h *OpenAIGatewayHandler) CodexModels(c *gin.Context) {
 		}
 		if c.Request.Context().Err() != nil {
 			return
+		}
+		if manifest.BundledCatalogFallback {
+			failedAccountIDs[account.ID] = struct{}{}
+			bundledCatalogFallback = manifest
+			continue
 		}
 
 		if manifest.ETag != "" {

@@ -50,6 +50,7 @@ type codexModelsFailoverHTTPUpstream struct {
 	firstErr    error
 	firstStatus int
 	statuses    map[int64]int
+	bodies      map[int64]string
 }
 
 func (u *codexModelsFailoverHTTPUpstream) Do(_ *http.Request, _ string, accountID int64, _ int) (*http.Response, error) {
@@ -68,13 +69,15 @@ func (u *codexModelsFailoverHTTPUpstream) Do(_ *http.Request, _ string, accountI
 		if status == 0 {
 			status = http.StatusServiceUnavailable
 		}
+		body := u.bodies[accountID]
+		if body == "" {
+			body = `{"error":{"message":"No available OpenAI accounts","type":"upstream_error"}}`
+		}
 		return &http.Response{
 			StatusCode: status,
 			Status:     http.StatusText(status),
 			Header:     make(http.Header),
-			Body: io.NopCloser(strings.NewReader(
-				`{"error":{"message":"No available OpenAI accounts","type":"upstream_error"}}`,
-			)),
+			Body:       io.NopCloser(strings.NewReader(body)),
 		}, nil
 	}
 	return &http.Response{
@@ -190,6 +193,47 @@ func TestCodexModelsFailsOverFromMissingOAuthCredential(t *testing.T) {
 	}
 	if recorder.Code != http.StatusOK {
 		t.Fatalf("status: got %d, want %d; body=%s", recorder.Code, http.StatusOK, recorder.Body.String())
+	}
+}
+
+func TestCodexModelsPrefersRealManifestOverBundledCatalogFallback(t *testing.T) {
+	handler, upstream, groupID := newCodexModelsFailoverTestHandler(http.StatusBadGateway)
+	upstream.bodies = map[int64]string{
+		1: `{"error":{"message":"account has no Codex backend access token"}}`,
+	}
+	recorder := performCodexModelsRequest(t, handler, groupID)
+
+	if got, want := upstream.calls(), []int64{1, 2}; !equalInt64Slices(got, want) {
+		t.Fatalf("upstream account calls: got %v, want %v", got, want)
+	}
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("status: got %d, want %d; body=%s", recorder.Code, http.StatusOK, recorder.Body.String())
+	}
+	if got, want := recorder.Body.String(), `{"models":[{"slug":"gpt-5.6-sol"}]}`; got != want {
+		t.Fatalf("body: got %q, want %q", got, want)
+	}
+}
+
+func TestCodexModelsUsesBundledCatalogFallbackAfterAccountsAreExhausted(t *testing.T) {
+	handler, upstream, groupID := newCodexModelsFailoverTestHandler(http.StatusBadGateway)
+	upstream.statuses = map[int64]int{
+		1: http.StatusBadGateway,
+		2: http.StatusBadGateway,
+	}
+	upstream.bodies = map[int64]string{
+		1: `{"error":{"message":"account has no Codex backend access token"}}`,
+		2: `{"error":{"message":"failed to select an OpenAI account for Codex models"}}`,
+	}
+	recorder := performCodexModelsRequest(t, handler, groupID)
+
+	if got, want := upstream.calls(), []int64{1, 2}; !equalInt64Slices(got, want) {
+		t.Fatalf("upstream account calls: got %v, want %v", got, want)
+	}
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("status: got %d, want %d; body=%s", recorder.Code, http.StatusOK, recorder.Body.String())
+	}
+	if got, want := recorder.Body.String(), `{"models":[]}`; got != want {
+		t.Fatalf("body: got %q, want %q", got, want)
 	}
 }
 

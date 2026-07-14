@@ -985,6 +985,72 @@ func TestFetchCodexModelsManifestAPIKeyUpstreamError(t *testing.T) {
 	}
 }
 
+func TestFetchCodexModelsManifestAPIKeyFallsBackWhenRelayLacksCodexToken(t *testing.T) {
+	upstream := &codexModelsHTTPUpstreamStub{do: func(_ *http.Request, _ string, _ int64, _ int) (*http.Response, error) {
+		return &http.Response{
+			StatusCode: http.StatusBadGateway,
+			Status:     "502 Bad Gateway",
+			Header:     make(http.Header),
+			Body: io.NopCloser(strings.NewReader(
+				`{"error":{"message":"account has no Codex backend access token","type":"upstream_error"}}`,
+			)),
+		}, nil
+	}}
+
+	s := newCodexModelsAPIKeyTestService(upstream)
+	manifest, err := s.FetchCodexModelsManifest(
+		context.Background(),
+		newCodexModelsAPIKeyTestAccount("https://upstream.example"),
+		"0.144.3",
+		"",
+	)
+	if err != nil {
+		t.Fatalf("FetchCodexModelsManifest returned error: %v", err)
+	}
+	if got := string(manifest.Body); got != codexModelsEmptyManifest {
+		t.Fatalf("fallback manifest: got %q, want %q", got, codexModelsEmptyManifest)
+	}
+	if !manifest.BundledCatalogFallback {
+		t.Fatal("expected bundled catalog fallback marker")
+	}
+}
+
+func TestFetchCodexModelsManifestOAuthDoesNotMaskMissingCodexToken(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusBadGateway)
+		_, _ = w.Write([]byte(`{"error":{"message":"account has no Codex backend access token"}}`))
+	}))
+	defer server.Close()
+
+	original := chatgptCodexModelsURL
+	chatgptCodexModelsURL = server.URL
+	defer func() { chatgptCodexModelsURL = original }()
+
+	s := &OpenAIGatewayService{}
+	_, err := s.FetchCodexModelsManifest(context.Background(), newCodexModelsTestAccount(), "0.144.3", "")
+	if err == nil {
+		t.Fatal("expected OAuth upstream error, got nil")
+	}
+	if infraerrors.Reason(err) != "OPENAI_CODEX_MODELS_UPSTREAM_FAILED" {
+		t.Fatalf("error reason: got %q", infraerrors.Reason(err))
+	}
+}
+
+func TestIsAPIKeyCodexModelsManifestUnsupported(t *testing.T) {
+	for _, body := range []string{
+		`{"error":{"message":"account has no Codex backend access token"}}`,
+		`{"error":{"message":"failed to select an OpenAI account for Codex models"}}`,
+		`{"error":{"message":"Codex models manifest requires a custom API key upstream base URL"}}`,
+	} {
+		if !isAPIKeyCodexModelsManifestUnsupported([]byte(body)) {
+			t.Fatalf("expected unsupported marker for %q", body)
+		}
+	}
+	if isAPIKeyCodexModelsManifestUnsupported([]byte(`{"error":"temporary upstream failure"}`)) {
+		t.Fatal("generic upstream failure must not be treated as unsupported")
+	}
+}
+
 func TestFetchCodexModelsManifestAPIKeyRejectsOfficialOpenAIBaseURL(t *testing.T) {
 	tests := []struct {
 		name    string
