@@ -431,9 +431,9 @@ func (s *OpenAIGatewayService) fetchCodexModelsManifestUpstream(ctx context.Cont
 	}
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		body, _ := io.ReadAll(io.LimitReader(resp.Body, 2048))
-		if request.useAPIKeyUpstream && isAPIKeyCodexModelsManifestUnsupported(body) {
+		if request.useAPIKeyUpstream && shouldUseBundledCatalogForAPIKeyManifest(resp.StatusCode, body) {
 			// API-key-only relays can proxy /responses successfully while their
-			// Codex-specific /models route still requires a ChatGPT OAuth token.
+			// Codex-specific /models route requires OAuth or is unavailable at the edge.
 			// An empty remote catalog is a valid Codex response and makes API-key
 			// clients retain their bundled model catalog instead of logging a 502.
 			return &CodexModelsManifest{
@@ -462,10 +462,16 @@ func (s *OpenAIGatewayService) fetchCodexModelsManifestUpstream(ctx context.Cont
 	return &CodexModelsManifest{Body: body, ETag: resp.Header.Get("ETag")}, nil
 }
 
-func isAPIKeyCodexModelsManifestUnsupported(body []byte) bool {
+func shouldUseBundledCatalogForAPIKeyManifest(statusCode int, body []byte) bool {
 	message := strings.ToLower(strings.TrimSpace(string(body)))
 	if message == "" {
 		return false
+	}
+	if statusCode == http.StatusBadGateway && strings.Contains(
+		message,
+		"developers.cloudflare.com/support/troubleshooting/http-status-codes/cloudflare-5xx-errors/error-502",
+	) {
+		return true
 	}
 	for _, marker := range []string{
 		"account has no codex backend access token",

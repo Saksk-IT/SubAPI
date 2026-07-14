@@ -1015,6 +1015,36 @@ func TestFetchCodexModelsManifestAPIKeyFallsBackWhenRelayLacksCodexToken(t *test
 	}
 }
 
+func TestFetchCodexModelsManifestAPIKeyFallsBackOnCloudflareBadGateway(t *testing.T) {
+	upstream := &codexModelsHTTPUpstreamStub{do: func(_ *http.Request, _ string, _ int64, _ int) (*http.Response, error) {
+		return &http.Response{
+			StatusCode: http.StatusBadGateway,
+			Status:     "502 Bad Gateway",
+			Header:     make(http.Header),
+			Body: io.NopCloser(strings.NewReader(
+				`{"type":"https://developers.cloudflare.com/support/troubleshooting/http-status-codes/cloudflare-5xx-errors/error-502/","title":"Error 502: Bad gateway","status":502}`,
+			)),
+		}, nil
+	}}
+
+	s := newCodexModelsAPIKeyTestService(upstream)
+	manifest, err := s.FetchCodexModelsManifest(
+		context.Background(),
+		newCodexModelsAPIKeyTestAccount("https://upstream.example"),
+		"0.144.3",
+		"",
+	)
+	if err != nil {
+		t.Fatalf("FetchCodexModelsManifest returned error: %v", err)
+	}
+	if got := string(manifest.Body); got != codexModelsEmptyManifest {
+		t.Fatalf("fallback manifest: got %q, want %q", got, codexModelsEmptyManifest)
+	}
+	if !manifest.BundledCatalogFallback {
+		t.Fatal("expected bundled catalog fallback marker")
+	}
+}
+
 func TestFetchCodexModelsManifestOAuthDoesNotMaskMissingCodexToken(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusBadGateway)
@@ -1036,17 +1066,24 @@ func TestFetchCodexModelsManifestOAuthDoesNotMaskMissingCodexToken(t *testing.T)
 	}
 }
 
-func TestIsAPIKeyCodexModelsManifestUnsupported(t *testing.T) {
+func TestShouldUseBundledCatalogForAPIKeyManifest(t *testing.T) {
 	for _, body := range []string{
 		`{"error":{"message":"account has no Codex backend access token"}}`,
 		`{"error":{"message":"failed to select an OpenAI account for Codex models"}}`,
 		`{"error":{"message":"Codex models manifest requires a custom API key upstream base URL"}}`,
 	} {
-		if !isAPIKeyCodexModelsManifestUnsupported([]byte(body)) {
+		if !shouldUseBundledCatalogForAPIKeyManifest(http.StatusBadGateway, []byte(body)) {
 			t.Fatalf("expected unsupported marker for %q", body)
 		}
 	}
-	if isAPIKeyCodexModelsManifestUnsupported([]byte(`{"error":"temporary upstream failure"}`)) {
+	cloudflareBody := []byte(`{"type":"https://developers.cloudflare.com/support/troubleshooting/http-status-codes/cloudflare-5xx-errors/error-502/","title":"Error 502: Bad gateway","status":502}`)
+	if !shouldUseBundledCatalogForAPIKeyManifest(http.StatusBadGateway, cloudflareBody) {
+		t.Fatal("expected Cloudflare 502 problem response to use bundled catalog")
+	}
+	if shouldUseBundledCatalogForAPIKeyManifest(http.StatusInternalServerError, cloudflareBody) {
+		t.Fatal("Cloudflare 502 problem response requires an HTTP 502 status")
+	}
+	if shouldUseBundledCatalogForAPIKeyManifest(http.StatusBadGateway, []byte(`{"error":"temporary upstream failure"}`)) {
 		t.Fatal("generic upstream failure must not be treated as unsupported")
 	}
 }

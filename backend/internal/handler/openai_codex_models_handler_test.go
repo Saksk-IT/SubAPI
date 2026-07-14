@@ -222,7 +222,7 @@ func TestCodexModelsUsesBundledCatalogFallbackAfterAccountsAreExhausted(t *testi
 	}
 	upstream.bodies = map[int64]string{
 		1: `{"error":{"message":"account has no Codex backend access token"}}`,
-		2: `{"error":{"message":"failed to select an OpenAI account for Codex models"}}`,
+		2: `{"type":"https://developers.cloudflare.com/support/troubleshooting/http-status-codes/cloudflare-5xx-errors/error-502/","title":"Error 502: Bad gateway","status":502}`,
 	}
 	recorder := performCodexModelsRequest(t, handler, groupID)
 
