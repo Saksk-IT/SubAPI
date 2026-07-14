@@ -10,6 +10,7 @@ import (
 	"net/http/httptest"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/Wei-Shaw/sub2api/internal/config"
 	middleware2 "github.com/Wei-Shaw/sub2api/internal/server/middleware"
@@ -18,6 +19,21 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/tidwall/gjson"
 )
+
+func TestOpenAIImagesJSONKeepaliveDisabledForDurableExecutor(t *testing.T) {
+	cfg := &config.Config{}
+	cfg.Gateway.ImageNonstreamKeepaliveInterval = 15
+	handler := &OpenAIGatewayHandler{cfg: cfg}
+	c, _ := gin.CreateTestContext(httptest.NewRecorder())
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/images/generations", nil)
+
+	require.Equal(t, 15*time.Second, handler.openAIImagesJSONKeepaliveInterval(c))
+
+	observer := &openAIImageJobObserverStub{allowDispatch: true}
+	jobCtx := service.WithOpenAIImageJobExecutionObserver(c.Request.Context(), observer)
+	c.Request = c.Request.WithContext(jobCtx)
+	require.Zero(t, handler.openAIImagesJSONKeepaliveInterval(c))
+}
 
 type openAIImagesFailoverAccountRepo struct {
 	service.AccountRepository
