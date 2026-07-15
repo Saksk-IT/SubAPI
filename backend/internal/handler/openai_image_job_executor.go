@@ -385,16 +385,18 @@ func (r *openAIImageJobResponseRecorder) Hijack() (net.Conn, *bufio.ReadWriter, 
 }
 
 type openAIImageJobDispatchTracker struct {
-	delegate service.OpenAIImageJobExecutionObserver
-	ctx      context.Context
-	state    atomic.Uint32
-	denied   atomic.Bool
+	delegate                      service.OpenAIImageJobExecutionObserver
+	ctx                           context.Context
+	state                         atomic.Uint32
+	denied                        atomic.Bool
+	knownNonBillableRearmConsumed atomic.Bool
 }
 
 const (
 	openAIImageJobExecutorDispatchPending uint32 = iota
 	openAIImageJobExecutorDispatchClaimed
 	openAIImageJobExecutorDispatchStarted
+	openAIImageJobExecutorDispatchRearming
 	openAIImageJobExecutorDispatchDenied
 )
 
@@ -428,7 +430,36 @@ func (t *openAIImageJobDispatchTracker) MarkDispatched() bool {
 }
 
 func (t *openAIImageJobDispatchTracker) Dispatched() bool {
-	return t != nil && t.state.Load() == openAIImageJobExecutorDispatchStarted
+	if t == nil {
+		return false
+	}
+	state := t.state.Load()
+	return state == openAIImageJobExecutorDispatchStarted || state == openAIImageJobExecutorDispatchRearming
+}
+
+func (t *openAIImageJobDispatchTracker) AcknowledgeKnownNonBillableDispatch() bool {
+	if t == nil || t.delegate == nil || (t.ctx != nil && t.ctx.Err() != nil) {
+		return false
+	}
+	acknowledger, ok := t.delegate.(interface {
+		AcknowledgeKnownNonBillableDispatch() bool
+	})
+	if !ok || !t.knownNonBillableRearmConsumed.CompareAndSwap(false, true) {
+		return false
+	}
+	if !t.state.CompareAndSwap(openAIImageJobExecutorDispatchStarted, openAIImageJobExecutorDispatchRearming) {
+		return false
+	}
+	if t.ctx != nil && t.ctx.Err() != nil {
+		t.state.Store(openAIImageJobExecutorDispatchStarted)
+		return false
+	}
+	if !acknowledger.AcknowledgeKnownNonBillableDispatch() {
+		t.state.Store(openAIImageJobExecutorDispatchStarted)
+		return false
+	}
+	t.state.Store(openAIImageJobExecutorDispatchPending)
+	return true
 }
 
 func (t *openAIImageJobDispatchTracker) Denied() bool {

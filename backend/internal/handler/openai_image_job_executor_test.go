@@ -34,9 +34,10 @@ func (s *openAIImageJobAPIKeyProviderStub) InvalidateAuthCacheByKey(_ context.Co
 }
 
 type openAIImageJobObserverStub struct {
-	allowDispatch bool
-	dispatched    atomic.Bool
-	markCalls     atomic.Int32
+	allowDispatch                 bool
+	dispatched                    atomic.Bool
+	markCalls                     atomic.Int32
+	knownNonBillableRearmConsumed atomic.Bool
 }
 
 func (s *openAIImageJobObserverStub) MarkDispatched() bool {
@@ -49,6 +50,13 @@ func (s *openAIImageJobObserverStub) MarkDispatched() bool {
 }
 
 func (s *openAIImageJobObserverStub) Dispatched() bool { return s.dispatched.Load() }
+
+func (s *openAIImageJobObserverStub) AcknowledgeKnownNonBillableDispatch() bool {
+	if !s.knownNonBillableRearmConsumed.CompareAndSwap(false, true) {
+		return false
+	}
+	return s.dispatched.CompareAndSwap(true, false)
+}
 
 type openAIImageJobAuthRepoStub struct {
 	service.APIKeyRepository
@@ -616,6 +624,33 @@ func TestOpenAIImageJobDispatchTrackerAllowsOnlyOneConcurrentDispatch(t *testing
 	require.Equal(t, int32(1), allowed.Load())
 	require.Equal(t, int32(1), observer.markCalls.Load())
 	require.True(t, tracker.Dispatched())
+}
+
+func TestOpenAIImageJobDispatchTrackerRearmsOnlyOneKnownNonBillableDispatch(t *testing.T) {
+	observer := &openAIImageJobObserverStub{allowDispatch: true}
+	tracker := &openAIImageJobDispatchTracker{delegate: observer, ctx: context.Background()}
+
+	require.True(t, tracker.MarkDispatched())
+	require.True(t, tracker.AcknowledgeKnownNonBillableDispatch())
+	require.False(t, tracker.Dispatched())
+	require.True(t, tracker.MarkDispatched())
+	require.False(t, tracker.AcknowledgeKnownNonBillableDispatch(), "only one known non-billable retry may be armed")
+	require.False(t, tracker.MarkDispatched(), "a third upstream dispatch must remain denied")
+	require.Equal(t, int32(2), observer.markCalls.Load())
+	require.True(t, tracker.Denied())
+}
+
+func TestOpenAIImageJobDispatchTrackerCancellationWinsAfterKnownNonBillableRearm(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	observer := &openAIImageJobObserverStub{allowDispatch: true}
+	tracker := &openAIImageJobDispatchTracker{delegate: observer, ctx: ctx}
+
+	require.True(t, tracker.MarkDispatched())
+	require.True(t, tracker.AcknowledgeKnownNonBillableDispatch())
+	cancel()
+	require.False(t, tracker.MarkDispatched(), "cancellation must close the rearmed gate before the retry")
+	require.Equal(t, int32(1), observer.markCalls.Load(), "the delegate must not see a late retry")
+	require.True(t, tracker.Denied())
 }
 
 func TestOpenAIImageJobBillingBarrierRetriesAndPreservesStableIDs(t *testing.T) {

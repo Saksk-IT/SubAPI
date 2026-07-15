@@ -89,7 +89,7 @@ func setupBatchRefreshRouter(adminSvc service.AdminService) *gin.Engine {
 	gin.SetMode(gin.TestMode)
 	router := gin.New()
 	openaiSvc := service.NewOpenAIOAuthService(nil, batchRefreshOpenAIClientStub{})
-	handler := NewAccountHandler(adminSvc, nil, openaiSvc, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
+	handler := NewAccountHandler(adminSvc, nil, openaiSvc, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
 	router.POST("/api/v1/admin/accounts/batch-refresh", handler.BatchRefresh)
 	return router
 }

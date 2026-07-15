@@ -642,7 +642,8 @@ func (r *OpenAIImageJobWorkerRuntime) Running() bool {
 }
 
 type openAIImageJobExecutionObserver struct {
-	state atomic.Uint32
+	state                         atomic.Uint32
+	knownNonBillableRearmConsumed atomic.Bool
 }
 
 const (
@@ -673,6 +674,13 @@ func (o *openAIImageJobExecutionObserver) MarkDispatched() bool {
 
 func (o *openAIImageJobExecutionObserver) Dispatched() bool {
 	return o != nil && o.state.Load() == openAIImageJobDispatchStarted
+}
+
+func (o *openAIImageJobExecutionObserver) AcknowledgeKnownNonBillableDispatch() bool {
+	if o == nil || !o.knownNonBillableRearmConsumed.CompareAndSwap(false, true) {
+		return false
+	}
+	return o.state.CompareAndSwap(openAIImageJobDispatchStarted, openAIImageJobDispatchPending)
 }
 
 // stopBeforeDispatch closes the dispatch gate. Its return value reports

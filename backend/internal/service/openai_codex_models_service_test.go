@@ -223,6 +223,49 @@ func TestFetchCodexModelsManifestPassthrough(t *testing.T) {
 	}
 }
 
+func TestFetchCodexModelsManifestAgentIdentityUsesAssertionWithoutOAuthToken(t *testing.T) {
+	key, privateKey := newTestAgentIdentityKey(t)
+	account := &Account{
+		ID:       3,
+		Platform: PlatformOpenAI,
+		Type:     AccountTypeOAuth,
+		Credentials: map[string]any{
+			"auth_mode":          OpenAIAuthModeAgentIdentity,
+			"agent_runtime_id":   key.runtimeID,
+			"agent_private_key":  privateKey,
+			"task_id":            key.taskID,
+			"chatgpt_account_id": "acc-agent",
+		},
+	}
+
+	var gotAuth, gotAccountID string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotAuth = r.Header.Get("Authorization")
+		gotAccountID = r.Header.Get("chatgpt-account-id")
+		_, _ = w.Write([]byte(`{"models":[]}`))
+	}))
+	defer server.Close()
+
+	original := chatgptCodexModelsURL
+	chatgptCodexModelsURL = server.URL
+	defer func() { chatgptCodexModelsURL = original }()
+
+	s := &OpenAIGatewayService{}
+	manifest, err := s.FetchCodexModelsManifest(context.Background(), account, "0.137.0", "")
+	if err != nil {
+		t.Fatalf("FetchCodexModelsManifest returned error: %v", err)
+	}
+	if string(manifest.Body) != `{"models":[]}` {
+		t.Fatalf("unexpected manifest body: %q", manifest.Body)
+	}
+	if !strings.HasPrefix(gotAuth, "AgentAssertion ") {
+		t.Fatalf("authorization scheme: got %q", strings.SplitN(gotAuth, " ", 2)[0])
+	}
+	if gotAccountID != "acc-agent" {
+		t.Fatalf("chatgpt-account-id header: got %q", gotAccountID)
+	}
+}
+
 func TestFetchCodexModelsManifestDefaultClientVersion(t *testing.T) {
 	var gotClientVersion string
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -326,8 +369,10 @@ func TestFetchCodexModelsManifestUsesTokenProviderCache(t *testing.T) {
 func TestIsRetryableCodexModelsManifestCredentialError(t *testing.T) {
 	for _, reason := range []string{
 		"OPENAI_CODEX_MODELS_CREDENTIALS_FAILED",
+		"OPENAI_CODEX_MODELS_OAUTH_REQUIRED",
 		"OPENAI_CODEX_MODELS_TOKEN_MISSING",
 		"OPENAI_CODEX_MODELS_TOKEN_UNAVAILABLE",
+		"OPENAI_CODEX_MODELS_AUTH_FAILED",
 		"OPENAI_CODEX_MODELS_API_KEY_UPSTREAM_UNSUPPORTED",
 		"OPENAI_CODEX_MODELS_API_KEY_UPSTREAM_INVALID",
 		"OPENAI_CODEX_MODELS_API_KEY_MISSING",

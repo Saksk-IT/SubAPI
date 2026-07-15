@@ -555,12 +555,14 @@ func collectOpenAIImagesFromResponsesBody(body []byte) ([]openAIResponsesImageRe
 		return nil, 0, nil, openAIResponsesImageResult{}, false, collectErr
 	}
 	if len(finalResults) > 0 {
+		reconcileOpenAIResponsesImageResultSizes(finalResults, &finalMeta)
 		return finalResults, createdAt, usageRaw, finalMeta, true, nil
 	}
 
 	if len(fallbackResults) > 0 {
 		firstMeta := fallbackResults[0]
 		mergeOpenAIResponsesImageMeta(&firstMeta, responseMeta)
+		reconcileOpenAIResponsesImageResultSizes(fallbackResults, &firstMeta)
 		return fallbackResults, createdAt, usageRaw, firstMeta, foundFinal, nil
 	}
 	return nil, createdAt, usageRaw, openAIResponsesImageResult{}, foundFinal, nil
@@ -1252,6 +1254,7 @@ func (s *OpenAIGatewayService) handleOpenAIImagesOAuthStreamingResponse(
 				mergeOpenAIResponsesImageMeta(&img, streamMeta)
 				appendOpenAIResponsesImageResultDedup(&finalResults, finalSeen, "", img)
 			}
+			reconcileOpenAIResponsesImageResultSizes(finalResults, nil)
 			if len(finalResults) == 0 {
 				outputErr := fmt.Errorf("upstream did not return image output")
 				// 软失败：response.completed 事件里没有图片。记录上游诊断摘要到 ops，
@@ -1314,8 +1317,12 @@ func (s *OpenAIGatewayService) handleOpenAIImagesOAuthStreamingResponse(
 		}
 		if len(pendingResults) > 0 {
 			eventName := streamPrefix + ".completed"
-			for _, img := range pendingResults {
-				mergeOpenAIResponsesImageMeta(&img, streamMeta)
+			finalResults := append([]openAIResponsesImageResult(nil), pendingResults...)
+			for i := range finalResults {
+				mergeOpenAIResponsesImageMeta(&finalResults[i], streamMeta)
+			}
+			reconcileOpenAIResponsesImageResultSizes(finalResults, nil)
+			for _, img := range finalResults {
 				key := openAIResponsesImageResultKey("", img)
 				if _, exists := emitted[key]; exists {
 					continue
@@ -1325,7 +1332,7 @@ func (s *OpenAIGatewayService) handleOpenAIImagesOAuthStreamingResponse(
 				s.tryWriteOpenAIImagesStreamEvent(c, flusher, &clientDisconnected, &lastDownstreamWriteAt, eventName, payload)
 			}
 			imageCount = len(emitted)
-			imageOutputSizes = openAIResponsesImageResultSizes(pendingResults)
+			imageOutputSizes = openAIResponsesImageResultSizes(finalResults)
 			return nil
 		}
 
@@ -1486,7 +1493,8 @@ func (s *OpenAIGatewayService) handleOpenAIImagesOAuthStreamingResponse(
 }
 
 func (s *OpenAIGatewayService) forwardOpenAIImagesOAuthBatch(
-	ctx context.Context,
+	requestCtx context.Context,
+	upstreamCtx context.Context,
 	c *gin.Context,
 	account *Account,
 	parsed *OpenAIImagesRequest,
@@ -1503,7 +1511,7 @@ func (s *OpenAIGatewayService) forwardOpenAIImagesOAuthBatch(
 
 	requests := make([]*http.Request, 0, parsed.N)
 	for range parsed.N {
-		request, buildErr := s.buildUpstreamRequest(ctx, c, account, responsesBody, token, true, parsed.StickySessionSeed(), false)
+		request, buildErr := s.buildUpstreamRequest(upstreamCtx, c, account, responsesBody, token, true, parsed.StickySessionSeed(), false)
 		if buildErr != nil {
 			return nil, buildErr
 		}
@@ -1522,6 +1530,34 @@ func (s *OpenAIGatewayService) forwardOpenAIImagesOAuthBatch(
 	upstreamStart := time.Now()
 	results := s.doOpenAIImagesBatchRequests(requests, proxyURL, account)
 	SetOpsLatencyMs(c, OpsUpstreamLatencyMsKey, time.Since(upstreamStart).Milliseconds())
+
+	// A split batch is safe to replay only when every upstream request was
+	// conclusively rejected for the same invalid Agent Identity task. If even
+	// one request succeeded, failed to transport, or returned another error,
+	// some work may already be billable and the one-way dispatch gate must stay
+	// closed. Redact all Agent Identity error bodies before any later logging or
+	// failover handling, regardless of whether the batch qualifies for recovery.
+	agentIdentity := s.isAgentIdentityAccount(upstreamCtx, account)
+	allInvalidAgentIdentityTasks := agentIdentity && !agentIdentityTaskRecoveryWasTried(requestCtx) && len(results) > 0
+	for index := range results {
+		result := &results[index]
+		if result.response != nil && result.response.StatusCode >= http.StatusBadRequest {
+			result.body = s.redactAgentIdentitySensitiveBody(upstreamCtx, account, result.body)
+		}
+		if allInvalidAgentIdentityTasks && (result.err != nil || result.response == nil || !isAgentIdentityTaskInvalidHTTPResponse(result.response.StatusCode, result.body)) {
+			allInvalidAgentIdentityTasks = false
+		}
+	}
+	if allInvalidAgentIdentityTasks {
+		expectedTaskID := account.GetCredential("task_id")
+		if !AcknowledgeOpenAIImageJobKnownNonBillableDispatch(requestCtx) {
+			return nil, context.Canceled
+		}
+		if err := s.recoverAgentIdentityTask(requestCtx, account, expectedTaskID); err != nil {
+			return nil, fmt.Errorf("agent identity task recovery failed: %w", err)
+		}
+		return s.forwardOpenAIImagesOAuth(markAgentIdentityTaskRecoveryTried(requestCtx), c, account, parsed, requestModel)
+	}
 
 	for _, result := range results {
 		if result.err != nil {
@@ -1558,14 +1594,14 @@ func (s *OpenAIGatewayService) forwardOpenAIImagesOAuthBatch(
 				Kind:               "failover",
 				Message:            upstreamMsg,
 			})
-			s.handleFailoverSideEffects(ctx, result.response, account, result.body, requestModel)
+			s.handleFailoverSideEffects(upstreamCtx, result.response, account, result.body, requestModel)
 			return nil, &UpstreamFailoverError{
 				StatusCode:             result.response.StatusCode,
 				ResponseBody:           result.body,
 				RetryableOnSameAccount: account.IsPoolMode() && account.IsPoolModeRetryableStatus(result.response.StatusCode),
 			}
 		}
-		return s.handleOpenAIImagesErrorResponse(ctx, result.response, c, account, requestModel)
+		return s.handleOpenAIImagesErrorResponse(upstreamCtx, result.response, c, account, requestModel)
 	}
 
 	var (
@@ -1594,7 +1630,7 @@ func (s *OpenAIGatewayService) forwardOpenAIImagesOAuthBatch(
 					writeOpenAIImagesUpstreamErrorResponse(c, upstreamErr)
 				}
 				return nil, s.handleOpenAIImagesOAuthResponseError(
-					ctx,
+					upstreamCtx,
 					c,
 					account,
 					requestModel,
@@ -1614,7 +1650,7 @@ func (s *OpenAIGatewayService) forwardOpenAIImagesOAuthBatch(
 				setOpsUpstreamError(c, http.StatusBadRequest, refusalErr.clientMessage(), summarizeOpenAIImagesNoOutputBody(result.body))
 				writeOpenAIImagesUpstreamErrorResponse(c, refusalErr)
 				return nil, s.handleOpenAIImagesOAuthResponseError(
-					ctx,
+					upstreamCtx,
 					c,
 					account,
 					requestModel,
@@ -1707,6 +1743,7 @@ func (s *OpenAIGatewayService) forwardOpenAIImagesOAuth(
 	}
 	if parsed.N > 1 && !parsed.Stream {
 		return s.forwardOpenAIImagesOAuthBatch(
+			ctx,
 			upstreamCtx,
 			c,
 			account,
@@ -1755,6 +1792,17 @@ func (s *OpenAIGatewayService) forwardOpenAIImagesOAuth(
 	if resp.StatusCode >= 400 {
 		respBody := s.readUpstreamErrorBody(resp)
 		_ = resp.Body.Close()
+		respBody = s.redactAgentIdentitySensitiveBody(upstreamCtx, account, respBody)
+		if !agentIdentityTaskRecoveryWasTried(ctx) && s.isAgentIdentityAccount(ctx, account) && isAgentIdentityTaskInvalidHTTPResponse(resp.StatusCode, respBody) {
+			expectedTaskID := account.GetCredential("task_id")
+			if !AcknowledgeOpenAIImageJobKnownNonBillableDispatch(ctx) {
+				return nil, context.Canceled
+			}
+			if err := s.recoverAgentIdentityTask(ctx, account, expectedTaskID); err != nil {
+				return nil, fmt.Errorf("agent identity task recovery failed: %w", err)
+			}
+			return s.forwardOpenAIImagesOAuth(markAgentIdentityTaskRecoveryTried(ctx), c, account, parsed, channelMappedModel)
+		}
 		resp.Body = io.NopCloser(bytes.NewReader(respBody))
 		upstreamMsg := strings.TrimSpace(extractUpstreamErrorMessage(respBody))
 		upstreamMsg = sanitizeUpstreamErrorMessage(upstreamMsg)

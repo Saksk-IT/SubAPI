@@ -590,6 +590,44 @@ func TestOpenAIImageJobExecutionObserverAllowsOnlyFirstDispatch(t *testing.T) {
 	}
 }
 
+func TestOpenAIImageJobExecutionObserverRearmsOnlyOneKnownNonBillableDispatch(t *testing.T) {
+	observer := &openAIImageJobExecutionObserver{}
+	if accepted := observer.MarkDispatched(); !accepted {
+		t.Fatal("first MarkDispatched() = false, want true")
+	}
+	if rearmed := observer.AcknowledgeKnownNonBillableDispatch(); !rearmed {
+		t.Fatal("AcknowledgeKnownNonBillableDispatch() = false, want true")
+	}
+	if observer.Dispatched() {
+		t.Fatal("Dispatched() = true after known non-billable dispatch was acknowledged")
+	}
+	if accepted := observer.MarkDispatched(); !accepted {
+		t.Fatal("second MarkDispatched() = false after rearm, want true")
+	}
+	if rearmed := observer.AcknowledgeKnownNonBillableDispatch(); rearmed {
+		t.Fatal("second AcknowledgeKnownNonBillableDispatch() = true, want one-shot rearm")
+	}
+	if accepted := observer.MarkDispatched(); accepted {
+		t.Fatal("third MarkDispatched() = true, want false")
+	}
+}
+
+func TestOpenAIImageJobExecutionObserverCancellationClosesRearmedGate(t *testing.T) {
+	observer := &openAIImageJobExecutionObserver{}
+	if accepted := observer.MarkDispatched(); !accepted {
+		t.Fatal("first MarkDispatched() = false, want true")
+	}
+	if rearmed := observer.AcknowledgeKnownNonBillableDispatch(); !rearmed {
+		t.Fatal("AcknowledgeKnownNonBillableDispatch() = false, want true")
+	}
+	if dispatched := observer.stopBeforeDispatch(); dispatched {
+		t.Fatal("stopBeforeDispatch() reported an active dispatch after the known non-billable response")
+	}
+	if accepted := observer.MarkDispatched(); accepted {
+		t.Fatal("MarkDispatched() = true after cancellation closed the rearmed gate")
+	}
+}
+
 func TestOpenAIImageJobWorkerOptionsBoundConcurrencyAndCleanupBatch(t *testing.T) {
 	opts := normalizeOpenAIImageJobWorkerOptions(OpenAIImageJobWorkerOptions{
 		WorkerCount:       1_000_000,
