@@ -761,7 +761,7 @@ func buildGrokResponsesRequest(ctx context.Context, c *gin.Context, account *Acc
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Accept", "application/json, text/event-stream")
 	if account.IsGrokOAuth() {
-		applyGrokCLIHeaders(req.Header)
+		applyGrokCLIHeadersForTarget(req.Header, targetURL)
 	}
 	applyGrokCacheHeaders(req.Header, cacheIdentity)
 	if c != nil {
@@ -783,6 +783,13 @@ func applyGrokCLIHeaders(headers http.Header) {
 	}
 	headers.Set("User-Agent", grokUpstreamUserAgent)
 	headers.Set("X-Grok-Client-Version", grokCLIVersion)
+}
+
+func applyGrokCLIHeadersForTarget(headers http.Header, targetURL string) {
+	if !isGrokCLIProxyTarget(targetURL) {
+		return
+	}
+	applyGrokCLIHeaders(headers)
 }
 
 func (s *OpenAIGatewayService) updateGrokUsageSnapshot(ctx context.Context, account *Account, snapshot *xai.QuotaSnapshot) {

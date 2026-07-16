@@ -154,7 +154,7 @@ func (s *GrokQuotaService) probeUsage(ctx context.Context, accountID int64) (*Gr
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Accept", "application/json")
 	if account.IsGrokOAuth() {
-		applyGrokCLIHeaders(req.Header)
+		applyGrokCLIHeadersForTarget(req.Header, targetURL)
 	}
 	// 探测请求与真实转发保持同一套账号级请求头覆写，避免探测通过但转发失败。
 	account.ApplyHeaderOverrides(req.Header)

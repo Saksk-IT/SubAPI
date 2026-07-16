@@ -263,7 +263,8 @@ func TestBuildGrokResponsesRequestUsesAccountBaseURLAndBearerToken(t *testing.T)
 	require.Equal(t, "Bearer access-token", req.Header.Get("Authorization"))
 	require.Equal(t, "application/json", req.Header.Get("Content-Type"))
 	require.Contains(t, req.Header.Get("Accept"), "text/event-stream")
-	require.Equal(t, grokCLIVersion, req.Header.Get("X-Grok-Client-Version"))
+	require.Empty(t, req.Header.Get("X-Grok-Client-Version"))
+	require.NotEqual(t, grokUpstreamUserAgent, req.Header.Get("User-Agent"))
 	require.Equal(t, "isolated-cache-id", req.Header.Get(grokConversationIDHeader))
 
 	data, err := io.ReadAll(req.Body)
@@ -288,20 +289,51 @@ func TestBuildGrokResponsesRequestAllowsPublicAPIKeyBaseURLByDefault(t *testing.
 	require.NotEqual(t, grokUpstreamUserAgent, req.Header.Get("User-Agent"))
 }
 
-func TestBuildGrokResponsesRequestPinsOAuthOfficialVariantBaseURL(t *testing.T) {
+func TestBuildGrokResponsesRequestHonorsOAuthOfficialEndpointSwitch(t *testing.T) {
 	t.Parallel()
 
 	account := &Account{
 		Platform: PlatformGrok,
 		Type:     AccountTypeOAuth,
 		Credentials: map[string]any{
-			"base_url": "HTTPS://API.X.AI:443/",
+			"base_url": xai.DefaultBaseURL,
 		},
 	}
 
 	req, err := buildGrokResponsesRequest(context.Background(), nil, account, []byte(`{"model":"grok-4.3"}`), "access-token", "", nil)
 	require.NoError(t, err)
-	require.Equal(t, xai.DefaultCLIBaseURL+"/responses", req.URL.String())
+	require.Equal(t, xai.DefaultBaseURL+"/responses", req.URL.String())
+	require.Empty(t, req.Header.Get("X-Grok-Client-Version"))
+	require.NotEqual(t, grokUpstreamUserAgent, req.Header.Get("User-Agent"))
+}
+
+func TestApplyGrokCLIHeadersForTarget(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name      string
+		targetURL string
+		wantCLI   bool
+	}{
+		{name: "CLI", targetURL: xai.DefaultCLIBaseURL + "/responses", wantCLI: true},
+		{name: "official API", targetURL: xai.DefaultBaseURL + "/responses"},
+		{name: "regional API", targetURL: "https://us-west-2.api.x.ai/v1/responses"},
+		{name: "custom relay", targetURL: "https://relay.example.test/v1/responses"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			headers := make(http.Header)
+			applyGrokCLIHeadersForTarget(headers, tt.targetURL)
+			if tt.wantCLI {
+				require.Equal(t, grokCLIVersion, headers.Get("X-Grok-Client-Version"))
+				require.Equal(t, grokUpstreamUserAgent, headers.Get("User-Agent"))
+				return
+			}
+			require.Empty(t, headers.Get("X-Grok-Client-Version"))
+			require.Empty(t, headers.Get("User-Agent"))
+		})
+	}
 }
 
 func TestBuildGrokResponsesRequestAppliesHeaderOverridesLast(t *testing.T) {
@@ -324,8 +356,8 @@ func TestBuildGrokResponsesRequestAppliesHeaderOverridesLast(t *testing.T) {
 	req, err := buildGrokResponsesRequest(context.Background(), nil, account, []byte(`{"model":"grok-4.3"}`), "access-token", "conv-1", nil)
 	require.NoError(t, err)
 	require.Equal(t, "https://relay.example.test/v1/responses", req.URL.String())
-	// 覆写值优先于内置 CLI 身份头。名字不在 wire casing 映射中的覆写头
-	// 以小写键直写（HTTP/2 线上语义），需按写入形态断言。
+	// 自定义端点不注入内置 CLI 身份头，账号覆写值仍应原样生效。名字不在
+	// wire casing 映射中的覆写头以小写键直写（HTTP/2 线上语义），需按写入形态断言。
 	require.Equal(t, "relay-client/2.0", req.Header.Get("User-Agent"))
 	require.Equal(t, []string{"9.9.9"}, req.Header["x-grok-client-version"])
 	require.Empty(t, req.Header.Get("X-Grok-Client-Version"))
@@ -666,7 +698,7 @@ func TestForwardGrokMediaVideoGenerationPreservesImageToVideoModel(t *testing.T)
 	require.Equal(t, VideoBillingDefaultDurationSeconds, result.VideoDurationSeconds)
 }
 
-func TestForwardGrokMediaOAuthImageToVideoKeepsCLIGatewayForLargeBody(t *testing.T) {
+func TestForwardGrokMediaOAuthImageToVideoUsesOfficialAPIForLargeBody(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	recorder := httptest.NewRecorder()
@@ -702,7 +734,9 @@ func TestForwardGrokMediaOAuthImageToVideoKeepsCLIGatewayForLargeBody(t *testing
 
 	_, err := svc.ForwardGrokMedia(context.Background(), c, account, GrokMediaEndpointVideosGenerations, "", body, "application/json")
 	require.NoError(t, err)
-	require.Equal(t, xai.DefaultCLIBaseURL+"/videos/generations", upstream.lastReq.URL.String())
+	require.Equal(t, xai.DefaultBaseURL+"/videos/generations", upstream.lastReq.URL.String())
+	require.Empty(t, upstream.lastReq.Header.Get("X-XAI-Token-Auth"))
+	require.Empty(t, upstream.lastReq.Header.Get("x-grok-client-version"))
 	require.Equal(t, "data:image/png;base64,"+imageData, gjson.GetBytes(upstream.lastBody, "image.image_url").String())
 }
 

@@ -756,7 +756,7 @@ func (s *AccountTestService) testGrokAccountConnection(c *gin.Context, account *
 	req.Header.Set("Accept", "application/json, text/event-stream")
 	req.Header.Set("Authorization", "Bearer "+authToken)
 	if account.IsGrokOAuth() {
-		applyGrokCLIHeaders(req.Header)
+		applyGrokCLIHeadersForTarget(req.Header, apiURL)
 	}
 	// 连通性测试与真实转发保持同一套账号级请求头覆写。
 	account.ApplyHeaderOverrides(req.Header)

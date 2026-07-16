@@ -1586,6 +1586,9 @@ func (r *stubUserRepo) UpdateConcurrency(ctx context.Context, id int64, amount i
 
 func (r *stubUserRepo) BatchSetConcurrency(context.Context, []int64, int) (int, error) { return 0, nil }
 func (r *stubUserRepo) BatchAddConcurrency(context.Context, []int64, int) (int, error) { return 0, nil }
+func (r *stubUserRepo) BatchUpdateLimits(context.Context, []int64, *int, *int) (int, error) {
+	return 0, nil
+}
 
 func (r *stubUserRepo) ExistsByEmail(ctx context.Context, email string) (bool, error) {
 	return false, errors.New("not implemented")
@@ -1762,6 +1765,14 @@ func (stubGroupRepo) UpdateSortOrders(ctx context.Context, updates []service.Gro
 
 func (stubGroupRepo) UpdateRateMultipliers(ctx context.Context, updates []service.GroupRateMultiplierUpdate) error {
 	return nil
+}
+
+func (stubGroupRepo) FindByDuplicateOperationID(ctx context.Context, operationID string) (*service.Group, error) {
+	return nil, nil
+}
+
+func (stubGroupRepo) CreateFromSource(ctx context.Context, group *service.Group, sourceGroupID int64) error {
+	return errors.New("not implemented")
 }
 
 type stubAccountRepo struct {

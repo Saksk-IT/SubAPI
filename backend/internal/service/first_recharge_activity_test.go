@@ -394,6 +394,9 @@ func (r *firstRechargeUserRepoFake) BatchSetConcurrency(context.Context, []int64
 func (r *firstRechargeUserRepoFake) BatchAddConcurrency(context.Context, []int64, int) (int, error) {
 	panic("unexpected BatchAddConcurrency call")
 }
+func (r *firstRechargeUserRepoFake) BatchUpdateLimits(context.Context, []int64, *int, *int) (int, error) {
+	panic("unexpected BatchUpdateLimits call")
+}
 func (r *firstRechargeUserRepoFake) ExistsByEmail(context.Context, string) (bool, error) {
 	panic("unexpected ExistsByEmail call")
 }
