@@ -28,7 +28,7 @@ vi.mock("vue-i18n", async () => {
   };
 });
 
-const mountPlanCard = (groupPlatform: string, validityUnit = "day") =>
+const mountPlanCard = (groupPlatform: string, validityUnit = "day", currency = "") =>
   mount(SubscriptionPlanCard, {
     props: {
       plan: {
@@ -37,6 +37,7 @@ const mountPlanCard = (groupPlatform: string, validityUnit = "day") =>
         group_platform: groupPlatform,
         name: "Pro",
         price: 10,
+        currency,
         amount: 1000,
         features: [],
         rate_multiplier: 1,
@@ -69,5 +70,12 @@ describe("SubscriptionPlanCard", () => {
   it("formats plural validity units", () => {
     expect(mountPlanCard("openai", "weeks").text()).toContain("30weeks");
     expect(mountPlanCard("openai", "months").text()).toContain("30months");
+  });
+
+  it("keeps the customized price formatter and appends the display currency", () => {
+    const text = mountPlanCard("openai", "day", "NZD").text();
+
+    expect(text).toContain("¥10.00");
+    expect(text).toContain("NZD");
   });
 });

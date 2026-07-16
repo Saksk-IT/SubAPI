@@ -191,6 +191,11 @@ func TestValidatePlanPatch_AllNil(t *testing.T) {
 	require.NoError(t, err)
 }
 
+func TestValidateBulkPlanPatch_CurrencyOnly(t *testing.T) {
+	currency := "nzd"
+	require.NoError(t, validateBulkPlanPatch(UpdatePlanRequest{Currency: &currency}))
+}
+
 func TestDerivePlanQuotaFromGroup_Daily(t *testing.T) {
 	daily := 23.0
 	weekly := 140.0
@@ -303,11 +308,57 @@ func TestDerivePlanValidityUnitFromGroup_NoActiveQuotaFallback(t *testing.T) {
 func TestDerivePlanPriceFromGroup_UsesFixedPlanMultiplier(t *testing.T) {
 	daily := 120.0
 	group := &dbent.Group{
-		DailyLimitUsd: &daily,
+		DailyLimitUsd:  &daily,
 		RateMultiplier: 2.5,
 	}
 
 	price, err := derivePlanPriceFromGroup(group, 7, "days", 2.5, 0.14)
 	require.NoError(t, err)
 	require.Equal(t, 47.04, price)
+}
+
+// --- normalizePlanCurrency tests ---
+// Empty must stay empty (not coerced to the default payment currency),
+// so existing plans keep rendering without any currency label.
+
+func TestNormalizePlanCurrency_EmptyKeepsEmpty(t *testing.T) {
+	currency, err := normalizePlanCurrency("")
+	require.NoError(t, err)
+	require.Equal(t, "", currency)
+}
+
+func TestNormalizePlanCurrency_WhitespaceKeepsEmpty(t *testing.T) {
+	currency, err := normalizePlanCurrency("   ")
+	require.NoError(t, err)
+	require.Equal(t, "", currency)
+}
+
+func TestNormalizePlanCurrency_LowercaseNormalized(t *testing.T) {
+	currency, err := normalizePlanCurrency("nzd")
+	require.NoError(t, err)
+	require.Equal(t, "NZD", currency)
+}
+
+func TestNormalizePlanCurrency_ValidUppercase(t *testing.T) {
+	currency, err := normalizePlanCurrency("USD")
+	require.NoError(t, err)
+	require.Equal(t, "USD", currency)
+}
+
+func TestNormalizePlanCurrency_TooShort(t *testing.T) {
+	_, err := normalizePlanCurrency("NZ")
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "currency")
+}
+
+func TestNormalizePlanCurrency_TooLong(t *testing.T) {
+	_, err := normalizePlanCurrency("NZDD")
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "currency")
+}
+
+func TestNormalizePlanCurrency_NonLetter(t *testing.T) {
+	_, err := normalizePlanCurrency("N2D")
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "currency")
 }

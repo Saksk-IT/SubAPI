@@ -61,6 +61,7 @@ func (h *PaymentHandler) GetPlans(c *gin.Context) {
 			RateMultiplier: gi.RateMultiplier, PeakRateEnabled: gi.PeakRateEnabled,
 			PeakStart: gi.PeakStart, PeakEnd: gi.PeakEnd, PeakRateMultiplier: gi.PeakRateMultiplier,
 			Name: p.Name, Description: p.Description, Price: p.Price, OriginalPrice: p.OriginalPrice,
+			Currency:        p.Currency,
 			PriceMultiplier: p.PriceMultiplier,
 			ValidityDays:    p.ValidityDays, ValidityUnit: p.ValidityUnit, Features: parseFeatures(p.Features),
 			Tags: parseFeatures(display.Tags), TotalQuota: display.TotalQuota, DailyQuota: display.DailyQuota, DisplayNotes: display.DisplayNotes,
@@ -108,6 +109,7 @@ func (h *PaymentHandler) GetCheckoutInfo(c *gin.Context) {
 			WeeklyLimitUSD: gi.WeeklyLimitUSD, MonthlyLimitUSD: gi.MonthlyLimitUSD,
 			ModelScopes: gi.ModelScopes,
 			Name:        p.Name, Description: p.Description, Price: p.Price, OriginalPrice: p.OriginalPrice,
+			Currency:        p.Currency,
 			PriceMultiplier: p.PriceMultiplier,
 			ValidityDays:    p.ValidityDays, ValidityUnit: p.ValidityUnit, Features: parseFeatures(p.Features),
 			Tags: parseFeatures(display.Tags), TotalQuota: display.TotalQuota, DailyQuota: display.DailyQuota, DisplayNotes: display.DisplayNotes,
@@ -191,6 +193,7 @@ type checkoutPlan struct {
 	Price              float64  `json:"price"`
 	PriceMultiplier    float64  `json:"price_multiplier"`
 	OriginalPrice      *float64 `json:"original_price,omitempty"`
+	Currency           string   `json:"currency,omitempty"`
 	ValidityDays       int      `json:"validity_days"`
 	ValidityUnit       string   `json:"validity_unit"`
 	Features           []string `json:"features"`

@@ -6,6 +6,7 @@ import ops from './ops'
 import settings from './settings'
 import localOverrides from './local-overrides'
 import { deepMergeLocale } from '../../../deepMergeLocale'
+import audit from './audit'
 
 const upstreamAdminLocale = {
   ...overview,
@@ -14,6 +15,7 @@ const upstreamAdminLocale = {
   ...resources,
   ...ops,
   ...settings,
+  ...audit,
 }
 
 export default deepMergeLocale(upstreamAdminLocale, localOverrides)

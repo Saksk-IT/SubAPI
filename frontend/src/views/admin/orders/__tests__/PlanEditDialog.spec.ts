@@ -319,4 +319,23 @@ describe('PlanEditDialog', () => {
       price_multiplier: 0.2,
     }))
   })
+
+  it('编辑时保留展示币种并在提交前规范化为大写', async () => {
+    apiMocks.updatePlan.mockResolvedValue({ data: { id: 99 } })
+    const wrapper = mountEditDialog({ currency: 'nzd', price_multiplier: 0.2 })
+
+    await wrapper.setProps({ show: true })
+    await flushPromises()
+
+    const currencyInput = wrapper.get('input[maxlength="3"]')
+    expect((currencyInput.element as HTMLInputElement).value).toBe('nzd')
+    await currencyInput.setValue('usd')
+    await wrapper.get('#plan-form').trigger('submit.prevent')
+    await flushPromises()
+
+    expect(apiMocks.updatePlan).toHaveBeenCalledWith(99, expect.objectContaining({
+      currency: 'USD',
+      price_multiplier: 0.2,
+    }))
+  })
 })

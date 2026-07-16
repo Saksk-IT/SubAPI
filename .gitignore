@@ -144,6 +144,7 @@ docs/*
 !docs/static-guides/*.md
 docs/static-guides/*.png
 docs/static-guides/*.pdf
+!docs/ASYNC_IMAGE_TASKS.md
 !docs/legal/
 !docs/legal/*.md
 .serena/

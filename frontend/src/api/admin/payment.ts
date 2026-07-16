@@ -24,6 +24,7 @@ export interface BulkUpdatePlansRequest {
   fields: {
     price_multiplier?: number
     description?: string
+    currency?: string
     features?: string
     tags?: string
   }

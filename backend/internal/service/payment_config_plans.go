@@ -11,12 +11,26 @@ import (
 	dbent "github.com/Wei-Shaw/sub2api/ent"
 	"github.com/Wei-Shaw/sub2api/ent/group"
 	"github.com/Wei-Shaw/sub2api/ent/subscriptionplan"
+	"github.com/Wei-Shaw/sub2api/internal/payment"
 	infraerrors "github.com/Wei-Shaw/sub2api/internal/pkg/errors"
 )
 
 type planDerivedQuota struct {
 	TotalQuota *float64
 	DailyQuota *float64
+}
+
+// normalizePlanCurrency validates and normalizes the display-only currency label.
+// Empty means "no label" and is kept as-is so existing plans stay unchanged.
+func normalizePlanCurrency(raw string) (string, error) {
+	if strings.TrimSpace(raw) == "" {
+		return "", nil
+	}
+	currency, err := payment.NormalizePaymentCurrency(raw)
+	if err != nil {
+		return "", infraerrors.BadRequest("PLAN_CURRENCY_INVALID", "currency must be a 3-letter ISO currency code")
+	}
+	return currency, nil
 }
 
 // validatePlanRequired checks that all required fields for a plan are provided.
@@ -307,7 +321,7 @@ func validateBulkPlanPatch(req UpdatePlanRequest) error {
 	if len(unsupported) > 0 {
 		return infraerrors.BadRequest("PLAN_BULK_FIELDS_UNSUPPORTED", "unsupported bulk plan fields: "+strings.Join(unsupported, ", "))
 	}
-	if req.PriceMultiplier == nil && req.Description == nil && req.Features == nil && req.Tags == nil {
+	if req.PriceMultiplier == nil && req.Description == nil && req.Currency == nil && req.Features == nil && req.Tags == nil {
 		return infraerrors.BadRequest("PLAN_BULK_FIELDS_REQUIRED", "select at least one field to update")
 	}
 	return validatePlanPatch(req)
@@ -461,9 +475,14 @@ func (s *PaymentConfigService) CreatePlan(ctx context.Context, req CreatePlanReq
 	if err != nil {
 		return nil, err
 	}
+	currency, err := normalizePlanCurrency(req.Currency)
+	if err != nil {
+		return nil, err
+	}
 	b := s.entClient.SubscriptionPlan.Create().
 		SetGroupID(req.GroupID).SetName(req.Name).SetDescription(req.Description).
-		SetPrice(price).SetPriceMultiplier(req.PriceMultiplier).SetValidityDays(req.ValidityDays).SetValidityUnit(derivedValidityUnit).
+		SetPrice(price).SetPriceMultiplier(req.PriceMultiplier).SetCurrency(currency).
+		SetValidityDays(req.ValidityDays).SetValidityUnit(derivedValidityUnit).
 		SetFeatures(normalizeProductLines(req.Features)).SetProductName(req.ProductName).
 		SetForSale(req.ForSale).SetSortOrder(req.SortOrder)
 	if req.OriginalPrice != nil {
@@ -505,10 +524,6 @@ func (s *PaymentConfigService) UpdatePlan(ctx context.Context, id int64, req Upd
 	if req.ValidityDays != nil {
 		nextValidityDays = *req.ValidityDays
 	}
-	nextValidityUnit := currentPlan.ValidityUnit
-	if req.ValidityUnit != nil {
-		nextValidityUnit = *req.ValidityUnit
-	}
 	nextPriceMultiplier := currentPlan.PriceMultiplier
 	if req.PriceMultiplier != nil {
 		nextPriceMultiplier = *req.PriceMultiplier
@@ -525,8 +540,7 @@ func (s *PaymentConfigService) UpdatePlan(ctx context.Context, id int64, req Upd
 		}
 		derivedValidityUnit = derivePlanValidityUnitFromGroup(groupInfo)
 		derivedQuota = derivePlanQuotaFromGroup(groupInfo, nextValidityDays, derivedValidityUnit)
-		nextValidityUnit = derivedValidityUnit
-		derivedPrice, err = derivePlanPriceFromGroup(groupInfo, nextValidityDays, nextValidityUnit, s.resolvePlanRateMultiplier(ctx, groupInfo), nextPriceMultiplier)
+		derivedPrice, err = derivePlanPriceFromGroup(groupInfo, nextValidityDays, derivedValidityUnit, s.resolvePlanRateMultiplier(ctx, groupInfo), nextPriceMultiplier)
 		if err != nil {
 			return nil, err
 		}
@@ -549,6 +563,13 @@ func (s *PaymentConfigService) UpdatePlan(ctx context.Context, id int64, req Upd
 	}
 	if req.OriginalPrice != nil {
 		u.SetOriginalPrice(*req.OriginalPrice)
+	}
+	if req.Currency != nil {
+		currency, err := normalizePlanCurrency(*req.Currency)
+		if err != nil {
+			return nil, err
+		}
+		u.SetCurrency(currency)
 	}
 	if req.ValidityDays != nil {
 		u.SetValidityDays(*req.ValidityDays)

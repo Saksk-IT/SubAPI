@@ -16,6 +16,9 @@ func (r *visibilityMonitorRepo) Delete(context.Context, int64) error           {
 func (r *visibilityMonitorRepo) UpdateSortOrders(context.Context, []ChannelMonitorSortOrderUpdate) error {
 	return nil
 }
+func (r *visibilityMonitorRepo) FindByDuplicateOperationID(context.Context, string) (*ChannelMonitor, error) {
+	return nil, ErrChannelMonitorNotFound
+}
 func (r *visibilityMonitorRepo) MarkChecked(context.Context, int64, time.Time) error { return nil }
 func (r *visibilityMonitorRepo) InsertHistoryBatch(context.Context, []*ChannelMonitorHistoryRow) error {
 	return nil

@@ -7,7 +7,32 @@ import (
 	"time"
 
 	dbent "github.com/Wei-Shaw/sub2api/ent"
+	"github.com/Wei-Shaw/sub2api/internal/service"
 )
+
+func TestAdminPlanResultFromPlanIncludesCurrency(t *testing.T) {
+	plan := &dbent.SubscriptionPlan{
+		ID:              1,
+		GroupID:         2,
+		Name:            "NZ Plan",
+		Price:           12.5,
+		PriceMultiplier: 1.25,
+		Currency:        "NZD",
+	}
+
+	got := adminPlanResultFromPlan(plan, service.PlanDisplayInfo{}, 3)
+	if got.Currency != "NZD" {
+		t.Fatalf("expected currency NZD, got %q", got.Currency)
+	}
+
+	body, err := json.Marshal(got)
+	if err != nil {
+		t.Fatalf("marshal admin plan result: %v", err)
+	}
+	if !strings.Contains(string(body), `"currency":"NZD"`) {
+		t.Fatalf("expected currency in admin plan response, got %s", string(body))
+	}
+}
 
 func TestSanitizeAdminPaymentOrderForResponseAddsCurrency(t *testing.T) {
 	now := time.Now()

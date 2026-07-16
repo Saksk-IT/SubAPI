@@ -304,6 +304,7 @@ type AdminPlanResult struct {
 	Price           float64  `json:"price"`
 	PriceMultiplier float64  `json:"price_multiplier"`
 	OriginalPrice   *float64 `json:"original_price,omitempty"`
+	Currency        string   `json:"currency,omitempty"`
 	ValidityDays    int      `json:"validity_days"`
 	ValidityUnit    string   `json:"validity_unit"`
 	Features        string   `json:"features"`
@@ -449,28 +450,33 @@ func (h *PaymentHandler) buildAdminPlanResults(c *gin.Context, plans []*dbent.Su
 	out := make([]AdminPlanResult, 0, len(plans))
 	for _, plan := range plans {
 		display := displayInfo[plan.ID]
-		out = append(out, AdminPlanResult{
-			ID:              plan.ID,
-			GroupID:         plan.GroupID,
-			Name:            plan.Name,
-			Description:     plan.Description,
-			Price:           plan.Price,
-			PriceMultiplier: plan.PriceMultiplier,
-			OriginalPrice:   plan.OriginalPrice,
-			ValidityDays:    plan.ValidityDays,
-			ValidityUnit:    plan.ValidityUnit,
-			Features:        plan.Features,
-			Tags:            display.Tags,
-			TotalQuota:      display.TotalQuota,
-			DailyQuota:      display.DailyQuota,
-			DisplayNotes:    display.DisplayNotes,
-			ProductName:     plan.ProductName,
-			ForSale:         plan.ForSale,
-			SortOrder:       plan.SortOrder,
-			SalesCount:      salesCounts[plan.ID],
-		})
+		out = append(out, adminPlanResultFromPlan(plan, display, salesCounts[plan.ID]))
 	}
 	return out, nil
+}
+
+func adminPlanResultFromPlan(plan *dbent.SubscriptionPlan, display service.PlanDisplayInfo, salesCount int64) AdminPlanResult {
+	return AdminPlanResult{
+		ID:              plan.ID,
+		GroupID:         plan.GroupID,
+		Name:            plan.Name,
+		Description:     plan.Description,
+		Price:           plan.Price,
+		PriceMultiplier: plan.PriceMultiplier,
+		OriginalPrice:   plan.OriginalPrice,
+		Currency:        plan.Currency,
+		ValidityDays:    plan.ValidityDays,
+		ValidityUnit:    plan.ValidityUnit,
+		Features:        plan.Features,
+		Tags:            display.Tags,
+		TotalQuota:      display.TotalQuota,
+		DailyQuota:      display.DailyQuota,
+		DisplayNotes:    display.DisplayNotes,
+		ProductName:     plan.ProductName,
+		ForSale:         plan.ForSale,
+		SortOrder:       plan.SortOrder,
+		SalesCount:      salesCount,
+	}
 }
 
 // --- Balance Products ---

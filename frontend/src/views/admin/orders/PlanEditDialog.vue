@@ -61,6 +61,11 @@
         </div>
       </div>
       <div>
+        <label class="input-label">{{ t('payment.admin.currency') }}</label>
+        <input v-model="planForm.currency" type="text" maxlength="3" class="input uppercase" :placeholder="t('payment.admin.currencyPlaceholder')" />
+        <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">{{ t('payment.admin.currencyHint') }}</p>
+      </div>
+      <div>
         <label class="input-label">{{ t('payment.admin.features') }}</label>
         <textarea v-model="planFeaturesText" rows="3" class="input" :placeholder="t('payment.admin.featuresPlaceholder')"></textarea>
         <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">{{ t('payment.admin.featuresHint') }}</p>
@@ -178,6 +183,7 @@ const planForm = reactive({
   description: '',
   price: 0,
   original_price: 0,
+  currency: '',
   validity_days: 30,
   validity_unit: 'days',
   price_multiplier: DEFAULT_PLAN_PRICE_MULTIPLIER,
@@ -336,7 +342,7 @@ watch(() => props.show, async (visible) => {
   if (!visible) return
   resettingPlanForm.value = true
   if (props.plan) {
-    Object.assign(planForm, { name: props.plan.name, group_id: props.plan.group_id, description: props.plan.description, price: props.plan.price, original_price: props.plan.original_price || 0, validity_days: props.plan.validity_days, validity_unit: props.plan.validity_unit || 'days', price_multiplier: DEFAULT_PLAN_PRICE_MULTIPLIER, display_notes: props.plan.display_notes || '', for_sale: props.plan.for_sale })
+    Object.assign(planForm, { name: props.plan.name, group_id: props.plan.group_id, description: props.plan.description, price: props.plan.price, original_price: props.plan.original_price || 0, currency: props.plan.currency || '', validity_days: props.plan.validity_days, validity_unit: props.plan.validity_unit || 'days', price_multiplier: DEFAULT_PLAN_PRICE_MULTIPLIER, display_notes: props.plan.display_notes || '', for_sale: props.plan.for_sale })
     planForm.validity_unit = derivedValidityUnit.value
     await loadRateScheduleSettings()
     planForm.price_multiplier = normalizePositiveNumber(props.plan.price_multiplier) ?? inferPlanPriceMultiplier(props.plan.price)
@@ -344,7 +350,7 @@ watch(() => props.show, async (visible) => {
     planFeaturesText.value = (props.plan.features || []).join('\n')
     planTagsText.value = Array.isArray(props.plan.tags) ? props.plan.tags.join('\n') : (props.plan.tags || '')
   } else {
-    Object.assign(planForm, { name: '', group_id: null, description: '', price: 0, original_price: 0, validity_days: 30, validity_unit: 'days', price_multiplier: DEFAULT_PLAN_PRICE_MULTIPLIER, display_notes: '', for_sale: true })
+    Object.assign(planForm, { name: '', group_id: null, description: '', price: 0, original_price: 0, currency: '', validity_days: 30, validity_unit: 'days', price_multiplier: DEFAULT_PLAN_PRICE_MULTIPLIER, display_notes: '', for_sale: true })
     planForm.validity_unit = derivedValidityUnit.value
     await loadRateScheduleSettings()
     syncCalculatedPrice()
@@ -380,6 +386,7 @@ function buildPlanPayload() {
     price: planForm.price,
     price_multiplier: priceMultiplier,
     original_price: planForm.original_price || 0,
+    currency: planForm.currency.trim().toUpperCase(),
     validity_days: planForm.validity_days,
     validity_unit: planForm.validity_unit,
     for_sale: planForm.for_sale,
