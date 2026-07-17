@@ -11,8 +11,6 @@ import (
 // replay must use this helper instead of independently trusting forwarding
 // headers, otherwise the replay can authenticate a different address.
 func APIKeyACLClientIP(c *gin.Context, cfg *config.Config) string {
-	if cfg != nil && cfg.TrustForwardedIPForAPIKeyACL() {
-		return ip.GetClientIP(c)
-	}
-	return ip.GetTrustedClientIP(c)
+	trustForwarded := cfg != nil && cfg.TrustForwardedIPForAPIKeyACL()
+	return ip.GetSecurityClientIP(c, trustForwarded)
 }
