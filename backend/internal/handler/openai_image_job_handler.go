@@ -12,6 +12,7 @@ import (
 	"github.com/Wei-Shaw/sub2api/internal/server/middleware"
 	"github.com/Wei-Shaw/sub2api/internal/service"
 	"github.com/gin-gonic/gin"
+	"go.uber.org/zap"
 )
 
 const (
@@ -20,11 +21,12 @@ const (
 )
 
 // OpenAIImageJobHandler exposes the durable Images API job contract. Submit
-// only validates and persists work; account selection, moderation, upstream
-// dispatch, and billing are deliberately owned by the background executor.
+// validates and audits work before persistence; account selection, upstream
+// dispatch, billing, and a current-policy audit are owned by the executor.
 type OpenAIImageJobHandler struct {
 	repository     service.OpenAIImageJobRepository
 	gatewayService *service.OpenAIGatewayService
+	openAI         *OpenAIGatewayHandler
 	config         *config.Config
 	cancelNotifier service.OpenAIImageJobCancelNotifier
 }
@@ -102,6 +104,9 @@ func (h *OpenAIImageJobHandler) Submit(c *gin.Context) {
 		openAIImageJobWriteTypedError(c, http.StatusBadRequest, "invalid_request_error", "IMAGE_JOB_STREAM_UNSUPPORTED", "asynchronous image jobs do not support streaming")
 		return
 	}
+	if !h.checkSecurityAuditBeforeSubmit(c, apiKey, subject, parsed) {
+		return
+	}
 
 	job, _, err := h.repository.CreateOrGet(c.Request.Context(), service.CreateOpenAIImageJobParams{
 		UserID:           subject.UserID,
@@ -123,6 +128,29 @@ func (h *OpenAIImageJobHandler) Submit(c *gin.Context) {
 
 	setOpenAIImageJobResponseHeaders(c, job)
 	c.JSON(http.StatusAccepted, service.OpenAIImageJobToPublic(job))
+}
+
+func (h *OpenAIImageJobHandler) checkSecurityAuditBeforeSubmit(
+	c *gin.Context,
+	apiKey *service.APIKey,
+	subject middleware.AuthSubject,
+	parsed *service.OpenAIImagesRequest,
+) bool {
+	if h == nil || h.openAI == nil || parsed == nil {
+		return true
+	}
+	moderationBody := parsed.ModerationBody()
+	if len(moderationBody) == 0 {
+		return true
+	}
+	reqLog := requestLogger(c, "handler.openai_image_job.security_audit",
+		zap.Int64("user_id", subject.UserID), zap.Int64("api_key_id", apiKey.ID), zap.String("model", parsed.Model))
+	decision := h.openAI.checkSecurityAudit(c, reqLog, apiKey, subject, service.ContentModerationProtocolOpenAIImages, parsed.Model, moderationBody)
+	if decision != nil && !decision.AllowNextStage {
+		h.openAI.openAISecurityAuditError(c, decision)
+		return false
+	}
+	return true
 }
 
 // Get handles GET /v1/images/jobs/:id.

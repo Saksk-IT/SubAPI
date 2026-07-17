@@ -8,7 +8,7 @@ import (
 	"github.com/Wei-Shaw/sub2api/internal/config"
 )
 
-func TestProvideOpenAIImageJobWorkerRuntimeMapsConfigAndStartsWhenEnabled(t *testing.T) {
+func TestProvideOpenAIImageJobWorkerRuntimeMapsConfigWithoutStarting(t *testing.T) {
 	repo := newOpenAIImageJobWorkerRepositoryFake()
 	executor := openAIImageJobExecutorFunc(func(context.Context, *OpenAIImageJob, OpenAIImageJobExecutionObserver) OpenAIImageJobExecutionResult {
 		t.Fatal("executor must not run without a queued job")
@@ -32,8 +32,8 @@ func TestProvideOpenAIImageJobWorkerRuntimeMapsConfigAndStartsWhenEnabled(t *tes
 	runtime := ProvideOpenAIImageJobWorkerRuntime(repo, executor, cfg)
 	defer runtime.Stop()
 
-	if !runtime.Running() {
-		t.Fatal("runtime was not started")
+	if runtime.Running() {
+		t.Fatal("provider must not start runtime before application startup coordination")
 	}
 	if runtime.opts.WorkerCount != 3 || runtime.opts.PollInterval != 2*time.Second {
 		t.Fatalf("worker/poll options = %d/%s", runtime.opts.WorkerCount, runtime.opts.PollInterval)
@@ -52,17 +52,17 @@ func TestProvideOpenAIImageJobWorkerRuntimeMapsConfigAndStartsWhenEnabled(t *tes
 	}
 }
 
-func TestProvideOpenAIImageJobWorkerRuntimeDoesNotStartWhenDisabled(t *testing.T) {
+func TestProvideOpenAIImageJobWorkerRuntimeDoesNotStartWithDefaultConfig(t *testing.T) {
 	runtime := ProvideOpenAIImageJobWorkerRuntime(
 		newOpenAIImageJobWorkerRepositoryFake(),
 		openAIImageJobExecutorFunc(func(context.Context, *OpenAIImageJob, OpenAIImageJobExecutionObserver) OpenAIImageJobExecutionResult {
 			return OpenAIImageJobExecutionResult{}
 		}),
-		&config.Config{OpenAIImageJobs: config.OpenAIImageJobsConfig{Enabled: false}},
+		nil,
 	)
 	defer runtime.Stop()
 
 	if runtime.Running() {
-		t.Fatal("disabled runtime unexpectedly started")
+		t.Fatal("runtime unexpectedly started")
 	}
 }

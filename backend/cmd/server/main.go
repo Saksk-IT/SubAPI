@@ -19,6 +19,7 @@ import (
 	"github.com/Wei-Shaw/sub2api/internal/config"
 	"github.com/Wei-Shaw/sub2api/internal/handler"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/logger"
+	"github.com/Wei-Shaw/sub2api/internal/securityaudit"
 	"github.com/Wei-Shaw/sub2api/internal/server/middleware"
 	"github.com/Wei-Shaw/sub2api/internal/setup"
 	"github.com/Wei-Shaw/sub2api/internal/web"
@@ -153,6 +154,20 @@ func runMainServer() {
 		log.Fatalf("Failed to initialize application: %v", err)
 	}
 	defer app.Cleanup()
+	if err := startPromptAuditBeforeImageJobs(
+		context.Background(),
+		cfg.OpenAIImageJobs.Enabled,
+		app.PromptAudit,
+		app.OpenAIImageJobWorker,
+	); err != nil {
+		if app.PromptAudit != nil && app.PromptAudit.EffectiveMode() == securityaudit.ModeBlocking {
+			// Startup continues so unrelated APIs stay up. Prompt Audit remains
+			// fail-closed until a later reload installs a trusted snapshot.
+			log.Printf("Prompt Audit started in degraded fail-closed state: %v", err)
+		} else {
+			log.Printf("Prompt Audit failed to start; OpenAI Image Job worker remains stopped: %v", err)
+		}
+	}
 
 	// 启动服务器
 	go func() {
@@ -178,4 +193,32 @@ func runMainServer() {
 	}
 
 	log.Println("Server exited")
+}
+
+type promptAuditRuntime interface {
+	Start(context.Context) error
+	EffectiveMode() securityaudit.Mode
+}
+
+type imageJobWorkerRuntime interface {
+	Start()
+}
+
+func startPromptAuditBeforeImageJobs(
+	ctx context.Context,
+	imageJobsEnabled bool,
+	promptAudit promptAuditRuntime,
+	imageWorker imageJobWorkerRuntime,
+) error {
+	if promptAudit == nil {
+		return errors.New("prompt audit service unavailable")
+	}
+	promptAuditErr := promptAudit.Start(ctx)
+	if promptAuditErr != nil && promptAudit.EffectiveMode() != securityaudit.ModeBlocking {
+		return promptAuditErr
+	}
+	if imageJobsEnabled && imageWorker != nil {
+		imageWorker.Start()
+	}
+	return promptAuditErr
 }

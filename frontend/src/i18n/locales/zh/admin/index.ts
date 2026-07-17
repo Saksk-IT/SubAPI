@@ -7,6 +7,7 @@ import settings from './settings'
 import localOverrides from './local-overrides'
 import { deepMergeLocale } from '../../../deepMergeLocale'
 import audit from './audit'
+import promptAudit from './promptAudit'
 
 const upstreamAdminLocale = {
   ...overview,
@@ -16,6 +17,7 @@ const upstreamAdminLocale = {
   ...ops,
   ...settings,
   ...audit,
+  ...promptAudit,
 }
 
 export default deepMergeLocale(upstreamAdminLocale, localOverrides)

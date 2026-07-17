@@ -55,9 +55,9 @@ func ProvideBatchImageCleanupService(repo BatchImageRepository, accountRepo Acco
 	return svc
 }
 
-// ProvideOpenAIImageJobWorkerRuntime creates the durable single-image worker
-// for every process and starts it only when the feature is enabled. PostgreSQL
-// leases remain the cross-process ownership boundary.
+// ProvideOpenAIImageJobWorkerRuntime creates the durable single-image worker.
+// Startup is coordinated by the application after Prompt Audit is ready so
+// persisted jobs cannot be replayed before the current guard policy is loaded.
 func ProvideOpenAIImageJobWorkerRuntime(
 	repo OpenAIImageJobRepository,
 	executor OpenAIImageJobExecutor,
@@ -80,9 +80,6 @@ func ProvideOpenAIImageJobWorkerRuntime(
 		CleanupBatchLimit: jobs.CleanupBatchSize,
 		ShutdownWait:      time.Duration(jobs.ShutdownWaitSeconds) * time.Second,
 	})
-	if jobs.Enabled {
-		runtime.Start()
-	}
 	return runtime
 }
 

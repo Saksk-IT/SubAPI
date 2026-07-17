@@ -18,12 +18,17 @@ const appStore = reactive({
   backendModeEnabled: false,
   cachedPublicSettings: {
     image_generation_enabled: true,
+    risk_control_enabled: true,
     custom_menu_items: [],
   } as {
     image_generation_enabled?: boolean
+    risk_control_enabled?: boolean
     custom_menu_items: []
   },
   toggleSidebar: vi.fn(),
+  setSidebarCollapsed: vi.fn((value: boolean) => {
+    appStore.sidebarCollapsed = value
+  }),
   setMobileOpen: vi.fn((value: boolean) => {
     appStore.mobileOpen = value
   }),
@@ -100,13 +105,17 @@ beforeAll(async () => {
 
 beforeEach(() => {
   canUseImageGeneration.value = true
+  authStore.isAdmin = false
+  appStore.sidebarCollapsed = false
   appStore.mobileOpen = true
   appStore.cachedPublicSettings = {
     image_generation_enabled: true,
+    risk_control_enabled: true,
     custom_menu_items: [],
   }
   launcherStore.open.mockReset()
   router.push.mockReset()
+  appStore.setSidebarCollapsed.mockClear()
   appStore.setMobileOpen.mockClear()
   localStorage.clear()
 })
@@ -173,5 +182,27 @@ describe('AppSidebar image generation action', () => {
 
     await vi.advanceTimersByTimeAsync(150)
     expect(appStore.setMobileOpen).toHaveBeenCalledWith(false)
+  })
+})
+
+describe('AppSidebar collapsed groups', () => {
+  it('expands the sidebar and reveals Security Audit children', async () => {
+    authStore.isAdmin = true
+    appStore.sidebarCollapsed = true
+    const wrapper = mountSidebar()
+    await flushPromises()
+
+    const securityAudit = wrapper
+      .findAll('button')
+      .find((button) => button.attributes('title') === 'nav.securityAudit')
+    expect(securityAudit).toBeTruthy()
+    expect(wrapper.find('a[href="/admin/prompt-audit"]').exists()).toBe(false)
+
+    await securityAudit!.trigger('click')
+    await flushPromises()
+
+    expect(appStore.setSidebarCollapsed).toHaveBeenCalledWith(false)
+    expect(wrapper.find('a[href="/admin/risk-control"]').exists()).toBe(true)
+    expect(wrapper.find('a[href="/admin/prompt-audit"]').exists()).toBe(true)
   })
 })
