@@ -39,9 +39,9 @@ func (r *redeemAffiliateRepo) EnsureUserAffiliate(_ context.Context, userID int6
 	return &AffiliateSummary{UserID: userID}, nil
 }
 
-func (r *redeemAffiliateRepo) AccrueQuota(_ context.Context, _, _ int64, _ float64, _ int, _ *int64) (bool, error) {
+func (r *redeemAffiliateRepo) AccrueQuota(_ context.Context, _, _ int64, firstAmount, _ float64, _ int, _ *int64) (float64, error) {
 	r.accrued++
-	return true, nil
+	return firstAmount, nil
 }
 
 func (r *redeemRejectRepo) Create(ctx context.Context, code *RedeemCode) error {

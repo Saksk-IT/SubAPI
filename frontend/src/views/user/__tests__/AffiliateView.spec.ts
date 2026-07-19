@@ -54,7 +54,9 @@ describe('AffiliateView', () => {
       aff_quota: 0,
       aff_frozen_quota: 0,
       aff_history_quota: 0,
-      effective_rebate_rate_percent: 20,
+      effective_rebate_rate_percent: 10,
+      effective_first_rebate_rate_percent: 10,
+      effective_repeat_rebate_rate_percent: 5,
       invitees: []
     })
   })
@@ -69,6 +71,14 @@ describe('AffiliateView', () => {
       }
     })
   }
+
+  it('shows first-payment and repeat-purchase rebate rates', async () => {
+    const wrapper = mountView()
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('affiliate.stats.firstRebateRate')
+    expect(wrapper.text()).toContain('affiliate.stats.repeatRebateRate')
+  })
 
   it('shows redeem-code rebate guidance when the public setting is enabled', async () => {
     appState.cachedPublicSettings = { affiliate_redeem_code_enabled: true }

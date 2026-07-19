@@ -6,9 +6,47 @@ import (
 	"context"
 	"math"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 )
+
+type affiliateRateSettingRepo struct {
+	SettingRepository
+	values map[string]string
+}
+
+func (r *affiliateRateSettingRepo) GetValue(_ context.Context, key string) (string, error) {
+	value, ok := r.values[key]
+	if !ok {
+		return "", ErrSettingNotFound
+	}
+	return value, nil
+}
+
+type affiliateRateAccrualRepo struct {
+	AffiliateRepository
+	invitee   AffiliateSummary
+	inviter   AffiliateSummary
+	callCount int
+}
+
+func (r *affiliateRateAccrualRepo) EnsureUserAffiliate(_ context.Context, userID int64) (*AffiliateSummary, error) {
+	if userID == r.invitee.UserID {
+		value := r.invitee
+		return &value, nil
+	}
+	value := r.inviter
+	return &value, nil
+}
+
+func (r *affiliateRateAccrualRepo) AccrueQuota(_ context.Context, _, _ int64, firstAmount, repeatAmount float64, _ int, _ *int64) (float64, error) {
+	r.callCount++
+	if r.callCount == 1 {
+		return firstAmount, nil
+	}
+	return repeatAmount, nil
+}
 
 // TestResolveRebateRatePercent_PerUserOverride verifies that per-inviter
 // AffRebateRatePercent overrides the global rate, that NULL falls back to the
@@ -44,6 +82,40 @@ func TestResolveRebateRatePercent_PerUserOverride(t *testing.T) {
 	tooLow := -5.0
 	require.InDelta(t, AffiliateRebateRateMin,
 		svc.resolveRebateRatePercent(context.Background(), &AffiliateSummary{AffRebateRatePercent: &tooLow}), 1e-9)
+}
+
+func TestAccrueInviteRebateUsesFirstThenRepeatRate(t *testing.T) {
+	inviterID := int64(1)
+	repo := &affiliateRateAccrualRepo{
+		invitee: AffiliateSummary{
+			UserID:    2,
+			InviterID: &inviterID,
+			CreatedAt: time.Now(),
+		},
+		inviter: AffiliateSummary{UserID: inviterID},
+	}
+	settings := NewSettingService(&affiliateRateSettingRepo{values: map[string]string{
+		SettingKeyAffiliateEnabled:          "true",
+		SettingKeyAffiliateRebateRate:       "10",
+		SettingKeyAffiliateRepeatRebateRate: "5",
+	}}, nil)
+	svc := NewAffiliateService(repo, settings, nil, nil)
+
+	first, err := svc.AccrueInviteRebate(context.Background(), 2, 100)
+	require.NoError(t, err)
+	require.InDelta(t, 10, first, 1e-9)
+
+	repeat, err := svc.AccrueInviteRebate(context.Background(), 2, 100)
+	require.NoError(t, err)
+	require.InDelta(t, 5, repeat, 1e-9)
+}
+
+func TestRepeatRateFallsBackToFirstRateForLegacySettings(t *testing.T) {
+	settings := NewSettingService(&affiliateRateSettingRepo{values: map[string]string{
+		SettingKeyAffiliateRebateRate: "12.5",
+	}}, nil)
+
+	require.InDelta(t, 12.5, settings.GetAffiliateRepeatRebateRatePercent(context.Background()), 1e-9)
 }
 
 // TestIsEnabled_NilSettingServiceReturnsDefault verifies that IsEnabled

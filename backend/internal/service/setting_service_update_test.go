@@ -164,6 +164,41 @@ func TestSettingService_AffiliateRechargeSourceSettings(t *testing.T) {
 	})
 }
 
+func TestSettingService_AffiliateStageRates(t *testing.T) {
+	t.Run("missing repeat rate follows first rate", func(t *testing.T) {
+		svc := NewSettingService(&settingGetAllRepoStub{values: map[string]string{
+			SettingKeyAffiliateRebateRate: "12.5",
+		}}, &config.Config{})
+
+		settings, err := svc.GetAllSettings(context.Background())
+		require.NoError(t, err)
+		require.InDelta(t, 12.5, settings.AffiliateRebateRate, 1e-9)
+		require.InDelta(t, 12.5, settings.AffiliateRepeatRebateRate, 1e-9)
+	})
+
+	t.Run("rates are parsed and persisted independently", func(t *testing.T) {
+		svc := NewSettingService(&settingGetAllRepoStub{values: map[string]string{
+			SettingKeyAffiliateRebateRate:       "10",
+			SettingKeyAffiliateRepeatRebateRate: "5",
+		}}, &config.Config{})
+
+		settings, err := svc.GetAllSettings(context.Background())
+		require.NoError(t, err)
+		require.InDelta(t, 10, settings.AffiliateRebateRate, 1e-9)
+		require.InDelta(t, 5, settings.AffiliateRepeatRebateRate, 1e-9)
+
+		repo := &settingUpdateRepoStub{}
+		svc = NewSettingService(repo, &config.Config{})
+		err = svc.UpdateSettings(context.Background(), &SystemSettings{
+			AffiliateRebateRate:       10,
+			AffiliateRepeatRebateRate: 5,
+		})
+		require.NoError(t, err)
+		require.Equal(t, "10.00000000", repo.updates[SettingKeyAffiliateRebateRate])
+		require.Equal(t, "5.00000000", repo.updates[SettingKeyAffiliateRepeatRebateRate])
+	})
+}
+
 func (s *defaultSubGroupReaderStub) GetByID(ctx context.Context, id int64) (*Group, error) {
 	s.calls = append(s.calls, id)
 	if err, ok := s.errBy[id]; ok {

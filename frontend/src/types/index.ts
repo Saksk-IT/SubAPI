@@ -143,8 +143,12 @@ export interface UserAffiliateDetail {
   aff_quota: number
   aff_frozen_quota: number
   aff_history_quota: number
-  /** 当前用户作为邀请人时实际生效的返利比例（专属覆盖全局）。0-100。 */
+  /** 兼容字段：等同首次付费返利比例。 */
   effective_rebate_rate_percent: number
+  /** 当前用户作为邀请人时实际生效的首次付费返利比例。0-100。 */
+  effective_first_rebate_rate_percent: number
+  /** 当前用户作为邀请人时实际生效的持续复购返利比例。0-100。 */
+  effective_repeat_rebate_rate_percent: number
   invitees: AffiliateInvitee[]
 }
 

@@ -145,14 +145,24 @@ func TestAffiliateRepository_AccrueQuota_ReusesOuterTransaction(t *testing.T) {
 	require.NoError(t, err)
 	require.True(t, bound, "invitee must bind to inviter")
 
-	applied, err := repo.AccrueQuota(txCtx, inviter.ID, invitee.ID, 3.5, 0, nil)
+	accrued, err := repo.AccrueQuota(txCtx, inviter.ID, invitee.ID, 3.5, 1.25, 0, nil)
 	require.NoError(t, err)
-	require.True(t, applied, "AccrueQuota must report applied=true")
+	require.InDelta(t, 3.5, accrued, 1e-9)
+
+	accrued, err = repo.AccrueQuota(txCtx, inviter.ID, invitee.ID, 3.5, 1.25, 0, nil)
+	require.NoError(t, err)
+	require.InDelta(t, 1.25, accrued, 1e-9)
 
 	// Visible inside the outer tx.
 	innerQuota := querySingleFloat(t, txCtx, client,
 		"SELECT aff_quota::double precision FROM user_affiliates WHERE user_id = $1", inviter.ID)
-	require.InDelta(t, 3.5, innerQuota, 1e-9)
+	require.InDelta(t, 4.75, innerQuota, 1e-9)
+	firstStageCount := querySingleInt(t, txCtx, client,
+		"SELECT COUNT(*) FROM user_affiliate_ledger WHERE source_user_id = $1 AND rebate_stage = 'first'", invitee.ID)
+	require.Equal(t, 1, firstStageCount)
+	repeatStageCount := querySingleInt(t, txCtx, client,
+		"SELECT COUNT(*) FROM user_affiliate_ledger WHERE source_user_id = $1 AND rebate_stage = 'repeat'", invitee.ID)
+	require.Equal(t, 1, repeatStageCount)
 
 	// Roll back the outer tx; if AccrueQuota had opened its own inner tx and
 	// committed it, the rows would still be visible to the global client.

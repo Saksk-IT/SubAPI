@@ -8,19 +8,42 @@
       </div>
 
       <template v-else-if="detail">
-        <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          <div class="card p-5">
-            <p class="flex items-center gap-1.5 text-sm text-gray-500 dark:text-dark-400">
-              <Icon name="dollar" size="sm" class="text-primary-500" />
-              {{ t('affiliate.stats.rebateRate') }}
-            </p>
-            <p class="mt-2 text-2xl font-semibold text-primary-600 dark:text-primary-400">
-              {{ formattedRebateRate }}<span class="ml-0.5 text-base font-medium">%</span>
-            </p>
-            <p class="mt-1 text-xs text-gray-400 dark:text-dark-500">
-              {{ t('affiliate.stats.rebateRateHint') }}
-            </p>
+        <div class="grid gap-4 sm:grid-cols-2">
+          <div class="card flex items-center gap-4 p-5">
+            <div class="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-primary-50 text-primary-600 dark:bg-primary-900/30 dark:text-primary-400">
+              <Icon name="bolt" size="lg" />
+            </div>
+            <div>
+              <p class="text-sm font-medium text-gray-700 dark:text-gray-300">
+                {{ t('affiliate.stats.firstRebateRate') }}
+                <span class="ml-1 text-2xl font-semibold text-primary-600 dark:text-primary-400">
+                  {{ formattedFirstRebateRate }}<span class="ml-0.5 text-base font-medium">%</span>
+                </span>
+              </p>
+              <p class="mt-1 text-sm text-gray-400 dark:text-dark-500">
+                {{ t('affiliate.stats.firstRebateRateHint') }}
+              </p>
+            </div>
           </div>
+          <div class="card flex items-center gap-4 p-5">
+            <div class="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-primary-50 text-primary-600 dark:bg-primary-900/30 dark:text-primary-400">
+              <Icon name="refresh" size="lg" />
+            </div>
+            <div>
+              <p class="text-sm font-medium text-gray-700 dark:text-gray-300">
+                {{ t('affiliate.stats.repeatRebateRate') }}
+                <span class="ml-1 text-2xl font-semibold text-primary-600 dark:text-primary-400">
+                  {{ formattedRepeatRebateRate }}<span class="ml-0.5 text-base font-medium">%</span>
+                </span>
+              </p>
+              <p class="mt-1 text-sm text-gray-400 dark:text-dark-500">
+                {{ t('affiliate.stats.repeatRebateRateHint') }}
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <div class="grid gap-4 sm:grid-cols-3">
           <div class="card p-5">
             <p class="text-sm text-gray-500 dark:text-dark-400">{{ t('affiliate.stats.invitedUsers') }}</p>
             <p class="mt-2 text-2xl font-semibold text-gray-900 dark:text-white">
@@ -48,11 +71,11 @@
           <h3 class="text-base font-semibold text-gray-900 dark:text-white">{{ t('affiliate.title') }}</h3>
           <p class="mt-1 text-sm text-gray-500 dark:text-dark-400">{{ t('affiliate.description') }}</p>
 
-          <div class="mt-5 grid gap-4 md:grid-cols-2">
-            <div class="space-y-2">
+          <div class="mt-5 grid min-w-0 gap-4 md:grid-cols-2">
+            <div class="min-w-0 space-y-2">
               <p class="text-sm font-medium text-gray-700 dark:text-gray-300">{{ t('affiliate.yourCode') }}</p>
-              <div class="flex items-center gap-2 rounded-xl border border-gray-200 bg-gray-50 px-3 py-2 dark:border-dark-700 dark:bg-dark-900">
-                <code class="flex-1 truncate text-sm font-semibold text-gray-900 dark:text-white">{{ detail.aff_code }}</code>
+              <div class="flex min-w-0 items-center gap-2 rounded-xl border border-gray-200 bg-gray-50 px-3 py-2 dark:border-dark-700 dark:bg-dark-900">
+                <code class="min-w-0 flex-1 truncate text-sm font-semibold text-gray-900 dark:text-white">{{ detail.aff_code }}</code>
                 <button class="btn btn-secondary btn-sm" @click="copyCode">
                   <Icon name="copy" size="sm" />
                   <span>{{ t('affiliate.copyCode') }}</span>
@@ -60,10 +83,10 @@
               </div>
             </div>
 
-            <div class="space-y-2">
+            <div class="min-w-0 space-y-2">
               <p class="text-sm font-medium text-gray-700 dark:text-gray-300">{{ t('affiliate.inviteLink') }}</p>
-              <div class="flex items-center gap-2 rounded-xl border border-gray-200 bg-gray-50 px-3 py-2 dark:border-dark-700 dark:bg-dark-900">
-                <code class="flex-1 truncate text-sm text-gray-700 dark:text-gray-300">{{ inviteLink }}</code>
+              <div class="flex min-w-0 items-center gap-2 rounded-xl border border-gray-200 bg-gray-50 px-3 py-2 dark:border-dark-700 dark:bg-dark-900">
+                <code class="min-w-0 flex-1 truncate text-sm text-gray-700 dark:text-gray-300">{{ inviteLink }}</code>
                 <button class="btn btn-secondary btn-sm" @click="copyInviteLink">
                   <Icon name="copy" size="sm" />
                   <span>{{ t('affiliate.copyLink') }}</span>
@@ -76,7 +99,7 @@
             <p class="text-sm font-medium text-primary-800 dark:text-primary-200">{{ t('affiliate.tips.title') }}</p>
             <ul class="mt-2 space-y-1 text-sm text-primary-700 dark:text-primary-300">
               <li>1. {{ t('affiliate.tips.line1') }}</li>
-              <li>2. {{ t('affiliate.tips.line2', { rate: `${formattedRebateRate}%` }) }}</li>
+              <li>2. {{ t('affiliate.tips.line2', { firstRate: `${formattedFirstRebateRate}%`, repeatRate: `${formattedRepeatRebateRate}%` }) }}</li>
               <li v-if="redeemCodeRebateEnabled">3. {{ t('affiliate.tips.redeemCode') }}</li>
               <li>{{ redeemCodeRebateEnabled ? 4 : 3 }}. {{ t('affiliate.tips.line3') }}</li>
               <li v-if="detail.aff_frozen_quota > 0">{{ redeemCodeRebateEnabled ? 5 : 4 }}. {{ t('affiliate.tips.line4') }}</li>
@@ -168,13 +191,25 @@ const inviteLink = computed(() => {
   return `${window.location.origin}/register?aff=${encodeURIComponent(detail.value.aff_code)}`
 })
 
-// Rebate rate is a percentage in the range [0, 100]; backend already clamps it.
-// We trim trailing zeros (e.g. 20.00 → "20", 12.50 → "12.5") for a cleaner UI.
-const formattedRebateRate = computed(() => {
-  const v = detail.value?.effective_rebate_rate_percent ?? 0
+function formatRebateRate(value: number | undefined): string {
+  const v = value ?? 0
   const rounded = Math.round(v * 100) / 100
   return Number.isInteger(rounded) ? String(rounded) : rounded.toString()
-})
+}
+
+const formattedFirstRebateRate = computed(() =>
+  formatRebateRate(
+    detail.value?.effective_first_rebate_rate_percent
+      ?? detail.value?.effective_rebate_rate_percent
+  )
+)
+
+const formattedRepeatRebateRate = computed(() =>
+  formatRebateRate(
+    detail.value?.effective_repeat_rebate_rate_percent
+      ?? detail.value?.effective_rebate_rate_percent
+  )
+)
 
 const redeemCodeRebateEnabled = computed(
   () => appStore.cachedPublicSettings?.affiliate_redeem_code_enabled === true

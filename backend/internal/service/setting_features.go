@@ -97,7 +97,7 @@ func (s *SettingService) IsAffiliateRedeemCodeEnabled(ctx context.Context) bool 
 	return value == "true"
 }
 
-// GetAffiliateRebateRatePercent 读取并 clamp 全局返利比例。
+// GetAffiliateRebateRatePercent 读取并 clamp 全局首次付费返利比例。
 // 解析失败、缺失或越界都回退到 AffiliateRebateRateDefault — 该比例从不抛错，
 // 调用方只关心一个可用的数值。
 func (s *SettingService) GetAffiliateRebateRatePercent(ctx context.Context) float64 {
@@ -108,6 +108,20 @@ func (s *SettingService) GetAffiliateRebateRatePercent(ctx context.Context) floa
 	rate, err := strconv.ParseFloat(strings.TrimSpace(raw), 64)
 	if err != nil || math.IsNaN(rate) || math.IsInf(rate, 0) {
 		return AffiliateRebateRateDefault
+	}
+	return clampAffiliateRebateRate(rate)
+}
+
+// GetAffiliateRepeatRebateRatePercent 读取并 clamp 全局持续复购返利比例。
+// 旧环境没有该设置时沿用首次付费比例，保证升级前后的返利结果不变。
+func (s *SettingService) GetAffiliateRepeatRebateRatePercent(ctx context.Context) float64 {
+	raw, err := s.settingRepo.GetValue(ctx, SettingKeyAffiliateRepeatRebateRate)
+	if err != nil {
+		return s.GetAffiliateRebateRatePercent(ctx)
+	}
+	rate, err := strconv.ParseFloat(strings.TrimSpace(raw), 64)
+	if err != nil || math.IsNaN(rate) || math.IsInf(rate, 0) {
+		return s.GetAffiliateRebateRatePercent(ctx)
 	}
 	return clampAffiliateRebateRate(rate)
 }

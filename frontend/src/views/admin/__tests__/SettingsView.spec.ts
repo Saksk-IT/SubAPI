@@ -363,6 +363,8 @@ const baseSettingsResponse = {
   totp_enabled: false,
   totp_encryption_key_configured: false,
   default_balance: 0,
+  affiliate_rebate_rate: 20,
+  affiliate_repeat_rebate_rate: 20,
   default_concurrency: 1,
   default_subscriptions: [],
   site_name: "Sub2API",
@@ -859,6 +861,8 @@ describe("admin SettingsView settings controls", () => {
     getSettings.mockResolvedValueOnce({
       ...baseSettingsResponse,
       affiliate_enabled: true,
+      affiliate_rebate_rate: 10,
+      affiliate_repeat_rebate_rate: 5,
       affiliate_admin_recharge_enabled: true,
       affiliate_redeem_code_enabled: true,
     });
@@ -872,6 +876,8 @@ describe("admin SettingsView settings controls", () => {
     expect(updateSettings).toHaveBeenCalledTimes(1);
     expect(updateSettings).toHaveBeenCalledWith(
       expect.objectContaining({
+        affiliate_rebate_rate: 10,
+        affiliate_repeat_rebate_rate: 5,
         affiliate_admin_recharge_enabled: true,
         affiliate_redeem_code_enabled: true,
       }),

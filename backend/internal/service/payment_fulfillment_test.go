@@ -44,7 +44,10 @@ func (p paymentFulfillmentTestProvider) Refund(ctx context.Context, req payment.
 type paymentFulfillmentAffiliateAccrueCall struct {
 	inviterID     int64
 	inviteeUserID int64
+	firstAmount   float64
+	repeatAmount  float64
 	amount        float64
+	stage         string
 	freezeHours   int
 	sourceOrderID *int64
 }
@@ -53,6 +56,7 @@ type paymentFulfillmentAffiliateRepoStub struct {
 	inviteeSummary *AffiliateSummary
 	inviterSummary *AffiliateSummary
 	accrueCalls    []paymentFulfillmentAffiliateAccrueCall
+	hasAccrued     bool
 }
 
 func (r *paymentFulfillmentAffiliateRepoStub) EnsureUserAffiliate(_ context.Context, userID int64) (*AffiliateSummary, error) {
@@ -76,20 +80,30 @@ func (r *paymentFulfillmentAffiliateRepoStub) BindInviter(context.Context, int64
 	panic("unexpected BindInviter call")
 }
 
-func (r *paymentFulfillmentAffiliateRepoStub) AccrueQuota(_ context.Context, inviterID, inviteeUserID int64, amount float64, freezeHours int, sourceOrderID *int64) (bool, error) {
+func (r *paymentFulfillmentAffiliateRepoStub) AccrueQuota(_ context.Context, inviterID, inviteeUserID int64, firstAmount, repeatAmount float64, freezeHours int, sourceOrderID *int64) (float64, error) {
 	var sourceCopy *int64
 	if sourceOrderID != nil {
 		v := *sourceOrderID
 		sourceCopy = &v
 	}
+	amount := firstAmount
+	stage := "first"
+	if r.hasAccrued {
+		amount = repeatAmount
+		stage = "repeat"
+	}
+	r.hasAccrued = true
 	r.accrueCalls = append(r.accrueCalls, paymentFulfillmentAffiliateAccrueCall{
 		inviterID:     inviterID,
 		inviteeUserID: inviteeUserID,
+		firstAmount:   firstAmount,
+		repeatAmount:  repeatAmount,
 		amount:        amount,
+		stage:         stage,
 		freezeHours:   freezeHours,
 		sourceOrderID: sourceCopy,
 	})
-	return true, nil
+	return amount, nil
 }
 
 func (r *paymentFulfillmentAffiliateRepoStub) GetAccruedRebateFromInvitee(context.Context, int64, int64) (float64, error) {
@@ -961,6 +975,7 @@ func TestExecuteSubscriptionFulfillmentAppliesAffiliateRebate(t *testing.T) {
 	settingSvc := NewSettingService(&paymentFulfillmentSettingRepoStub{values: map[string]string{
 		SettingKeyAffiliateEnabled:           "true",
 		SettingKeyAffiliateRebateRate:        "15",
+		SettingKeyAffiliateRepeatRebateRate:  "5",
 		SettingKeyAffiliateRebateFreezeHours: "0",
 	}}, nil)
 	subRepo := newSubscriptionUserSubRepoStub()
@@ -983,7 +998,10 @@ func TestExecuteSubscriptionFulfillmentAppliesAffiliateRebate(t *testing.T) {
 	require.Len(t, affiliateRepo.accrueCalls, 1)
 	require.Equal(t, inviterID, affiliateRepo.accrueCalls[0].inviterID)
 	require.Equal(t, user.ID, affiliateRepo.accrueCalls[0].inviteeUserID)
+	require.InDelta(t, 1.4985, affiliateRepo.accrueCalls[0].firstAmount, 0.00000001)
+	require.InDelta(t, 0.4995, affiliateRepo.accrueCalls[0].repeatAmount, 0.00000001)
 	require.InDelta(t, 1.4985, affiliateRepo.accrueCalls[0].amount, 0.00000001)
+	require.Equal(t, "first", affiliateRepo.accrueCalls[0].stage)
 	require.NotNil(t, affiliateRepo.accrueCalls[0].sourceOrderID)
 	require.Equal(t, order.ID, *affiliateRepo.accrueCalls[0].sourceOrderID)
 	require.Equal(t, 1, subRepo.createCalls)
