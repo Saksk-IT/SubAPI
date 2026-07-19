@@ -9,18 +9,16 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestDailyCheckInActivityServiceUsesShanghaiCalendarDay(t *testing.T) {
+func TestDailyCheckInActivityServiceDelegatesCalendarDayToRepository(t *testing.T) {
 	repo := newDailyCheckInMemoryRepo()
 	repo.config.Enabled = true
-	repo.claim = &DailyCheckInClaim{RewardAmount: 2.5, BalanceAfter: 12.5}
+	repo.claim = &DailyCheckInClaim{RewardAmount: 2.5, BalanceAfter: 12.5, CheckInDate: "2026-07-20"}
 	svc := NewDailyCheckInActivityService(repo, nil, nil)
-	svc.now = func() time.Time {
-		return time.Date(2026, 7, 19, 16, 30, 0, 0, time.UTC)
-	}
 
 	claim, err := svc.CheckIn(context.Background(), 42)
 	require.NoError(t, err)
-	require.Equal(t, "2026-07-20", repo.claimDate)
+	require.True(t, repo.claimCalled)
+	require.Equal(t, "2026-07-20", claim.CheckInDate)
 	require.Equal(t, 2.5, claim.RewardAmount)
 }
 
@@ -56,10 +54,10 @@ func TestDailyCheckInActivityServiceBuildsStatus(t *testing.T) {
 }
 
 type dailyCheckInMemoryRepo struct {
-	config    DailyCheckInConfig
-	state     *DailyCheckInUserState
-	claim     *DailyCheckInClaim
-	claimDate string
+	config      DailyCheckInConfig
+	state       *DailyCheckInUserState
+	claim       *DailyCheckInClaim
+	claimCalled bool
 }
 
 func newDailyCheckInMemoryRepo() *dailyCheckInMemoryRepo {
@@ -86,7 +84,7 @@ func (r *dailyCheckInMemoryRepo) SaveConfig(_ context.Context, enabled bool, rew
 	return &config, nil
 }
 
-func (r *dailyCheckInMemoryRepo) GetUserState(context.Context, int64, string) (*DailyCheckInUserState, error) {
+func (r *dailyCheckInMemoryRepo) GetUserState(context.Context, int64) (*DailyCheckInUserState, error) {
 	if r.state == nil {
 		return &DailyCheckInUserState{}, nil
 	}
@@ -102,12 +100,11 @@ func (r *dailyCheckInMemoryRepo) MarkViewed(_ context.Context, _ int64, viewedAt
 	return nil
 }
 
-func (r *dailyCheckInMemoryRepo) Claim(_ context.Context, _ int64, checkInDate string) (*DailyCheckInClaim, error) {
-	r.claimDate = checkInDate
+func (r *dailyCheckInMemoryRepo) Claim(_ context.Context, _ int64) (*DailyCheckInClaim, error) {
+	r.claimCalled = true
 	if r.claim == nil {
 		return nil, ErrDailyCheckInUnavailable
 	}
 	claim := *r.claim
-	claim.CheckInDate = checkInDate
 	return &claim, nil
 }

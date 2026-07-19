@@ -58,9 +58,9 @@ type DailyCheckInClaim struct {
 type DailyCheckInRepository interface {
 	GetConfig(ctx context.Context) (*DailyCheckInConfig, error)
 	SaveConfig(ctx context.Context, enabled bool, rewardAmount float64) (*DailyCheckInConfig, error)
-	GetUserState(ctx context.Context, userID int64, checkInDate string) (*DailyCheckInUserState, error)
+	GetUserState(ctx context.Context, userID int64) (*DailyCheckInUserState, error)
 	MarkViewed(ctx context.Context, userID int64, viewedAt time.Time) error
-	Claim(ctx context.Context, userID int64, checkInDate string) (*DailyCheckInClaim, error)
+	Claim(ctx context.Context, userID int64) (*DailyCheckInClaim, error)
 }
 
 type DailyCheckInActivityService struct {
@@ -111,7 +111,7 @@ func (s *DailyCheckInActivityService) GetStatus(ctx context.Context, userID int6
 		return status, nil
 	}
 
-	state, err := s.repo.GetUserState(ctx, userID, s.currentCheckInDate())
+	state, err := s.repo.GetUserState(ctx, userID)
 	if err != nil {
 		return nil, err
 	}
@@ -136,7 +136,7 @@ func (s *DailyCheckInActivityService) MarkViewed(ctx context.Context, userID int
 }
 
 func (s *DailyCheckInActivityService) CheckIn(ctx context.Context, userID int64) (*DailyCheckInClaim, error) {
-	claim, err := s.repo.Claim(ctx, userID, s.currentCheckInDate())
+	claim, err := s.repo.Claim(ctx, userID)
 	if err != nil {
 		return nil, err
 	}
@@ -149,15 +149,6 @@ func (s *DailyCheckInActivityService) CheckIn(ctx context.Context, userID int64)
 		_ = s.billingCache.InvalidateUserBalance(cacheCtx, userID)
 	}
 	return claim, nil
-}
-
-func (s *DailyCheckInActivityService) currentCheckInDate() string {
-	now := s.now()
-	location, err := time.LoadLocation(DailyCheckInTimezone)
-	if err == nil {
-		now = now.In(location)
-	}
-	return now.Format(time.DateOnly)
 }
 
 func normalizeDailyCheckInReward(value float64) float64 {

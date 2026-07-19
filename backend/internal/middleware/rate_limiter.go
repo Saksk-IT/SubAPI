@@ -23,6 +23,9 @@ const (
 // RateLimitOptions 限流可选配置
 type RateLimitOptions struct {
 	FailureMode RateLimitFailureMode
+	// Identity resolves the stable subject used for this limit. Empty values fall
+	// back to the client IP so existing callers keep their current behavior.
+	Identity func(*gin.Context) string
 }
 
 var rateLimitScript = redis.NewScript(`
@@ -88,8 +91,13 @@ func (r *RateLimiter) LimitWithOptions(key string, limit int, window time.Durati
 	}
 
 	return func(c *gin.Context) {
-		ip := c.ClientIP()
-		redisKey := r.prefix + key + ":" + ip
+		identity := c.ClientIP()
+		if opts.Identity != nil {
+			if resolved := opts.Identity(c); resolved != "" {
+				identity = resolved
+			}
+		}
+		redisKey := r.prefix + key + ":" + identity
 
 		ctx := c.Request.Context()
 

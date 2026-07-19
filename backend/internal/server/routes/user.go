@@ -1,24 +1,31 @@
 package routes
 
 import (
+	"strconv"
+	"time"
+
 	"github.com/Wei-Shaw/sub2api/internal/handler"
-	"github.com/Wei-Shaw/sub2api/internal/server/middleware"
+	basemiddleware "github.com/Wei-Shaw/sub2api/internal/middleware"
+	servermiddleware "github.com/Wei-Shaw/sub2api/internal/server/middleware"
 	"github.com/Wei-Shaw/sub2api/internal/service"
 
 	"github.com/gin-gonic/gin"
+	"github.com/redis/go-redis/v9"
 )
 
 // RegisterUserRoutes 注册用户相关路由（需要认证）
 func RegisterUserRoutes(
 	v1 *gin.RouterGroup,
 	h *handler.Handlers,
-	jwtAuth middleware.JWTAuthMiddleware,
-	auditLog middleware.AuditLogMiddleware,
+	jwtAuth servermiddleware.JWTAuthMiddleware,
+	auditLog servermiddleware.AuditLogMiddleware,
 	settingService *service.SettingService,
+	redisClient *redis.Client,
 ) {
+	activityRateLimiter := basemiddleware.NewRateLimiter(redisClient)
 	authenticated := v1.Group("")
 	authenticated.Use(gin.HandlerFunc(jwtAuth))
-	authenticated.Use(middleware.BackendModeUserGuard(settingService))
+	authenticated.Use(servermiddleware.BackendModeUserGuard(settingService))
 	// 用户管理面变更类操作入审计（含 TOTP 启用/禁用、step-up 验证、密码修改等安全事件）
 	authenticated.Use(gin.HandlerFunc(auditLog))
 	{
@@ -117,7 +124,23 @@ func RegisterUserRoutes(
 			}
 			dailyCheckIn := activities.Group("/daily-check-in")
 			{
-				dailyCheckIn.POST("/check-in", h.Activity.CheckInDaily)
+				dailyCheckIn.POST(
+					"/check-in",
+					activityRateLimiter.LimitWithOptions("daily-check-in-account", 5, time.Minute, basemiddleware.RateLimitOptions{
+						FailureMode: basemiddleware.RateLimitFailClose,
+						Identity: func(c *gin.Context) string {
+							subject, ok := servermiddleware.GetAuthSubjectFromContext(c)
+							if !ok || subject.UserID <= 0 {
+								return ""
+							}
+							return strconv.FormatInt(subject.UserID, 10)
+						},
+					}),
+					activityRateLimiter.LimitWithOptions("daily-check-in-ip", 30, time.Minute, basemiddleware.RateLimitOptions{
+						FailureMode: basemiddleware.RateLimitFailClose,
+					}),
+					h.Activity.CheckInDaily,
+				)
 			}
 		}
 

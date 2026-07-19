@@ -72,7 +72,7 @@ RETURNING enabled, reward_amount::float8, created_at, updated_at`, []any{enabled
 	return config, nil
 }
 
-func (r *dailyCheckInRepository) GetUserState(ctx context.Context, userID int64, checkInDate string) (*service.DailyCheckInUserState, error) {
+func (r *dailyCheckInRepository) GetUserState(ctx context.Context, userID int64) (*service.DailyCheckInUserState, error) {
 	exec := r.executor(ctx)
 	if exec == nil {
 		return nil, errors.New("daily check-in sql executor is not configured")
@@ -82,13 +82,14 @@ func (r *dailyCheckInRepository) GetUserState(ctx context.Context, userID int64,
 SELECT s.viewed_at,
 	EXISTS (
 		SELECT 1 FROM daily_check_in_records today
-		WHERE today.user_id = $1 AND today.check_in_date = $2::date
+		WHERE today.user_id = $1
+		  AND today.check_in_date = (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Shanghai')::date
 	),
 	(SELECT COUNT(*) FROM daily_check_in_records history WHERE history.user_id = $1),
 	(SELECT latest.created_at FROM daily_check_in_records latest
 	 WHERE latest.user_id = $1 ORDER BY latest.created_at DESC, latest.id DESC LIMIT 1)
 FROM (SELECT $1::bigint AS user_id) requested
-LEFT JOIN daily_check_in_user_states s ON s.user_id = requested.user_id`, []any{userID, checkInDate},
+LEFT JOIN daily_check_in_user_states s ON s.user_id = requested.user_id`, []any{userID},
 		&state.ViewedAt,
 		&state.CheckedInToday,
 		&state.TotalCheckIns,
@@ -114,7 +115,7 @@ ON CONFLICT (user_id) DO UPDATE SET
 	return err
 }
 
-func (r *dailyCheckInRepository) Claim(ctx context.Context, userID int64, checkInDate string) (*service.DailyCheckInClaim, error) {
+func (r *dailyCheckInRepository) Claim(ctx context.Context, userID int64) (*service.DailyCheckInClaim, error) {
 	tx, err := r.client.Tx(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("begin daily check-in transaction: %w", err)
@@ -141,12 +142,13 @@ FOR SHARE`, nil, &enabled, &rewardAmount); err != nil {
 	}
 
 	var recordID int64
+	var checkInDate string
 	var checkedInAt time.Time
 	err = scanSingleRow(txCtx, exec, `
 INSERT INTO daily_check_in_records (user_id, check_in_date, reward_amount, balance_after)
-VALUES ($1, $2::date, $3, 0)
+VALUES ($1, (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Shanghai')::date, $2, 0)
 ON CONFLICT (user_id, check_in_date) DO NOTHING
-RETURNING id, created_at`, []any{userID, checkInDate, rewardAmount}, &recordID, &checkedInAt)
+RETURNING id, check_in_date::text, created_at`, []any{userID, rewardAmount}, &recordID, &checkInDate, &checkedInAt)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, service.ErrDailyCheckInAlreadyDone
 	}

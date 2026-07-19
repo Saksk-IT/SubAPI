@@ -141,3 +141,43 @@ func TestRateLimiterSuccessAndLimit(t *testing.T) {
 	router.ServeHTTP(recorder, req)
 	require.Equal(t, http.StatusTooManyRequests, recorder.Code)
 }
+
+func TestRateLimiterCustomIdentityIsIndependentFromIP(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	callCounts := make(map[string]int64)
+	originalRun := rateLimitRun
+	rateLimitRun = func(_ context.Context, _ *redis.Client, key string, _ int64) (int64, bool, error) {
+		callCounts[key]++
+		return callCounts[key], false, nil
+	}
+	t.Cleanup(func() {
+		rateLimitRun = originalRun
+	})
+
+	limiter := NewRateLimiter(redis.NewClient(&redis.Options{Addr: "127.0.0.1:1"}))
+	router := gin.New()
+	router.Use(func(c *gin.Context) {
+		c.Set("rate-limit-account", c.GetHeader("X-Test-Account"))
+		c.Next()
+	})
+	router.Use(limiter.LimitWithOptions("daily-check-in-account", 1, time.Minute, RateLimitOptions{
+		Identity: func(c *gin.Context) string { return c.GetString("rate-limit-account") },
+	}))
+	router.GET("/test", func(c *gin.Context) {
+		c.JSON(http.StatusOK, gin.H{"ok": true})
+	})
+
+	request := func(account, remoteAddr string) int {
+		req := httptest.NewRequest(http.MethodGet, "/test", nil)
+		req.Header.Set("X-Test-Account", account)
+		req.RemoteAddr = remoteAddr
+		recorder := httptest.NewRecorder()
+		router.ServeHTTP(recorder, req)
+		return recorder.Code
+	}
+
+	require.Equal(t, http.StatusOK, request("42", "10.0.0.1:1234"))
+	require.Equal(t, http.StatusTooManyRequests, request("42", "10.0.0.2:5678"), "same account must share a limit across IPs")
+	require.Equal(t, http.StatusOK, request("43", "10.0.0.1:9999"), "different accounts must remain independent on the same IP")
+}
