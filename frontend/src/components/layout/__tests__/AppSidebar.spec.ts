@@ -90,8 +90,9 @@ describe('AppSidebar v0.1.149 merge', () => {
   })
 
   it('adds a permanent user activity-center entry without a payment feature gate', () => {
-    const activityEntry = "{ path: '/activities', label: t('nav.activities'), icon: GiftIcon }"
+    const activityEntry = "{ path: '/activities', label: t('nav.activities'), icon: ActivityIcon }"
     expect(componentSource).toContain(activityEntry)
+    expect(componentSource).toContain("{ path: '/redeem', label: t('nav.redeem'), icon: GiftIcon")
 
     const activityStart = componentSource.indexOf(activityEntry)
     const purchaseStart = componentSource.indexOf("{ path: '/purchase'", activityStart)
