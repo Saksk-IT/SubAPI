@@ -13,9 +13,9 @@ export const useFirstRechargeStore = defineStore('firstRecharge', () => {
 
   const available = computed(() => {
     const current = status.value
-    if (!current?.enabled || !current.eligible || current.completed) return false
+    if (!current?.enabled || !current.eligible) return false
     if (current.purchase_mode === 'product_link') return !!current.product_url
-    return current.offers?.length > 0
+    return !current.completed && current.offers?.length > 0
   })
 
   async function fetchStatus(force = false): Promise<FirstRechargeStatus | null> {

@@ -41,33 +41,98 @@
       </div>
 
       <template v-else>
-        <FirstRechargeDashboard
-          :stats="stats"
-          :loading="statsLoading || ordersLoading"
-          @refresh="refreshStatsAndOrders"
-        />
-        <section class="grid gap-6 xl:grid-cols-[minmax(0,1fr)_420px]">
-          <div class="space-y-6">
-            <section class="card p-5 sm:p-6">
-              <div class="grid gap-5 lg:grid-cols-2">
-                <div class="rounded-xl border border-gray-200 p-4 dark:border-dark-700">
-                  <div class="flex items-center justify-between gap-4">
-                    <div>
-                      <h2 class="text-lg font-black text-gray-950 dark:text-white">
-                        {{ t('admin.firstRecharge.activitySwitch') }}
-                      </h2>
-                      <p class="mt-1 text-sm leading-6 text-gray-500 dark:text-gray-400">
-                        {{ t('admin.firstRecharge.activitySwitchHint') }}
-                      </p>
-                    </div>
-                    <Toggle v-model="form.enabled" />
-                  </div>
-                  <p v-if="form.eligible_since" class="mt-3 text-xs text-gray-500 dark:text-gray-400">
-                    {{ t('admin.firstRecharge.eligibleSince', { time: formatDateTime(form.eligible_since) }) }}
+        <section class="card p-5 sm:p-6" data-testid="first-recharge-entry-modes">
+          <div>
+            <h2 class="text-lg font-black text-gray-950 dark:text-white">
+              {{ t('admin.firstRecharge.purchaseMode') }}
+            </h2>
+            <p class="mt-1 text-sm leading-6 text-gray-500 dark:text-gray-400">
+              {{ t('admin.firstRecharge.purchaseModeMutualExclusionHint') }}
+            </p>
+          </div>
+
+          <div class="mt-5 grid gap-5 lg:grid-cols-2">
+            <article
+              class="rounded-xl border p-4 transition-colors"
+              :class="productLinkActive
+                ? 'border-primary-300 bg-primary-50/40 dark:border-primary-500/40 dark:bg-primary-500/5'
+                : 'border-gray-200 dark:border-dark-700'"
+            >
+              <div class="flex items-start justify-between gap-4">
+                <div>
+                  <h3 class="font-black text-gray-950 dark:text-white">
+                    {{ t('admin.firstRecharge.purchaseModeProductLink') }}
+                  </h3>
+                  <p class="mt-1 text-sm leading-6 text-gray-500 dark:text-gray-400">
+                    {{ t('admin.firstRecharge.purchaseModeProductLinkHint') }}
                   </p>
                 </div>
+                <Toggle
+                  v-model="productLinkActive"
+                  data-testid="product-link-switch"
+                  :aria-label="t('admin.firstRecharge.purchaseModeProductLink')"
+                />
+              </div>
 
-                <div class="rounded-xl border border-gray-200 p-4 dark:border-dark-700">
+              <div v-if="productLinkActive" class="mt-5 border-t border-gray-200 pt-5 dark:border-dark-700">
+                <label class="input-label">{{ t('admin.firstRecharge.productUrl') }}</label>
+                <input
+                  v-model="form.product_url"
+                  type="url"
+                  class="input mt-2"
+                  maxlength="2048"
+                  :placeholder="t('admin.firstRecharge.productUrlPlaceholder')"
+                />
+                <p class="mt-3 text-sm leading-6 text-gray-500 dark:text-gray-400">
+                  {{ t('admin.firstRecharge.productUrlHint') }}
+                </p>
+              </div>
+            </article>
+
+            <article
+              class="rounded-xl border p-4 transition-colors"
+              :class="internalPaymentActive
+                ? 'border-primary-300 bg-primary-50/40 dark:border-primary-500/40 dark:bg-primary-500/5'
+                : 'border-gray-200 dark:border-dark-700'"
+            >
+              <div class="flex items-start justify-between gap-4">
+                <div>
+                  <h3 class="font-black text-gray-950 dark:text-white">
+                    {{ t('admin.firstRecharge.purchaseModeInternalPayment') }}
+                  </h3>
+                  <p class="mt-1 text-sm leading-6 text-gray-500 dark:text-gray-400">
+                    {{ t('admin.firstRecharge.purchaseModeInternalPaymentHint') }}
+                  </p>
+                </div>
+                <Toggle
+                  v-model="internalPaymentActive"
+                  data-testid="internal-payment-switch"
+                  :disabled="!internalPaymentEnabled"
+                  :aria-label="t('admin.firstRecharge.purchaseModeInternalPayment')"
+                />
+              </div>
+
+              <div
+                v-if="!internalPaymentEnabled"
+                class="mt-5 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm leading-6 text-amber-800 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-200"
+              >
+                {{ t('admin.firstRecharge.internalPaymentDisabledHint') }}
+              </div>
+            </article>
+          </div>
+        </section>
+
+        <template v-if="internalPaymentActive">
+          <FirstRechargeDashboard
+            :stats="stats"
+            :loading="statsLoading || ordersLoading"
+            @refresh="refreshStatsAndOrders"
+          />
+
+          <section class="grid gap-6 xl:grid-cols-[minmax(0,1fr)_420px]">
+            <div class="space-y-6">
+              <section class="card p-5 sm:p-6">
+                <div>
                   <label class="input-label">{{ t('admin.firstRecharge.scope') }}</label>
                   <Select
                     v-model="form.eligibility_scope"
@@ -78,48 +143,13 @@
                   <p class="mt-3 text-sm leading-6 text-gray-500 dark:text-gray-400">
                     {{ scopeHint }}
                   </p>
+                  <p v-if="form.eligible_since" class="mt-3 text-xs text-gray-500 dark:text-gray-400">
+                    {{ t('admin.firstRecharge.eligibleSince', { time: formatDateTime(form.eligible_since) }) }}
+                  </p>
                 </div>
-              </div>
+              </section>
 
-              <div class="mt-5 border-t border-gray-200 pt-5 dark:border-dark-700">
-                <div class="grid gap-5 lg:grid-cols-2">
-                  <div>
-                    <label class="input-label">{{ t('admin.firstRecharge.purchaseMode') }}</label>
-                    <Select
-                      v-model="form.purchase_mode"
-                      :options="purchaseModeOptions"
-                      class="mt-2"
-                    />
-                    <p class="mt-3 text-sm leading-6 text-gray-500 dark:text-gray-400">
-                      {{ purchaseModeHint }}
-                    </p>
-                  </div>
-
-                  <div v-if="form.purchase_mode === 'product_link'">
-                    <label class="input-label">{{ t('admin.firstRecharge.productUrl') }}</label>
-                    <input
-                      v-model="form.product_url"
-                      type="url"
-                      class="input mt-2"
-                      maxlength="2048"
-                      :placeholder="t('admin.firstRecharge.productUrlPlaceholder')"
-                    />
-                    <p class="mt-3 text-sm leading-6 text-gray-500 dark:text-gray-400">
-                      {{ t('admin.firstRecharge.productUrlHint') }}
-                    </p>
-                  </div>
-
-                  <div
-                    v-else-if="!internalPaymentEnabled"
-                    class="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm leading-6 text-amber-800 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-200"
-                  >
-                    {{ t('admin.firstRecharge.internalPaymentDisabledHint') }}
-                  </div>
-                </div>
-              </div>
-            </section>
-
-            <section v-if="form.purchase_mode === 'internal_payment'" class="card p-5 sm:p-6">
+              <section class="card p-5 sm:p-6">
               <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <div>
                   <h2 class="text-lg font-black text-gray-950 dark:text-white">
@@ -205,23 +235,23 @@
                   </p>
                 </div>
               </div>
-            </section>
-          </div>
-
-          <section class="card p-5 sm:p-6">
-            <div class="flex items-start justify-between gap-3">
-              <div>
-                <h2 class="text-lg font-black text-gray-950 dark:text-white">
-                  {{ t('admin.firstRecharge.specifiedUsers') }}
-                </h2>
-                <p class="mt-1 text-sm leading-6 text-gray-500 dark:text-gray-400">
-                  {{ t('admin.firstRecharge.specifiedUsersHint') }}
-                </p>
-              </div>
-              <span class="rounded-full bg-gray-100 px-2.5 py-1 text-xs font-black text-gray-600 dark:bg-dark-700 dark:text-gray-300">
-                {{ specifiedUsersTotal }}
-              </span>
+              </section>
             </div>
+
+            <section class="card p-5 sm:p-6">
+              <div class="flex items-start justify-between gap-3">
+                <div>
+                  <h2 class="text-lg font-black text-gray-950 dark:text-white">
+                    {{ t('admin.firstRecharge.specifiedUsers') }}
+                  </h2>
+                  <p class="mt-1 text-sm leading-6 text-gray-500 dark:text-gray-400">
+                    {{ t('admin.firstRecharge.specifiedUsersHint') }}
+                  </p>
+                </div>
+                <span class="rounded-full bg-gray-100 px-2.5 py-1 text-xs font-black text-gray-600 dark:bg-dark-700 dark:text-gray-300">
+                  {{ specifiedUsersTotal }}
+                </span>
+              </div>
 
             <div class="mt-5 space-y-3">
               <label class="input-label">{{ t('admin.firstRecharge.searchUser') }}</label>
@@ -317,27 +347,35 @@
                 @update:pageSize="handleSpecifiedPageSizeChange"
               />
             </div>
+            </section>
           </section>
-        </section>
 
-        <FirstRechargeOrderList
-          :orders="orders"
-          :loading="ordersLoading"
-          :keyword="orderSearch"
-          :status="orderFilters.status"
-          :payment-type="orderFilters.payment_type"
-          :page="orderPagination.page"
-          :page-size="orderPagination.page_size"
-          :total="orderPagination.total"
-          @update:keyword="handleOrderKeywordChange"
-          @update:status="handleOrderStatusChange"
-          @update:paymentType="handleOrderPaymentTypeChange"
-          @update:page="loadOrders"
-          @update:pageSize="handleOrderPageSizeChange"
-          @filter="loadOrders(1)"
-          @refresh="loadOrders(orderPagination.page)"
-          @detail="showOrderDetail"
-        />
+          <FirstRechargeOrderList
+            :orders="orders"
+            :loading="ordersLoading"
+            :keyword="orderSearch"
+            :status="orderFilters.status"
+            :payment-type="orderFilters.payment_type"
+            :page="orderPagination.page"
+            :page-size="orderPagination.page_size"
+            :total="orderPagination.total"
+            @update:keyword="handleOrderKeywordChange"
+            @update:status="handleOrderStatusChange"
+            @update:paymentType="handleOrderPaymentTypeChange"
+            @update:page="loadOrders"
+            @update:pageSize="handleOrderPageSizeChange"
+            @filter="loadOrders(1)"
+            @refresh="loadOrders(orderPagination.page)"
+            @detail="showOrderDetail"
+          />
+        </template>
+
+        <section
+          v-else-if="!productLinkActive"
+          class="card border-dashed p-8 text-center text-sm text-gray-500 dark:text-gray-400"
+        >
+          {{ t('admin.firstRecharge.noPurchaseModeHint') }}
+        </section>
       </template>
     </div>
 
@@ -437,21 +475,33 @@ const scopeHint = computed(() => {
   return t('admin.firstRecharge.scopeNewUsersHint')
 })
 
-const purchaseModeOptions = computed(() => [
-  {
-    value: 'product_link',
-    label: t('admin.firstRecharge.purchaseModeProductLink'),
+const productLinkActive = computed({
+  get: () => form.enabled && form.purchase_mode === 'product_link',
+  set: (enabled: boolean) => {
+    if (enabled) {
+      form.purchase_mode = 'product_link'
+      form.enabled = true
+      return
+    }
+    if (form.purchase_mode === 'product_link') form.enabled = false
   },
-  {
-    value: 'internal_payment',
-    label: t('admin.firstRecharge.purchaseModeInternalPayment'),
-    disabled: !internalPaymentEnabled.value,
-  },
-])
+})
 
-const purchaseModeHint = computed(() => form.purchase_mode === 'product_link'
-  ? t('admin.firstRecharge.purchaseModeProductLinkHint')
-  : t('admin.firstRecharge.purchaseModeInternalPaymentHint'))
+const internalPaymentActive = computed({
+  get: () => internalPaymentEnabled.value
+    && form.enabled
+    && form.purchase_mode === 'internal_payment',
+  set: (enabled: boolean) => {
+    if (enabled) {
+      if (!internalPaymentEnabled.value) return
+      form.purchase_mode = 'internal_payment'
+      form.enabled = true
+      loadInternalPaymentData().catch(() => {})
+      return
+    }
+    if (form.purchase_mode === 'internal_payment') form.enabled = false
+  },
+})
 
 function toOfferForm(offer: FirstRechargeOffer): OfferForm {
   return {
@@ -484,30 +534,38 @@ function newOffer(): OfferForm {
 async function loadConfig(force = false) {
   if (force) loading.value = true
   try {
-    const [configResponse] = await Promise.all([
-      adminActivitiesAPI.getFirstRecharge(),
-      loadSpecifiedUsers(specifiedPage.value),
-      loadDashboardStats(),
-      loadOrders(orderPagination.page),
-    ])
+    const configResponse = await adminActivitiesAPI.getFirstRecharge()
     const payload = configResponse.data
+    const purchaseMode = payload.config.purchase_mode || 'internal_payment'
+    internalPaymentEnabled.value = payload.internal_payment_enabled
     form.enabled = payload.config.enabled
+      && (purchaseMode !== 'internal_payment' || internalPaymentEnabled.value)
     form.eligibility_scope = payload.config.eligibility_scope
-    form.purchase_mode = payload.config.purchase_mode || 'internal_payment'
+    form.purchase_mode = purchaseMode
     form.product_url = payload.config.product_url || ''
     form.eligible_since = payload.config.eligible_since || ''
-    internalPaymentEnabled.value = payload.internal_payment_enabled
     form.offers = [...payload.offers]
       .sort((a, b) => {
         if (a.sort_order === b.sort_order) return a.id - b.id
         return a.sort_order - b.sort_order
       })
       .map(toOfferForm)
+    if (internalPaymentActive.value) {
+      await loadInternalPaymentData()
+    }
   } catch (error: unknown) {
     appStore.showError(extractApiErrorMessage(error, t('admin.firstRecharge.loadFailed')))
   } finally {
     loading.value = false
   }
+}
+
+async function loadInternalPaymentData() {
+  await Promise.all([
+    loadSpecifiedUsers(specifiedPage.value),
+    loadDashboardStats(),
+    loadOrders(orderPagination.page),
+  ])
 }
 
 async function loadDashboardStats() {
@@ -601,8 +659,7 @@ function buildOfferPayload(): FirstRechargeOfferInput[] {
 
 function validateForm(): boolean {
   if (
-    form.purchase_mode === 'product_link'
-    && (form.enabled || !!form.product_url.trim())
+    productLinkActive.value
     && !isValidProductURL(form.product_url)
   ) {
     appStore.showError(t('admin.firstRecharge.productUrlInvalid'))
@@ -612,7 +669,7 @@ function validateForm(): boolean {
     appStore.showError(t('admin.firstRecharge.internalPaymentDisabled'))
     return false
   }
-  if (form.offers.length > maxOffers) {
+  if (internalPaymentActive.value && form.offers.length > maxOffers) {
     appStore.showError(t('admin.firstRecharge.maxOffersError', { count: maxOffers }))
     return false
   }
@@ -621,7 +678,9 @@ function validateForm(): boolean {
     appStore.showError(t('admin.firstRecharge.enabledOfferRequired'))
     return false
   }
-  const invalid = offers.find((offer) => !offer.name || offer.price <= 0 || offer.amount <= 0)
+  const invalid = internalPaymentActive.value
+    ? offers.find((offer) => !offer.name || offer.price <= 0 || offer.amount <= 0)
+    : undefined
   if (invalid) {
     appStore.showError(t('admin.firstRecharge.offerInvalid'))
     return false
@@ -655,6 +714,7 @@ async function saveConfig() {
       offers: buildOfferPayload(),
     })
     internalPaymentEnabled.value = response.data.internal_payment_enabled
+    form.enabled = response.data.config.enabled
     form.purchase_mode = response.data.config.purchase_mode
     form.product_url = response.data.config.product_url || ''
     form.eligible_since = response.data.config.eligible_since || ''

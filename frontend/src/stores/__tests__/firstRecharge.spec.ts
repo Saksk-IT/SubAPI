@@ -33,6 +33,7 @@ describe('useFirstRechargeStore availability', () => {
     store.status = createStatus({
       purchase_mode: 'product_link',
       product_url: 'https://shop.example.test/first-recharge',
+      completed: true,
     })
 
     expect(store.available).toBe(true)

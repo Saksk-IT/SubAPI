@@ -193,12 +193,12 @@ func (s *FirstRechargeActivityService) UpdateAdminConfig(ctx context.Context, in
 		return nil, err
 	}
 	eligibleSince := current.EligibleSince
-	if input.Enabled && scope == FirstRechargeEligibilityNewUsersAfterEnabled {
+	if input.Enabled && purchaseMode == FirstRechargePurchaseModeInternalPayment && scope == FirstRechargeEligibilityNewUsersAfterEnabled {
 		if !current.Enabled || current.EligibilityScope != scope || eligibleSince == nil {
 			eligibleSince = &now
 		}
 	}
-	if scope != FirstRechargeEligibilityNewUsersAfterEnabled {
+	if purchaseMode != FirstRechargePurchaseModeInternalPayment || scope != FirstRechargeEligibilityNewUsersAfterEnabled {
 		eligibleSince = nil
 	}
 
@@ -248,7 +248,9 @@ func (s *FirstRechargeActivityService) GetStatus(ctx context.Context, userID int
 	if err != nil {
 		return nil, err
 	}
-	completed := state != nil && state.CompletedAt != nil
+	purchaseMode := normalizeFirstRechargePurchaseMode(config.PurchaseMode)
+	isProductLink := purchaseMode == FirstRechargePurchaseModeProductLink
+	completed := !isProductLink && state != nil && state.CompletedAt != nil
 	productURL, _ := normalizeFirstRechargeProductURL(config.ProductURL)
 	status := &FirstRechargeStatus{
 		Enabled:          config.Enabled,
@@ -256,14 +258,21 @@ func (s *FirstRechargeActivityService) GetStatus(ctx context.Context, userID int
 		Completed:        completed,
 		PopupDismissed:   state != nil && state.PopupDismissedAt != nil,
 		EligibilityScope: config.EligibilityScope,
-		PurchaseMode:     normalizeFirstRechargePurchaseMode(config.PurchaseMode),
+		PurchaseMode:     purchaseMode,
 		ProductURL:       productURL,
 		EligibleSince:    config.EligibleSince,
 	}
 	if completed {
 		status.CompletedAt = state.CompletedAt
 	}
-	if !config.Enabled || completed {
+	if !config.Enabled {
+		return status, nil
+	}
+	if isProductLink {
+		status.Eligible = status.ProductURL != ""
+		return status, nil
+	}
+	if completed {
 		return status, nil
 	}
 	eligible, err := s.isUserEligible(ctx, userID, config)
@@ -272,12 +281,6 @@ func (s *FirstRechargeActivityService) GetStatus(ctx context.Context, userID int
 	}
 	status.Eligible = eligible
 	if !eligible {
-		return status, nil
-	}
-	if status.PurchaseMode == FirstRechargePurchaseModeProductLink {
-		if status.ProductURL == "" {
-			status.Eligible = false
-		}
 		return status, nil
 	}
 	if !s.isInternalPaymentEnabled(ctx) {

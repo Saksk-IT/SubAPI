@@ -155,19 +155,22 @@ func TestFirstRechargeActivityServiceUpdateAdminConfig(t *testing.T) {
 func TestFirstRechargeActivityServiceProductLinkDoesNotDependOnInternalPayment(t *testing.T) {
 	repo := newFirstRechargeMemoryRepo()
 	repo.config.Enabled = true
-	repo.config.EligibilityScope = FirstRechargeEligibilityAllUsers
+	repo.config.EligibilityScope = FirstRechargeEligibilitySpecifiedUsers
 	repo.config.PurchaseMode = FirstRechargePurchaseModeProductLink
 	repo.config.ProductURL = "https://shop.example.test/products/first-recharge"
-	userRepo := &firstRechargeUserRepoFake{
-		users: map[int64]*User{
-			5: {ID: 5, Email: "buyer@example.test", Username: "buyer", CreatedAt: time.Now()},
-		},
+	completedAt := time.Now()
+	repo.states[5] = &FirstRechargeUserState{
+		UserID:      5,
+		CompletedAt: &completedAt,
 	}
+	userRepo := &firstRechargeUserRepoFake{users: map[int64]*User{}}
 	svc := NewFirstRechargeActivityService(repo, userRepo, newFirstRechargePaymentConfig(false))
 
 	status, err := svc.GetStatus(context.Background(), 5)
 	require.NoError(t, err)
 	require.True(t, status.Eligible)
+	require.False(t, status.Completed)
+	require.Nil(t, status.CompletedAt)
 	require.Equal(t, FirstRechargePurchaseModeProductLink, status.PurchaseMode)
 	require.Equal(t, "https://shop.example.test/products/first-recharge", status.ProductURL)
 	require.Empty(t, status.Offers)
