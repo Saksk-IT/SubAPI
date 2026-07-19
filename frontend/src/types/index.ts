@@ -242,6 +242,7 @@ export interface PublicSettings {
   image_generation_enabled: boolean
   service_quota_enabled: boolean
   affiliate_enabled: boolean
+  affiliate_redeem_code_enabled: boolean
   allow_user_view_error_requests?: boolean
 }
 

@@ -128,23 +128,26 @@ type defaultSubGroupReaderStub struct {
 	calls []int64
 }
 
-func TestSettingService_AffiliateAdminRechargeSetting(t *testing.T) {
+func TestSettingService_AffiliateRechargeSourceSettings(t *testing.T) {
 	t.Run("missing value defaults to disabled", func(t *testing.T) {
 		svc := NewSettingService(&settingGetAllRepoStub{values: map[string]string{}}, &config.Config{})
 
 		settings, err := svc.GetAllSettings(context.Background())
 		require.NoError(t, err)
 		require.False(t, settings.AdminRechargeRebateEnabled)
+		require.False(t, settings.RedeemCodeRebateEnabled)
 	})
 
 	t.Run("explicit value is parsed", func(t *testing.T) {
 		svc := NewSettingService(&settingGetAllRepoStub{values: map[string]string{
 			SettingKeyAffiliateAdminRechargeEnabled: "true",
+			SettingKeyAffiliateRedeemCodeEnabled:    "true",
 		}}, &config.Config{})
 
 		settings, err := svc.GetAllSettings(context.Background())
 		require.NoError(t, err)
 		require.True(t, settings.AdminRechargeRebateEnabled)
+		require.True(t, settings.RedeemCodeRebateEnabled)
 	})
 
 	t.Run("value is persisted", func(t *testing.T) {
@@ -153,9 +156,11 @@ func TestSettingService_AffiliateAdminRechargeSetting(t *testing.T) {
 
 		err := svc.UpdateSettings(context.Background(), &SystemSettings{
 			AdminRechargeRebateEnabled: true,
+			RedeemCodeRebateEnabled:    true,
 		})
 		require.NoError(t, err)
 		require.Equal(t, "true", repo.updates[SettingKeyAffiliateAdminRechargeEnabled])
+		require.Equal(t, "true", repo.updates[SettingKeyAffiliateRedeemCodeEnabled])
 	})
 }
 

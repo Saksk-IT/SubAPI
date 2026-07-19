@@ -58,6 +58,7 @@ function createPublicSettings(overrides: Partial<PublicSettings> = {}): PublicSe
     image_generation_enabled: true,
     service_quota_enabled: false,
     affiliate_enabled: false,
+    affiliate_redeem_code_enabled: false,
     ...overrides,
   }
 }

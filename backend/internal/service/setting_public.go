@@ -222,6 +222,7 @@ func (s *SettingService) GetPublicSettings(ctx context.Context) (*PublicSettings
 		SettingKeyAvailableChannelsEnabled,
 		SettingKeyImageGenerationEnabled,
 		SettingKeyAffiliateEnabled,
+		SettingKeyAffiliateRedeemCodeEnabled,
 		SettingKeyRiskControlEnabled,
 		SettingKeyAllowUserViewErrorRequests,
 	}
@@ -335,7 +336,8 @@ func (s *SettingService) GetPublicSettings(ctx context.Context) (*PublicSettings
 
 		ImageGenerationEnabled: !isFalseSettingValue(settings[SettingKeyImageGenerationEnabled]),
 
-		AffiliateEnabled: settings[SettingKeyAffiliateEnabled] == "true",
+		AffiliateEnabled:           settings[SettingKeyAffiliateEnabled] == "true",
+		AffiliateRedeemCodeEnabled: settings[SettingKeyAffiliateRedeemCodeEnabled] == "true",
 
 		RiskControlEnabled: settings[SettingKeyRiskControlEnabled] == "true",
 
@@ -499,6 +501,7 @@ type PublicSettingsInjectionPayload struct {
 	AvailableChannelsEnabled             bool `json:"available_channels_enabled"`
 	ImageGenerationEnabled               bool `json:"image_generation_enabled"`
 	AffiliateEnabled                     bool `json:"affiliate_enabled"`
+	AffiliateRedeemCodeEnabled           bool `json:"affiliate_redeem_code_enabled"`
 	RiskControlEnabled                   bool `json:"risk_control_enabled"`
 	AllowUserViewErrorRequests           bool `json:"allow_user_view_error_requests"`
 }
@@ -565,6 +568,7 @@ func (s *SettingService) GetPublicSettingsForInjection(ctx context.Context) (any
 		AvailableChannelsEnabled:             settings.AvailableChannelsEnabled,
 		ImageGenerationEnabled:               settings.ImageGenerationEnabled,
 		AffiliateEnabled:                     settings.AffiliateEnabled,
+		AffiliateRedeemCodeEnabled:           settings.AffiliateRedeemCodeEnabled,
 		RiskControlEnabled:                   settings.RiskControlEnabled,
 		AllowUserViewErrorRequests:           settings.AllowUserViewErrorRequests,
 	}, nil

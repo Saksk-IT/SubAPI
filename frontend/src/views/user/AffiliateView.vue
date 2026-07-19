@@ -77,8 +77,9 @@
             <ul class="mt-2 space-y-1 text-sm text-primary-700 dark:text-primary-300">
               <li>1. {{ t('affiliate.tips.line1') }}</li>
               <li>2. {{ t('affiliate.tips.line2', { rate: `${formattedRebateRate}%` }) }}</li>
-              <li>3. {{ t('affiliate.tips.line3') }}</li>
-              <li v-if="detail.aff_frozen_quota > 0">4. {{ t('affiliate.tips.line4') }}</li>
+              <li v-if="redeemCodeRebateEnabled">3. {{ t('affiliate.tips.redeemCode') }}</li>
+              <li>{{ redeemCodeRebateEnabled ? 4 : 3 }}. {{ t('affiliate.tips.line3') }}</li>
+              <li v-if="detail.aff_frozen_quota > 0">{{ redeemCodeRebateEnabled ? 5 : 4 }}. {{ t('affiliate.tips.line4') }}</li>
             </ul>
           </div>
         </div>
@@ -174,6 +175,10 @@ const formattedRebateRate = computed(() => {
   const rounded = Math.round(v * 100) / 100
   return Number.isInteger(rounded) ? String(rounded) : rounded.toString()
 })
+
+const redeemCodeRebateEnabled = computed(
+  () => appStore.cachedPublicSettings?.affiliate_redeem_code_enabled === true
+)
 
 function formatCount(value: number): string {
   return value.toLocaleString()

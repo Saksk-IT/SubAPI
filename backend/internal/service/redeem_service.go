@@ -580,6 +580,9 @@ func (s *RedeemService) tryAccrueAffiliateRebateForRedeem(ctx context.Context, u
 	if !s.affiliateService.IsEnabled(ctx) {
 		return
 	}
+	if !s.affiliateService.IsRedeemCodeRebateEnabled(ctx) {
+		return
+	}
 	rebate, err := s.affiliateService.AccrueInviteRebate(ctx, userID, amount)
 	if err != nil {
 		logger.LegacyPrintf("service.redeem", "[Redeem] affiliate rebate failed for user %d amount %.2f: %v", userID, amount, err)

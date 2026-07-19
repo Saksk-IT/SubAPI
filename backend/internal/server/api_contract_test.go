@@ -844,6 +844,7 @@ func TestAPIContracts(t *testing.T) {
 					"affiliate_rebate_duration_days": 0,
 					"affiliate_rebate_per_invitee_cap": 0,
 					"affiliate_admin_recharge_enabled": false,
+					"affiliate_redeem_code_enabled": false,
 					"default_user_rpm_limit": 0,
 					"default_subscriptions": [],
 					"enable_model_fallback": false,
@@ -1127,6 +1128,7 @@ func TestAPIContracts(t *testing.T) {
 					"affiliate_rebate_duration_days": 0,
 					"affiliate_rebate_per_invitee_cap": 0,
 					"affiliate_admin_recharge_enabled": false,
+					"affiliate_redeem_code_enabled": false,
 					"default_user_rpm_limit": 0,
 					"default_subscriptions": [],
 					"enable_model_fallback": false,
@@ -1350,6 +1352,30 @@ func TestPublicSettingsImageGenerationContract(t *testing.T) {
 	assertImageGenerationEnabled(true)
 	deps.settingRepo.SetAll(map[string]string{service.SettingKeyImageGenerationEnabled: "false"})
 	assertImageGenerationEnabled(false)
+}
+
+func TestPublicSettingsAffiliateRedeemCodeContract(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	deps := newContractDeps(t)
+
+	assertAffiliateRedeemCodeEnabled := func(want bool) {
+		t.Helper()
+
+		status, body := doRequest(t, deps.router, http.MethodGet, "/api/v1/settings/public", "", nil)
+		require.Equal(t, http.StatusOK, status)
+
+		var payload struct {
+			Data map[string]any `json:"data"`
+		}
+		require.NoError(t, json.Unmarshal([]byte(body), &payload))
+		value, ok := payload.Data["affiliate_redeem_code_enabled"]
+		require.True(t, ok, "public settings are missing affiliate_redeem_code_enabled: %s", body)
+		require.Equal(t, want, value)
+	}
+
+	assertAffiliateRedeemCodeEnabled(false)
+	deps.settingRepo.SetAll(map[string]string{service.SettingKeyAffiliateRedeemCodeEnabled: "true"})
+	assertAffiliateRedeemCodeEnabled(true)
 }
 
 type contractDeps struct {

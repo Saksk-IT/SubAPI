@@ -855,11 +855,12 @@ describe("admin SettingsView settings controls", () => {
     );
   });
 
-  it("submits the admin recharge affiliate rebate setting", async () => {
+  it("submits the affiliate rebate source settings", async () => {
     getSettings.mockResolvedValueOnce({
       ...baseSettingsResponse,
       affiliate_enabled: true,
       affiliate_admin_recharge_enabled: true,
+      affiliate_redeem_code_enabled: true,
     });
 
     const wrapper = mountView();
@@ -872,6 +873,7 @@ describe("admin SettingsView settings controls", () => {
     expect(updateSettings).toHaveBeenCalledWith(
       expect.objectContaining({
         affiliate_admin_recharge_enabled: true,
+        affiliate_redeem_code_enabled: true,
       }),
     );
   });

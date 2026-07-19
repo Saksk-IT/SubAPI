@@ -14,6 +14,36 @@ type redeemRejectRepo struct {
 	useCalled bool
 }
 
+type redeemAffiliateSettingRepo struct {
+	SettingRepository
+	values map[string]string
+}
+
+func (r *redeemAffiliateSettingRepo) GetValue(_ context.Context, key string) (string, error) {
+	if value, ok := r.values[key]; ok {
+		return value, nil
+	}
+	return "", ErrSettingNotFound
+}
+
+type redeemAffiliateRepo struct {
+	AffiliateRepository
+	accrued int
+}
+
+func (r *redeemAffiliateRepo) EnsureUserAffiliate(_ context.Context, userID int64) (*AffiliateSummary, error) {
+	if userID == 2 {
+		inviterID := int64(1)
+		return &AffiliateSummary{UserID: userID, InviterID: &inviterID}, nil
+	}
+	return &AffiliateSummary{UserID: userID}, nil
+}
+
+func (r *redeemAffiliateRepo) AccrueQuota(_ context.Context, _, _ int64, _ float64, _ int, _ *int64) (bool, error) {
+	r.accrued++
+	return true, nil
+}
+
 func (r *redeemRejectRepo) Create(ctx context.Context, code *RedeemCode) error {
 	panic("unexpected Create call")
 }
@@ -99,4 +129,25 @@ func TestRedeemRejectsInvitationCodeBeforeTransaction(t *testing.T) {
 	require.False(t, redeemRepo.useCalled)
 	require.Equal(t, StatusUnused, redeemRepo.code.Status)
 	require.Nil(t, redeemRepo.code.UsedBy)
+}
+
+func TestRedeemAffiliateRebateRequiresDedicatedSetting(t *testing.T) {
+	settingRepo := &redeemAffiliateSettingRepo{values: map[string]string{
+		SettingKeyAffiliateEnabled: "true",
+	}}
+	affiliateRepo := &redeemAffiliateRepo{}
+	affiliateService := NewAffiliateService(
+		affiliateRepo,
+		NewSettingService(settingRepo, nil),
+		nil,
+		nil,
+	)
+	redeemService := &RedeemService{affiliateService: affiliateService}
+
+	redeemService.tryAccrueAffiliateRebateForRedeem(context.Background(), 2, 50)
+	require.Zero(t, affiliateRepo.accrued)
+
+	settingRepo.values[SettingKeyAffiliateRedeemCodeEnabled] = "true"
+	redeemService.tryAccrueAffiliateRebateForRedeem(context.Background(), 2, 50)
+	require.Equal(t, 1, affiliateRepo.accrued)
 }

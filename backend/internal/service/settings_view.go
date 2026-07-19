@@ -155,6 +155,7 @@ type SystemSettings struct {
 	AffiliateRebateDurationDays  int
 	AffiliateRebatePerInviteeCap float64
 	AdminRechargeRebateEnabled   bool
+	RedeemCodeRebateEnabled      bool
 	DefaultUserRPMLimit          int
 	DefaultSubscriptions         []DefaultSubscriptionSetting
 
@@ -348,7 +349,8 @@ type PublicSettings struct {
 	ImageGenerationEnabled bool `json:"image_generation_enabled"`
 
 	// Affiliate (邀请返利) feature toggle
-	AffiliateEnabled bool `json:"affiliate_enabled"`
+	AffiliateEnabled           bool `json:"affiliate_enabled"`
+	AffiliateRedeemCodeEnabled bool `json:"affiliate_redeem_code_enabled"`
 
 	// 风控中心功能开关
 	RiskControlEnabled bool `json:"risk_control_enabled"`

@@ -228,6 +228,15 @@ func (s *AffiliateService) IsEnabled(ctx context.Context) bool {
 	return s.settingService.IsAffiliateEnabled(ctx)
 }
 
+// IsRedeemCodeRebateEnabled reports whether positive balance redeem codes are
+// eligible for affiliate rebates. Missing configuration fails closed.
+func (s *AffiliateService) IsRedeemCodeRebateEnabled(ctx context.Context) bool {
+	if s == nil || s.settingService == nil {
+		return RedeemCodeRebateEnabledDefault
+	}
+	return s.settingService.IsAffiliateRedeemCodeEnabled(ctx)
+}
+
 func (s *AffiliateService) EnsureUserAffiliate(ctx context.Context, userID int64) (*AffiliateSummary, error) {
 	if userID <= 0 {
 		return nil, infraerrors.BadRequest("INVALID_USER", "invalid user")

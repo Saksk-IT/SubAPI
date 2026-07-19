@@ -100,7 +100,8 @@ func (h *SettingHandler) GetPublicSettings(c *gin.Context) {
 
 		ImageGenerationEnabled: settings.ImageGenerationEnabled,
 
-		AffiliateEnabled: settings.AffiliateEnabled,
+		AffiliateEnabled:           settings.AffiliateEnabled,
+		AffiliateRedeemCodeEnabled: settings.AffiliateRedeemCodeEnabled,
 
 		RiskControlEnabled: settings.RiskControlEnabled,
 
