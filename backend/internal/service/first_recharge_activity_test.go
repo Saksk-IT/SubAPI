@@ -107,6 +107,7 @@ func TestFirstRechargeActivityServiceDismissPopupAndCompletion(t *testing.T) {
 	status, err := svc.GetStatus(context.Background(), 3)
 	require.NoError(t, err)
 	require.True(t, status.PopupDismissed)
+	require.NotNil(t, status.ViewedAt)
 	require.True(t, status.Eligible)
 
 	require.NoError(t, svc.MarkCompleted(context.Background(), 3, 99))

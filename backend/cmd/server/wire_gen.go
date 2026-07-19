@@ -284,7 +284,8 @@ func initializeApplication(buildInfo handler.BuildInfo) (*Application, error) {
 	handlerPaymentHandler := handler.NewPaymentHandler(paymentService, paymentConfigService)
 	paymentWebhookHandler := handler.NewPaymentWebhookHandler(paymentService, registry)
 	availableChannelHandler := handler.NewAvailableChannelHandler(channelService, apiKeyService, settingService)
-	handlerActivityHandler := handler.NewActivityHandler(firstRechargeActivityService)
+	userActivityService := service.NewUserActivityService(firstRechargeActivityService)
+	handlerActivityHandler := handler.NewActivityHandler(userActivityService, firstRechargeActivityService)
 	imageTaskStore := repository.NewImageTaskStore(redisClient)
 	imageStorage, err := repository.ProvideImageStorage(configConfig)
 	if err != nil {

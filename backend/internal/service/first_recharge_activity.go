@@ -75,11 +75,14 @@ type FirstRechargeStatus struct {
 	Eligible         bool                 `json:"eligible"`
 	Completed        bool                 `json:"completed"`
 	PopupDismissed   bool                 `json:"popup_dismissed"`
+	ViewedAt         *time.Time           `json:"viewed_at,omitempty"`
 	EligibilityScope string               `json:"eligibility_scope"`
 	PurchaseMode     string               `json:"purchase_mode"`
 	ProductURL       string               `json:"product_url,omitempty"`
 	EligibleSince    *time.Time           `json:"eligible_since,omitempty"`
 	CompletedAt      *time.Time           `json:"completed_at,omitempty"`
+	CreatedAt        time.Time            `json:"created_at"`
+	UpdatedAt        time.Time            `json:"updated_at"`
 	Offers           []FirstRechargeOffer `json:"offers"`
 }
 
@@ -257,10 +260,17 @@ func (s *FirstRechargeActivityService) GetStatus(ctx context.Context, userID int
 		Eligible:         false,
 		Completed:        completed,
 		PopupDismissed:   state != nil && state.PopupDismissedAt != nil,
+		ViewedAt:         nil,
 		EligibilityScope: config.EligibilityScope,
 		PurchaseMode:     purchaseMode,
 		ProductURL:       productURL,
 		EligibleSince:    config.EligibleSince,
+		CreatedAt:        config.CreatedAt,
+		UpdatedAt:        config.UpdatedAt,
+		Offers:           []FirstRechargeOffer{},
+	}
+	if state != nil {
+		status.ViewedAt = state.PopupDismissedAt
 	}
 	if completed {
 		status.CompletedAt = state.CompletedAt
@@ -299,6 +309,10 @@ func (s *FirstRechargeActivityService) GetStatus(ctx context.Context, userID int
 }
 
 func (s *FirstRechargeActivityService) DismissPopup(ctx context.Context, userID int64) error {
+	return s.MarkViewed(ctx, userID)
+}
+
+func (s *FirstRechargeActivityService) MarkViewed(ctx context.Context, userID int64) error {
 	status, err := s.GetStatus(ctx, userID)
 	if err != nil {
 		return err

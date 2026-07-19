@@ -774,6 +774,7 @@ var ProviderSet = wire.NewSet(
 	NewContentModerationService,
 	NewAffiliateService,
 	NewFirstRechargeActivityService,
+	NewUserActivityService,
 	ProvidePaymentConfigService,
 	ProvidePaymentService,
 	ProvidePaymentOrderExpiryService,
@@ -804,7 +805,7 @@ func ProvideBalanceNotifyService(emailService *EmailService, settingRepo Setting
 	return svc
 }
 
-// ProvideAnnouncementService creates AnnouncementService and attaches synthetic activity announcements.
+// ProvideAnnouncementService creates AnnouncementService and preserves legacy first-recharge read handling.
 func ProvideAnnouncementService(announcementRepo AnnouncementRepository, readRepo AnnouncementReadRepository, userRepo UserRepository, userSubRepo UserSubscriptionRepository, firstRechargeService *FirstRechargeActivityService) *AnnouncementService {
 	svc := NewAnnouncementService(announcementRepo, readRepo, userRepo, userSubRepo)
 	svc.SetFirstRechargeActivityService(firstRechargeService)

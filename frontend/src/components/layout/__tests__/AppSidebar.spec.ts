@@ -88,6 +88,16 @@ describe('AppSidebar v0.1.149 merge', () => {
     expect(nextAdminItem).toBeGreaterThan(activityStart)
     expect(componentSource.slice(activityStart, nextAdminItem)).not.toContain('featureFlag:')
   })
+
+  it('adds a permanent user activity-center entry without a payment feature gate', () => {
+    const activityEntry = "{ path: '/activities', label: t('nav.activities'), icon: GiftIcon }"
+    expect(componentSource).toContain(activityEntry)
+
+    const activityStart = componentSource.indexOf(activityEntry)
+    const purchaseStart = componentSource.indexOf("{ path: '/purchase'", activityStart)
+    expect(purchaseStart).toBeGreaterThan(activityStart)
+    expect(componentSource.slice(activityStart, purchaseStart)).not.toContain('featureFlag:')
+  })
 })
 
 describe('AppSidebar header styles', () => {

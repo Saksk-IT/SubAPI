@@ -11,6 +11,7 @@ export { useOnboardingStore } from './onboarding'
 export { useAnnouncementStore } from './announcements'
 export { usePaymentStore } from './payment'
 export { useFirstRechargeStore } from './firstRecharge'
+export { useActivityStore } from './activities'
 export { useAdminComplianceStore } from './adminCompliance'
 export { useImageGenerationLauncherStore } from './imageGenerationLauncher'
 

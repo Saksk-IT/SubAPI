@@ -6,9 +6,10 @@ import NavigationProgress from '@/components/common/NavigationProgress.vue'
 import NativeDialogHost from '@/components/common/NativeDialogHost.vue'
 import AdminComplianceDialog from '@/components/admin/AdminComplianceDialog.vue'
 import ImageGenerationLauncher from '@/components/image-generation/ImageGenerationLauncher.vue'
+import ActivityPopup from '@/components/common/ActivityPopup.vue'
 import { resolveRouteDocumentTitle } from '@/router/title'
 import AnnouncementPopup from '@/components/common/AnnouncementPopup.vue'
-import { useAppStore, useAuthStore, useSubscriptionStore, useAnnouncementStore, useAdminComplianceStore, useAdminSettingsStore } from '@/stores'
+import { useActivityStore, useAppStore, useAuthStore, useSubscriptionStore, useAnnouncementStore, useAdminComplianceStore, useAdminSettingsStore } from '@/stores'
 import { getSetupStatus } from '@/api/setup'
 
 const router = useRouter()
@@ -17,6 +18,7 @@ const appStore = useAppStore()
 const authStore = useAuthStore()
 const subscriptionStore = useSubscriptionStore()
 const announcementStore = useAnnouncementStore()
+const activityStore = useActivityStore()
 const adminComplianceStore = useAdminComplianceStore()
 const adminSettingsStore = useAdminSettingsStore()
 
@@ -73,6 +75,7 @@ watch(
 function onVisibilityChange() {
   if (document.visibilityState === 'visible' && authStore.isAuthenticated) {
     announcementStore.fetchAnnouncements()
+    activityStore.fetchActivities()
   }
 }
 
@@ -100,10 +103,14 @@ watch(
       // Announcements: new login vs page refresh restore
       if (oldValue === false) {
         // New login: delay 3s then force fetch
-        setTimeout(() => announcementStore.fetchAnnouncements(true), 3000)
+        setTimeout(() => {
+          announcementStore.fetchAnnouncements(true)
+          activityStore.fetchActivities(true)
+        }, 3000)
       } else {
         // Page refresh restore (oldValue was undefined)
         announcementStore.fetchAnnouncements()
+        activityStore.fetchActivities()
       }
 
       // Register visibility change listener
@@ -112,6 +119,7 @@ watch(
       // User logged out: clear data and stop polling
       subscriptionStore.clear()
       announcementStore.reset()
+      activityStore.reset()
       adminComplianceStore.reset()
       document.removeEventListener('visibilitychange', onVisibilityChange)
     }
@@ -123,6 +131,7 @@ watch(
 router.afterEach(() => {
   if (authStore.isAuthenticated) {
     announcementStore.fetchAnnouncements()
+    activityStore.fetchActivities()
   }
 })
 
@@ -158,6 +167,7 @@ onMounted(async () => {
   <RouterView />
   <Toast />
   <AnnouncementPopup />
+  <ActivityPopup />
   <NativeDialogHost />
   <AdminComplianceDialog />
   <ImageGenerationLauncher />

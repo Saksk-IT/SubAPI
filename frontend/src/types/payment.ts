@@ -127,12 +127,26 @@ export interface FirstRechargeStatus {
   eligible: boolean
   completed: boolean
   popup_dismissed: boolean
+  viewed_at?: string
   eligibility_scope: FirstRechargeEligibilityScope
   purchase_mode: FirstRechargePurchaseMode
   product_url?: string
   eligible_since?: string
   completed_at?: string
+  created_at: string
+  updated_at: string
   offers: FirstRechargeOffer[]
+}
+
+export type UserActivityType = 'first_recharge'
+
+export interface UserActivity {
+  id: string
+  type: UserActivityType
+  viewed_at?: string
+  created_at: string
+  updated_at: string
+  first_recharge?: FirstRechargeStatus
 }
 
 export interface FirstRechargeConfig {

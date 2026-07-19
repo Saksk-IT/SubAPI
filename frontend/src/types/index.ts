@@ -2198,6 +2198,8 @@ export type {
   FirstRechargePurchaseMode,
   FirstRechargeSpecifiedUser,
   FirstRechargeStatus,
+  UserActivity,
+  UserActivityType,
 } from './payment'
 
 export type {

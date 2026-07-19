@@ -18,6 +18,8 @@ function createStatus(overrides: Partial<FirstRechargeStatus> = {}): FirstRechar
     popup_dismissed: false,
     eligibility_scope: 'all_users',
     purchase_mode: 'internal_payment',
+    created_at: '2026-01-01T00:00:00Z',
+    updated_at: '2026-01-01T00:00:00Z',
     offers: [],
     ...overrides,
   }

@@ -108,6 +108,8 @@ func RegisterUserRoutes(
 
 		activities := authenticated.Group("/activities")
 		{
+			activities.GET("", h.Activity.List)
+			activities.POST("/:id/view", h.Activity.MarkViewed)
 			firstRecharge := activities.Group("/first-recharge")
 			{
 				firstRecharge.GET("/status", h.Activity.GetFirstRechargeStatus)

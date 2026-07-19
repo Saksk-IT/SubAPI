@@ -263,7 +263,7 @@ func (s *AnnouncementService) ListForUser(ctx context.Context, userID int64, unr
 		}
 	}
 
-	out := make([]UserAnnouncement, 0, len(visible)+1)
+	out := make([]UserAnnouncement, 0, len(visible))
 	for i := range visible {
 		a := visible[i]
 		readAt, ok := readMap[a.ID]
@@ -280,10 +280,6 @@ func (s *AnnouncementService) ListForUser(ctx context.Context, userID int64, unr
 			ReadAt:       ptr,
 		})
 	}
-	if synthetic := s.firstRechargeAnnouncement(ctx, userID); synthetic != nil {
-		out = append(out, *synthetic)
-	}
-
 	// 未读优先、同状态按创建时间倒序
 	sort.Slice(out, func(i, j int) bool {
 		ai, aj := out[i], out[j]
@@ -337,51 +333,6 @@ func (s *AnnouncementService) MarkRead(ctx context.Context, userID, announcement
 		return fmt.Errorf("mark read: %w", err)
 	}
 	return nil
-}
-
-func (s *AnnouncementService) firstRechargeAnnouncement(ctx context.Context, userID int64) *UserAnnouncement {
-	if s.firstRechargeSvc == nil {
-		return nil
-	}
-	status, err := s.firstRechargeSvc.GetStatus(ctx, userID)
-	if err != nil || status == nil {
-		return nil
-	}
-	if !status.Enabled || !status.Eligible || status.Completed || status.PopupDismissed {
-		return nil
-	}
-	if status.PurchaseMode == FirstRechargePurchaseModeInternalPayment && len(status.Offers) == 0 {
-		return nil
-	}
-	now := time.Now()
-	return &UserAnnouncement{
-		Announcement: Announcement{
-			ID:         FirstRechargeAnnouncementID,
-			Title:      "首充专属活动",
-			Content:    formatFirstRechargeAnnouncementContent(status),
-			Status:     AnnouncementStatusActive,
-			NotifyMode: AnnouncementNotifyModePopup,
-			CreatedAt:  now,
-			UpdatedAt:  now,
-		},
-		ReadAt: nil,
-	}
-}
-
-func formatFirstRechargeAnnouncementContent(status *FirstRechargeStatus) string {
-	if status != nil && status.PurchaseMode == FirstRechargePurchaseModeProductLink {
-		return "你有一次首充专属权益，请点击页面顶部的“去首充”按钮前往活动商品页购买。"
-	}
-	offers := []FirstRechargeOffer(nil)
-	if status != nil {
-		offers = status.Offers
-	}
-	lines := make([]string, 0, len(offers)+1)
-	lines = append(lines, "你有一次首充专属权益，可选择以下档位：")
-	for _, offer := range offers {
-		lines = append(lines, fmt.Sprintf("%s：支付 %.2f，到账 %.2f", offer.Name, offer.Price, offer.Amount))
-	}
-	return strings.Join(lines, "\n")
 }
 
 func (s *AnnouncementService) ListUserReadStatus(

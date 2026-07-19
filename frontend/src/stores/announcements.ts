@@ -20,6 +20,9 @@ export const useAnnouncementStore = defineStore('announcements', () => {
   const unreadCount = computed(() =>
     announcements.value.filter((a) => !a.read_at).length
   )
+  const hasPendingPopups = computed(() =>
+    !!currentPopup.value || popupQueue.value.length > 0
+  )
 
   // Actions
   async function fetchAnnouncements(force = false) {
@@ -133,6 +136,7 @@ export const useAnnouncementStore = defineStore('announcements', () => {
     currentPopup,
     // Getters
     unreadCount,
+    hasPendingPopups,
     // Actions
     fetchAnnouncements,
     dismissPopup,
