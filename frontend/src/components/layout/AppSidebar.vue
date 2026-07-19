@@ -818,7 +818,6 @@ const adminNavItems = computed((): NavItem[] => {
       icon: GiftIcon,
       hideInSimpleMode: true,
       expandOnly: true,
-      featureFlag: flagAdminPayment,
       children: [
         { path: '/admin/activities/first-recharge', label: t('nav.firstRechargeManagement'), icon: GiftIcon },
       ],

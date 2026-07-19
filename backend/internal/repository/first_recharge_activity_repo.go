@@ -33,9 +33,11 @@ func (r *firstRechargeRepository) GetConfig(ctx context.Context) (*service.First
 INSERT INTO first_recharge_activity_config (id, enabled, eligibility_scope, eligible_since)
 VALUES (1, FALSE, 'new_users_after_enabled', NULL)
 ON CONFLICT (id) DO UPDATE SET id = EXCLUDED.id
-RETURNING enabled, eligibility_scope, eligible_since, created_at, updated_at`, nil,
+RETURNING enabled, eligibility_scope, purchase_mode, product_url, eligible_since, created_at, updated_at`, nil,
 		&cfg.Enabled,
 		&cfg.EligibilityScope,
+		&cfg.PurchaseMode,
+		&cfg.ProductURL,
 		&cfg.EligibleSince,
 		&cfg.CreatedAt,
 		&cfg.UpdatedAt,
@@ -60,15 +62,19 @@ func (r *firstRechargeRepository) SaveConfig(ctx context.Context, config service
 	}
 
 	if _, err := exec.ExecContext(txCtx, `
-INSERT INTO first_recharge_activity_config (id, enabled, eligibility_scope, eligible_since, updated_at)
-VALUES (1, $1, $2, $3, NOW())
+INSERT INTO first_recharge_activity_config (id, enabled, eligibility_scope, purchase_mode, product_url, eligible_since, updated_at)
+VALUES (1, $1, $2, $3, $4, $5, NOW())
 ON CONFLICT (id) DO UPDATE SET
 	enabled = EXCLUDED.enabled,
 	eligibility_scope = EXCLUDED.eligibility_scope,
+	purchase_mode = EXCLUDED.purchase_mode,
+	product_url = EXCLUDED.product_url,
 	eligible_since = EXCLUDED.eligible_since,
 	updated_at = NOW()`,
 		config.Enabled,
 		config.EligibilityScope,
+		config.PurchaseMode,
+		config.ProductURL,
 		config.EligibleSince,
 	); err != nil {
 		return nil, fmt.Errorf("save first recharge config: %w", err)

@@ -347,7 +347,10 @@ func (s *AnnouncementService) firstRechargeAnnouncement(ctx context.Context, use
 	if err != nil || status == nil {
 		return nil
 	}
-	if !status.Enabled || !status.Eligible || status.Completed || status.PopupDismissed || len(status.Offers) == 0 {
+	if !status.Enabled || !status.Eligible || status.Completed || status.PopupDismissed {
+		return nil
+	}
+	if status.PurchaseMode == FirstRechargePurchaseModeInternalPayment && len(status.Offers) == 0 {
 		return nil
 	}
 	now := time.Now()
@@ -355,7 +358,7 @@ func (s *AnnouncementService) firstRechargeAnnouncement(ctx context.Context, use
 		Announcement: Announcement{
 			ID:         FirstRechargeAnnouncementID,
 			Title:      "首充专属活动",
-			Content:    formatFirstRechargeAnnouncementContent(status.Offers),
+			Content:    formatFirstRechargeAnnouncementContent(status),
 			Status:     AnnouncementStatusActive,
 			NotifyMode: AnnouncementNotifyModePopup,
 			CreatedAt:  now,
@@ -365,7 +368,14 @@ func (s *AnnouncementService) firstRechargeAnnouncement(ctx context.Context, use
 	}
 }
 
-func formatFirstRechargeAnnouncementContent(offers []FirstRechargeOffer) string {
+func formatFirstRechargeAnnouncementContent(status *FirstRechargeStatus) string {
+	if status != nil && status.PurchaseMode == FirstRechargePurchaseModeProductLink {
+		return "你有一次首充专属权益，请点击页面顶部的“去首充”按钮前往活动商品页购买。"
+	}
+	offers := []FirstRechargeOffer(nil)
+	if status != nil {
+		offers = status.Offers
+	}
 	lines := make([]string, 0, len(offers)+1)
 	lines = append(lines, "你有一次首充专属权益，可选择以下档位：")
 	for _, offer := range offers {

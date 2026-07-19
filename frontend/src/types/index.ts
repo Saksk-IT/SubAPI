@@ -2195,6 +2195,7 @@ export type {
   FirstRechargeEligibilityScope,
   FirstRechargeOffer,
   FirstRechargeOfferInput,
+  FirstRechargePurchaseMode,
   FirstRechargeSpecifiedUser,
   FirstRechargeStatus,
 } from './payment'

@@ -81,6 +81,12 @@ describe('AppSidebar v0.1.149 merge', () => {
     expect(componentSource).toContain("{ path: '/admin/channels/status', label: t('nav.channelStatus')")
     expect(componentSource).toContain("path: '/admin/activities'")
     expect(componentSource).toContain("{ path: '/admin/activities/first-recharge', label: t('nav.firstRechargeManagement')")
+
+    const activityStart = componentSource.indexOf("path: '/admin/activities'")
+    const nextAdminItem = componentSource.indexOf("{ path: '/admin/proxies'", activityStart)
+    expect(activityStart).toBeGreaterThan(-1)
+    expect(nextAdminItem).toBeGreaterThan(activityStart)
+    expect(componentSource.slice(activityStart, nextAdminItem)).not.toContain('featureFlag:')
   })
 })
 

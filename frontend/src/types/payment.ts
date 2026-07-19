@@ -23,6 +23,7 @@ export type PaymentType = 'alipay' | 'wxpay' | 'alipay_direct' | 'wxpay_direct' 
 
 export type OrderType = 'balance' | 'subscription'
 export type FirstRechargeEligibilityScope = 'new_users_after_enabled' | 'all_users' | 'specified_users'
+export type FirstRechargePurchaseMode = 'internal_payment' | 'product_link'
 
 // ==================== Configuration ====================
 
@@ -127,6 +128,8 @@ export interface FirstRechargeStatus {
   completed: boolean
   popup_dismissed: boolean
   eligibility_scope: FirstRechargeEligibilityScope
+  purchase_mode: FirstRechargePurchaseMode
+  product_url?: string
   eligible_since?: string
   completed_at?: string
   offers: FirstRechargeOffer[]
@@ -135,6 +138,8 @@ export interface FirstRechargeStatus {
 export interface FirstRechargeConfig {
   enabled: boolean
   eligibility_scope: FirstRechargeEligibilityScope
+  purchase_mode: FirstRechargePurchaseMode
+  product_url: string
   eligible_since?: string
   created_at: string
   updated_at: string
@@ -143,6 +148,7 @@ export interface FirstRechargeConfig {
 export interface FirstRechargeAdminConfig {
   config: FirstRechargeConfig
   offers: FirstRechargeOffer[]
+  internal_payment_enabled: boolean
 }
 
 export interface FirstRechargeOfferInput {

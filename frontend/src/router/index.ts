@@ -663,8 +663,7 @@ const routes: RouteRecordRaw[] = [
       requiresAdmin: true,
       title: 'First Recharge Management',
       titleKey: 'admin.firstRecharge.title',
-      descriptionKey: 'admin.firstRecharge.description',
-      requiresPayment: true
+      descriptionKey: 'admin.firstRecharge.description'
     }
   },
   {

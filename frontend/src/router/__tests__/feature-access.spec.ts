@@ -1,3 +1,7 @@
+import { readFileSync } from 'node:fs'
+import { dirname, resolve } from 'node:path'
+import { fileURLToPath } from 'node:url'
+
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 type NavigationGuard = (
@@ -30,6 +34,11 @@ const appStore = vi.hoisted(() => ({
   },
   fetchPublicSettings: vi.fn(),
 }))
+
+const routerSource = readFileSync(
+  resolve(dirname(fileURLToPath(import.meta.url)), '../index.ts'),
+  'utf8',
+)
 
 vi.mock('vue-router', () => ({
   createWebHistory: vi.fn(() => ({})),
@@ -197,5 +206,16 @@ describe('feature route guard', () => {
     expect(appStore.fetchPublicSettings).not.toHaveBeenCalled()
     expect(next).toHaveBeenCalledOnce()
     expect(next).toHaveBeenCalledWith(target)
+  })
+})
+
+describe('activity route access', () => {
+  it('keeps first recharge management independent from the payment feature gate', () => {
+    const routeStart = routerSource.indexOf("name: 'AdminFirstRecharge'")
+    const nextRoute = routerSource.indexOf("name: 'AdminProxies'", routeStart)
+
+    expect(routeStart).toBeGreaterThan(-1)
+    expect(nextRoute).toBeGreaterThan(routeStart)
+    expect(routerSource.slice(routeStart, nextRoute)).not.toContain('requiresPayment')
   })
 })

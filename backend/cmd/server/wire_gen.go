@@ -164,7 +164,12 @@ func initializeApplication(buildInfo handler.BuildInfo) (*Application, error) {
 	announcementRepository := repository.NewAnnouncementRepository(client)
 	announcementReadRepository := repository.NewAnnouncementReadRepository(client)
 	firstRechargeRepository := repository.NewFirstRechargeRepository(client, db)
-	firstRechargeActivityService := service.NewFirstRechargeActivityService(firstRechargeRepository, userRepository)
+	encryptionKey, err := payment.ProvideEncryptionKey(configConfig)
+	if err != nil {
+		return nil, err
+	}
+	paymentConfigService := service.ProvidePaymentConfigService(client, settingRepository, encryptionKey)
+	firstRechargeActivityService := service.NewFirstRechargeActivityService(firstRechargeRepository, userRepository, paymentConfigService)
 	announcementService := service.ProvideAnnouncementService(announcementRepository, announcementReadRepository, userRepository, userSubscriptionRepository, firstRechargeActivityService)
 	announcementHandler := handler.NewAnnouncementHandler(announcementService)
 	channelMonitorRepository := repository.NewChannelMonitorRepository(client, db)
@@ -211,11 +216,6 @@ func initializeApplication(buildInfo handler.BuildInfo) (*Application, error) {
 	proxyHandler := admin.NewProxyHandler(adminService)
 	adminRedeemHandler := admin.NewRedeemHandler(adminService, redeemService)
 	promoHandler := admin.NewPromoHandler(promoService)
-	encryptionKey, err := payment.ProvideEncryptionKey(configConfig)
-	if err != nil {
-		return nil, err
-	}
-	paymentConfigService := service.ProvidePaymentConfigService(client, settingRepository, encryptionKey)
 	registry := payment.ProvideRegistry()
 	defaultLoadBalancer := payment.ProvideDefaultLoadBalancer(client, encryptionKey)
 	paymentService := service.ProvidePaymentService(client, registry, defaultLoadBalancer, redeemService, subscriptionService, paymentConfigService, userRepository, groupRepository, affiliateService, firstRechargeActivityService, notificationEmailService)

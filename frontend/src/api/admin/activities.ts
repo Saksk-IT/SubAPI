@@ -3,6 +3,7 @@ import type {
   FirstRechargeAdminConfig,
   FirstRechargeEligibilityScope,
   FirstRechargeOfferInput,
+  FirstRechargePurchaseMode,
   FirstRechargeSpecifiedUser,
 } from '@/types/payment'
 import type { BasePaginationResponse } from '@/types'
@@ -10,6 +11,8 @@ import type { BasePaginationResponse } from '@/types'
 export interface UpdateFirstRechargeConfigRequest {
   enabled: boolean
   eligibility_scope: FirstRechargeEligibilityScope
+  purchase_mode: FirstRechargePurchaseMode
+  product_url: string
   offers: FirstRechargeOfferInput[]
 }
 

@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"fmt"
 	"sort"
 	"strings"
 	"testing"
@@ -80,7 +81,7 @@ func TestFirstRechargeActivityServiceStatusScopes(t *testing.T) {
 			repo.specified = tt.specified
 			svc := NewFirstRechargeActivityService(repo, &firstRechargeUserRepoFake{
 				users: map[int64]*User{oldUser.ID: oldUser, newUser.ID: newUser},
-			})
+			}, newFirstRechargePaymentConfig(true))
 
 			status, err := svc.GetStatus(context.Background(), tt.userID)
 			require.NoError(t, err)
@@ -100,7 +101,7 @@ func TestFirstRechargeActivityServiceDismissPopupAndCompletion(t *testing.T) {
 			3: {ID: 3, Email: "user@example.test", Username: "user", CreatedAt: time.Now().Add(-time.Hour)},
 		},
 	}
-	svc := NewFirstRechargeActivityService(repo, userRepo)
+	svc := NewFirstRechargeActivityService(repo, userRepo, newFirstRechargePaymentConfig(true))
 
 	require.NoError(t, svc.DismissPopup(context.Background(), 3))
 	status, err := svc.GetStatus(context.Background(), 3)
@@ -122,7 +123,7 @@ func TestFirstRechargeActivityServiceDismissPopupAndCompletion(t *testing.T) {
 
 func TestFirstRechargeActivityServiceUpdateAdminConfig(t *testing.T) {
 	repo := newFirstRechargeMemoryRepo()
-	svc := NewFirstRechargeActivityService(repo, &firstRechargeUserRepoFake{})
+	svc := NewFirstRechargeActivityService(repo, &firstRechargeUserRepoFake{}, newFirstRechargePaymentConfig(true))
 
 	config, err := svc.UpdateAdminConfig(context.Background(), UpdateFirstRechargeConfigInput{
 		Enabled:          true,
@@ -151,6 +152,100 @@ func TestFirstRechargeActivityServiceUpdateAdminConfig(t *testing.T) {
 	require.Equal(t, "FIRST_RECHARGE_OFFER_INVALID", infraerrors.Reason(err))
 }
 
+func TestFirstRechargeActivityServiceProductLinkDoesNotDependOnInternalPayment(t *testing.T) {
+	repo := newFirstRechargeMemoryRepo()
+	repo.config.Enabled = true
+	repo.config.EligibilityScope = FirstRechargeEligibilityAllUsers
+	repo.config.PurchaseMode = FirstRechargePurchaseModeProductLink
+	repo.config.ProductURL = "https://shop.example.test/products/first-recharge"
+	userRepo := &firstRechargeUserRepoFake{
+		users: map[int64]*User{
+			5: {ID: 5, Email: "buyer@example.test", Username: "buyer", CreatedAt: time.Now()},
+		},
+	}
+	svc := NewFirstRechargeActivityService(repo, userRepo, newFirstRechargePaymentConfig(false))
+
+	status, err := svc.GetStatus(context.Background(), 5)
+	require.NoError(t, err)
+	require.True(t, status.Eligible)
+	require.Equal(t, FirstRechargePurchaseModeProductLink, status.PurchaseMode)
+	require.Equal(t, "https://shop.example.test/products/first-recharge", status.ProductURL)
+	require.Empty(t, status.Offers)
+
+	_, err = svc.PrepareOrder(context.Background(), 5, 1)
+	require.Equal(t, "FIRST_RECHARGE_UNAVAILABLE", infraerrors.Reason(err))
+}
+
+func TestFirstRechargeActivityServiceInternalPaymentBecomesUnavailableWhenPaymentIsDisabled(t *testing.T) {
+	repo := newFirstRechargeMemoryRepo()
+	repo.config.Enabled = true
+	repo.config.EligibilityScope = FirstRechargeEligibilityAllUsers
+	repo.offers = []FirstRechargeOffer{{ID: 1, Name: "pack", Price: 10, Amount: 20, Enabled: true}}
+	userRepo := &firstRechargeUserRepoFake{
+		users: map[int64]*User{
+			6: {ID: 6, Email: "buyer@example.test", Username: "buyer", CreatedAt: time.Now()},
+		},
+	}
+	svc := NewFirstRechargeActivityService(repo, userRepo, newFirstRechargePaymentConfig(false))
+
+	status, err := svc.GetStatus(context.Background(), 6)
+	require.NoError(t, err)
+	require.True(t, status.Enabled)
+	require.False(t, status.Eligible)
+	require.Empty(t, status.Offers)
+}
+
+func TestFirstRechargeActivityServiceValidatesPurchaseModeRequirements(t *testing.T) {
+	repo := newFirstRechargeMemoryRepo()
+	disabledPaymentService := NewFirstRechargeActivityService(
+		repo,
+		&firstRechargeUserRepoFake{},
+		newFirstRechargePaymentConfig(false),
+	)
+
+	_, err := disabledPaymentService.UpdateAdminConfig(context.Background(), UpdateFirstRechargeConfigInput{
+		Enabled:          true,
+		EligibilityScope: FirstRechargeEligibilityAllUsers,
+		PurchaseMode:     FirstRechargePurchaseModeInternalPayment,
+		Offers: []FirstRechargeOfferInput{{
+			Name: "pack", Price: 10, Amount: 20, Enabled: true,
+		}},
+	})
+	require.Equal(t, "FIRST_RECHARGE_INTERNAL_PAYMENT_DISABLED", infraerrors.Reason(err))
+
+	config, err := disabledPaymentService.UpdateAdminConfig(context.Background(), UpdateFirstRechargeConfigInput{
+		Enabled:          true,
+		EligibilityScope: FirstRechargeEligibilityAllUsers,
+		PurchaseMode:     FirstRechargePurchaseModeProductLink,
+		ProductURL:       " https://shop.example.test/first-recharge?source=activity ",
+	})
+	require.NoError(t, err)
+	require.Equal(t, FirstRechargePurchaseModeProductLink, config.Config.PurchaseMode)
+	require.Equal(t, "https://shop.example.test/first-recharge?source=activity", config.Config.ProductURL)
+	require.False(t, config.InternalPaymentEnabled)
+
+	for _, invalidURL := range []string{
+		"javascript:alert(1)",
+		"/products/first-recharge",
+		"https:///missing-host",
+		"https://admin:secret@shop.example.test/product",
+	} {
+		_, err = disabledPaymentService.UpdateAdminConfig(context.Background(), UpdateFirstRechargeConfigInput{
+			Enabled:          true,
+			EligibilityScope: FirstRechargeEligibilityAllUsers,
+			PurchaseMode:     FirstRechargePurchaseModeProductLink,
+			ProductURL:       invalidURL,
+		})
+		require.Equal(t, "FIRST_RECHARGE_PRODUCT_URL_INVALID", infraerrors.Reason(err), invalidURL)
+	}
+}
+
+func newFirstRechargePaymentConfig(enabled bool) *PaymentConfigService {
+	return &PaymentConfigService{settingRepo: &paymentConfigSettingRepoStub{
+		values: map[string]string{SettingPaymentEnabled: fmt.Sprintf("%t", enabled)},
+	}}
+}
+
 type firstRechargeMemoryRepo struct {
 	config    FirstRechargeConfig
 	offers    []FirstRechargeOffer
@@ -165,6 +260,7 @@ func newFirstRechargeMemoryRepo() *firstRechargeMemoryRepo {
 		config: FirstRechargeConfig{
 			Enabled:          false,
 			EligibilityScope: FirstRechargeEligibilityNewUsersAfterEnabled,
+			PurchaseMode:     FirstRechargePurchaseModeInternalPayment,
 			CreatedAt:        now,
 			UpdatedAt:        now,
 		},
@@ -184,6 +280,8 @@ func (r *firstRechargeMemoryRepo) SaveConfig(_ context.Context, config FirstRech
 	r.config = FirstRechargeConfig{
 		Enabled:          config.Enabled,
 		EligibilityScope: config.EligibilityScope,
+		PurchaseMode:     config.PurchaseMode,
+		ProductURL:       config.ProductURL,
 		EligibleSince:    config.EligibleSince,
 		CreatedAt:        r.config.CreatedAt,
 		UpdatedAt:        now,

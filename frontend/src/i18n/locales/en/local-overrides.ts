@@ -43,6 +43,8 @@ export default {
     },
     errors: {
       FIRST_RECHARGE_CONFIG_INVALID: 'Invalid first recharge activity config.',
+      FIRST_RECHARGE_PRODUCT_URL_INVALID: 'Invalid first recharge product URL.',
+      FIRST_RECHARGE_INTERNAL_PAYMENT_DISABLED: 'System payment must be enabled to use internal first recharge payment.',
       FIRST_RECHARGE_OFFER_INVALID: 'Invalid first recharge offer.',
       FIRST_RECHARGE_OFFER_NOT_FOUND: 'First recharge offer does not exist or is disabled.',
       FIRST_RECHARGE_UNAVAILABLE: 'This account is not eligible for first recharge.',
@@ -135,6 +137,7 @@ export default {
       subtitle: 'Complete your first recharge to receive activity credits.',
       cta: 'Recharge now',
       offerSummary: 'From {price}, receive {amount} credits',
+      productLinkSummary: 'Open the activity product page to complete your first purchase.',
     },
   },
 }

@@ -24,7 +24,7 @@ func TestPaymentDashboardStatsFiltersFirstRechargeAndBuildsOfferStats(t *testing
 		{ID: 102, Name: "pro", Price: 19.9, Amount: 49.9, Enabled: true, SortOrder: 20},
 	}
 	svc := &PaymentService{entClient: client}
-	svc.SetFirstRechargeActivityService(NewFirstRechargeActivityService(repo, &firstRechargeUserRepoFake{}))
+	svc.SetFirstRechargeActivityService(NewFirstRechargeActivityService(repo, &firstRechargeUserRepoFake{}, newFirstRechargePaymentConfig(true)))
 
 	createPaymentStatsOrder(t, ctx, client, paymentStatsOrderInput{
 		UserID: user.ID, Email: user.Email, Status: OrderStatusCompleted, PayAmount: 9.9,

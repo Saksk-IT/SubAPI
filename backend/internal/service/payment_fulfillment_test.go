@@ -661,7 +661,7 @@ func TestMarkCompletedPreservesFirstRechargeStateWithFulfillmentLease(t *testing
 	firstRechargeRepo := newFirstRechargeMemoryRepo()
 	svc := &PaymentService{
 		entClient:            client,
-		firstRechargeService: NewFirstRechargeActivityService(firstRechargeRepo, &firstRechargeUserRepoFake{}),
+		firstRechargeService: NewFirstRechargeActivityService(firstRechargeRepo, &firstRechargeUserRepoFake{}, newFirstRechargePaymentConfig(true)),
 	}
 	lease, err := svc.acquirePaymentFulfillmentLease(ctx, order)
 	require.NoError(t, err)
@@ -694,7 +694,7 @@ func TestMarkCompletedRollsBackFirstRechargeOrderAndAllowsRetry(t *testing.T) {
 		firstRechargeService: NewFirstRechargeActivityService(&firstRechargeMarkCompletedFailingRepo{
 			firstRechargeMemoryRepo: firstRechargeRepo,
 			err:                     errors.New("first recharge state unavailable"),
-		}, &firstRechargeUserRepoFake{}),
+		}, &firstRechargeUserRepoFake{}, newFirstRechargePaymentConfig(true)),
 	}
 	lease, err := svc.acquirePaymentFulfillmentLease(ctx, order)
 	require.NoError(t, err)
@@ -712,7 +712,7 @@ func TestMarkCompletedRollsBackFirstRechargeOrderAndAllowsRetry(t *testing.T) {
 	require.NoError(t, getErr)
 	require.Equal(t, OrderStatusFailed, reloaded.Status)
 
-	svc.firstRechargeService = NewFirstRechargeActivityService(firstRechargeRepo, &firstRechargeUserRepoFake{})
+	svc.firstRechargeService = NewFirstRechargeActivityService(firstRechargeRepo, &firstRechargeUserRepoFake{}, newFirstRechargePaymentConfig(true))
 	retryLease, err := svc.acquirePaymentFulfillmentLease(ctx, reloaded)
 	require.NoError(t, err)
 	require.NotNil(t, retryLease)

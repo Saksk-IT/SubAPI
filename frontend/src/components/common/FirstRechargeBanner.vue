@@ -65,6 +65,9 @@ const localeCode = computed(() => {
 })
 
 const offerSummary = computed(() => {
+  if (firstRechargeStore.status?.purchase_mode === 'product_link') {
+    return t('firstRecharge.banner.productLinkSummary')
+  }
   const offer = bestOffer.value
   if (!offer) return t('firstRecharge.banner.subtitle')
   return t('firstRecharge.banner.offerSummary', {
@@ -79,6 +82,11 @@ function fetchStatus(force = false) {
 }
 
 function goToFirstRecharge() {
+  const status = firstRechargeStore.status
+  if (status?.purchase_mode === 'product_link' && status.product_url) {
+    window.location.assign(status.product_url)
+    return
+  }
   router.push({
     path: '/purchase',
     query: { tab: 'recharge', first_recharge: '1' },

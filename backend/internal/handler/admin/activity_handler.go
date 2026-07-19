@@ -27,6 +27,8 @@ func NewActivityHandler(firstRechargeService *service.FirstRechargeActivityServi
 type UpdateFirstRechargeRequest struct {
 	Enabled          bool                              `json:"enabled"`
 	EligibilityScope string                            `json:"eligibility_scope"`
+	PurchaseMode     string                            `json:"purchase_mode"`
+	ProductURL       string                            `json:"product_url"`
 	Offers           []service.FirstRechargeOfferInput `json:"offers"`
 }
 
@@ -62,6 +64,8 @@ func (h *ActivityHandler) UpdateFirstRecharge(c *gin.Context) {
 	config, err := h.firstRechargeService.UpdateAdminConfig(c.Request.Context(), service.UpdateFirstRechargeConfigInput{
 		Enabled:          req.Enabled,
 		EligibilityScope: req.EligibilityScope,
+		PurchaseMode:     req.PurchaseMode,
+		ProductURL:       req.ProductURL,
 		Offers:           req.Offers,
 	})
 	if err != nil {

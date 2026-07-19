@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"math"
+	"net/url"
 	"sort"
 	"strings"
 	"time"
@@ -21,20 +22,28 @@ const (
 	FirstRechargeEligibilityAllUsers             = "all_users"
 	FirstRechargeEligibilitySpecifiedUsers       = "specified_users"
 
-	maxFirstRechargeOffers = 20
+	FirstRechargePurchaseModeInternalPayment = "internal_payment"
+	FirstRechargePurchaseModeProductLink     = "product_link"
+
+	maxFirstRechargeOffers           = 20
+	maxFirstRechargeProductURLLength = 2048
 )
 
 var (
-	ErrFirstRechargeConfigInvalid = infraerrors.BadRequest("FIRST_RECHARGE_CONFIG_INVALID", "first recharge config is invalid")
-	ErrFirstRechargeOfferInvalid  = infraerrors.BadRequest("FIRST_RECHARGE_OFFER_INVALID", "first recharge offer is invalid")
-	ErrFirstRechargeOfferNotFound = infraerrors.NotFound("FIRST_RECHARGE_OFFER_NOT_FOUND", "first recharge offer not found")
-	ErrFirstRechargeUnavailable   = infraerrors.Forbidden("FIRST_RECHARGE_UNAVAILABLE", "first recharge is unavailable")
-	ErrFirstRechargeCompleted     = infraerrors.Conflict("FIRST_RECHARGE_COMPLETED", "first recharge has already been completed")
+	ErrFirstRechargeConfigInvalid           = infraerrors.BadRequest("FIRST_RECHARGE_CONFIG_INVALID", "first recharge config is invalid")
+	ErrFirstRechargeProductURLInvalid       = infraerrors.BadRequest("FIRST_RECHARGE_PRODUCT_URL_INVALID", "first recharge product URL is invalid")
+	ErrFirstRechargeInternalPaymentDisabled = infraerrors.BadRequest("FIRST_RECHARGE_INTERNAL_PAYMENT_DISABLED", "internal payment must be enabled for first recharge")
+	ErrFirstRechargeOfferInvalid            = infraerrors.BadRequest("FIRST_RECHARGE_OFFER_INVALID", "first recharge offer is invalid")
+	ErrFirstRechargeOfferNotFound           = infraerrors.NotFound("FIRST_RECHARGE_OFFER_NOT_FOUND", "first recharge offer not found")
+	ErrFirstRechargeUnavailable             = infraerrors.Forbidden("FIRST_RECHARGE_UNAVAILABLE", "first recharge is unavailable")
+	ErrFirstRechargeCompleted               = infraerrors.Conflict("FIRST_RECHARGE_COMPLETED", "first recharge has already been completed")
 )
 
 type FirstRechargeConfig struct {
 	Enabled          bool       `json:"enabled"`
 	EligibilityScope string     `json:"eligibility_scope"`
+	PurchaseMode     string     `json:"purchase_mode"`
+	ProductURL       string     `json:"product_url"`
 	EligibleSince    *time.Time `json:"eligible_since,omitempty"`
 	CreatedAt        time.Time  `json:"created_at"`
 	UpdatedAt        time.Time  `json:"updated_at"`
@@ -67,14 +76,17 @@ type FirstRechargeStatus struct {
 	Completed        bool                 `json:"completed"`
 	PopupDismissed   bool                 `json:"popup_dismissed"`
 	EligibilityScope string               `json:"eligibility_scope"`
+	PurchaseMode     string               `json:"purchase_mode"`
+	ProductURL       string               `json:"product_url,omitempty"`
 	EligibleSince    *time.Time           `json:"eligible_since,omitempty"`
 	CompletedAt      *time.Time           `json:"completed_at,omitempty"`
 	Offers           []FirstRechargeOffer `json:"offers"`
 }
 
 type FirstRechargeAdminConfig struct {
-	Config FirstRechargeConfig  `json:"config"`
-	Offers []FirstRechargeOffer `json:"offers"`
+	Config                 FirstRechargeConfig  `json:"config"`
+	Offers                 []FirstRechargeOffer `json:"offers"`
+	InternalPaymentEnabled bool                 `json:"internal_payment_enabled"`
 }
 
 type FirstRechargeOfferInput struct {
@@ -90,6 +102,8 @@ type FirstRechargeOfferInput struct {
 type UpdateFirstRechargeConfigInput struct {
 	Enabled          bool
 	EligibilityScope string
+	PurchaseMode     string
+	ProductURL       string
 	Offers           []FirstRechargeOfferInput
 }
 
@@ -117,12 +131,17 @@ type FirstRechargeRepository interface {
 }
 
 type FirstRechargeActivityService struct {
-	repo     FirstRechargeRepository
-	userRepo UserRepository
+	repo                 FirstRechargeRepository
+	userRepo             UserRepository
+	paymentConfigService *PaymentConfigService
 }
 
-func NewFirstRechargeActivityService(repo FirstRechargeRepository, userRepo UserRepository) *FirstRechargeActivityService {
-	return &FirstRechargeActivityService{repo: repo, userRepo: userRepo}
+func NewFirstRechargeActivityService(repo FirstRechargeRepository, userRepo UserRepository, paymentConfigService *PaymentConfigService) *FirstRechargeActivityService {
+	return &FirstRechargeActivityService{
+		repo:                 repo,
+		userRepo:             userRepo,
+		paymentConfigService: paymentConfigService,
+	}
 }
 
 func (s *FirstRechargeActivityService) GetAdminConfig(ctx context.Context) (*FirstRechargeAdminConfig, error) {
@@ -134,13 +153,35 @@ func (s *FirstRechargeActivityService) GetAdminConfig(ctx context.Context) (*Fir
 	if err != nil {
 		return nil, err
 	}
-	return &FirstRechargeAdminConfig{Config: *config, Offers: offers}, nil
+	return &FirstRechargeAdminConfig{
+		Config:                 *config,
+		Offers:                 offers,
+		InternalPaymentEnabled: s.isInternalPaymentEnabled(ctx),
+	}, nil
 }
 
 func (s *FirstRechargeActivityService) UpdateAdminConfig(ctx context.Context, input UpdateFirstRechargeConfigInput) (*FirstRechargeAdminConfig, error) {
 	scope := normalizeFirstRechargeScope(input.EligibilityScope)
 	if !isValidFirstRechargeScope(scope) {
 		return nil, ErrFirstRechargeConfigInvalid
+	}
+	purchaseMode := normalizeFirstRechargePurchaseMode(input.PurchaseMode)
+	if !isValidFirstRechargePurchaseMode(purchaseMode) {
+		return nil, ErrFirstRechargeConfigInvalid
+	}
+	productURL := ""
+	if purchaseMode == FirstRechargePurchaseModeProductLink {
+		var err error
+		productURL, err = normalizeFirstRechargeProductURL(input.ProductURL)
+		if err != nil {
+			return nil, err
+		}
+	}
+	if input.Enabled && purchaseMode == FirstRechargePurchaseModeProductLink && productURL == "" {
+		return nil, ErrFirstRechargeProductURLInvalid
+	}
+	if input.Enabled && purchaseMode == FirstRechargePurchaseModeInternalPayment && !s.isInternalPaymentEnabled(ctx) {
+		return nil, ErrFirstRechargeInternalPaymentDisabled
 	}
 	if len(input.Offers) > maxFirstRechargeOffers {
 		return nil, ErrFirstRechargeOfferInvalid
@@ -173,7 +214,7 @@ func (s *FirstRechargeActivityService) UpdateAdminConfig(ctx context.Context, in
 		}
 		offers = append(offers, offer)
 	}
-	if input.Enabled && enabledOfferCount == 0 {
+	if input.Enabled && purchaseMode == FirstRechargePurchaseModeInternalPayment && enabledOfferCount == 0 {
 		return nil, ErrFirstRechargeOfferInvalid
 	}
 	sort.SliceStable(offers, func(i, j int) bool {
@@ -183,12 +224,19 @@ func (s *FirstRechargeActivityService) UpdateAdminConfig(ctx context.Context, in
 		return offers[i].SortOrder < offers[j].SortOrder
 	})
 
-	return s.repo.SaveConfig(ctx, FirstRechargeConfig{
+	saved, err := s.repo.SaveConfig(ctx, FirstRechargeConfig{
 		Enabled:          input.Enabled,
 		EligibilityScope: scope,
+		PurchaseMode:     purchaseMode,
+		ProductURL:       productURL,
 		EligibleSince:    eligibleSince,
 		UpdatedAt:        now,
 	}, offers)
+	if err != nil {
+		return nil, err
+	}
+	saved.InternalPaymentEnabled = s.isInternalPaymentEnabled(ctx)
+	return saved, nil
 }
 
 func (s *FirstRechargeActivityService) GetStatus(ctx context.Context, userID int64) (*FirstRechargeStatus, error) {
@@ -201,12 +249,15 @@ func (s *FirstRechargeActivityService) GetStatus(ctx context.Context, userID int
 		return nil, err
 	}
 	completed := state != nil && state.CompletedAt != nil
+	productURL, _ := normalizeFirstRechargeProductURL(config.ProductURL)
 	status := &FirstRechargeStatus{
 		Enabled:          config.Enabled,
 		Eligible:         false,
 		Completed:        completed,
 		PopupDismissed:   state != nil && state.PopupDismissedAt != nil,
 		EligibilityScope: config.EligibilityScope,
+		PurchaseMode:     normalizeFirstRechargePurchaseMode(config.PurchaseMode),
+		ProductURL:       productURL,
 		EligibleSince:    config.EligibleSince,
 	}
 	if completed {
@@ -221,6 +272,16 @@ func (s *FirstRechargeActivityService) GetStatus(ctx context.Context, userID int
 	}
 	status.Eligible = eligible
 	if !eligible {
+		return status, nil
+	}
+	if status.PurchaseMode == FirstRechargePurchaseModeProductLink {
+		if status.ProductURL == "" {
+			status.Eligible = false
+		}
+		return status, nil
+	}
+	if !s.isInternalPaymentEnabled(ctx) {
+		status.Eligible = false
 		return status, nil
 	}
 	offers, err := s.repo.ListEnabledOffers(ctx)
@@ -257,6 +318,9 @@ func (s *FirstRechargeActivityService) PrepareOrder(ctx context.Context, userID,
 		return nil, ErrFirstRechargeCompleted
 	}
 	if !status.Enabled || !status.Eligible {
+		return nil, ErrFirstRechargeUnavailable
+	}
+	if status.PurchaseMode != FirstRechargePurchaseModeInternalPayment {
 		return nil, ErrFirstRechargeUnavailable
 	}
 	offer, err := s.repo.GetEnabledOfferByID(ctx, offerID)
@@ -335,6 +399,46 @@ func isValidFirstRechargeScope(scope string) bool {
 	default:
 		return false
 	}
+}
+
+func normalizeFirstRechargePurchaseMode(mode string) string {
+	mode = strings.TrimSpace(mode)
+	if mode == "" {
+		return FirstRechargePurchaseModeInternalPayment
+	}
+	return mode
+}
+
+func isValidFirstRechargePurchaseMode(mode string) bool {
+	switch mode {
+	case FirstRechargePurchaseModeInternalPayment, FirstRechargePurchaseModeProductLink:
+		return true
+	default:
+		return false
+	}
+}
+
+func normalizeFirstRechargeProductURL(raw string) (string, error) {
+	value := strings.TrimSpace(raw)
+	if value == "" {
+		return "", nil
+	}
+	if len(value) > maxFirstRechargeProductURLLength {
+		return "", ErrFirstRechargeProductURLInvalid
+	}
+	parsed, err := url.Parse(value)
+	if err != nil || parsed.Opaque != "" || parsed.User != nil || parsed.Hostname() == "" {
+		return "", ErrFirstRechargeProductURLInvalid
+	}
+	parsed.Scheme = strings.ToLower(parsed.Scheme)
+	if parsed.Scheme != "http" && parsed.Scheme != "https" {
+		return "", ErrFirstRechargeProductURLInvalid
+	}
+	return parsed.String(), nil
+}
+
+func (s *FirstRechargeActivityService) isInternalPaymentEnabled(ctx context.Context) bool {
+	return s.paymentConfigService != nil && s.paymentConfigService.IsPaymentEnabled(ctx)
 }
 
 func normalizeFirstRechargeOfferInput(input FirstRechargeOfferInput) (FirstRechargeOfferInput, error) {

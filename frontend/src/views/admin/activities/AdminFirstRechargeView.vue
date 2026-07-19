@@ -80,9 +80,46 @@
                   </p>
                 </div>
               </div>
+
+              <div class="mt-5 border-t border-gray-200 pt-5 dark:border-dark-700">
+                <div class="grid gap-5 lg:grid-cols-2">
+                  <div>
+                    <label class="input-label">{{ t('admin.firstRecharge.purchaseMode') }}</label>
+                    <Select
+                      v-model="form.purchase_mode"
+                      :options="purchaseModeOptions"
+                      class="mt-2"
+                    />
+                    <p class="mt-3 text-sm leading-6 text-gray-500 dark:text-gray-400">
+                      {{ purchaseModeHint }}
+                    </p>
+                  </div>
+
+                  <div v-if="form.purchase_mode === 'product_link'">
+                    <label class="input-label">{{ t('admin.firstRecharge.productUrl') }}</label>
+                    <input
+                      v-model="form.product_url"
+                      type="url"
+                      class="input mt-2"
+                      maxlength="2048"
+                      :placeholder="t('admin.firstRecharge.productUrlPlaceholder')"
+                    />
+                    <p class="mt-3 text-sm leading-6 text-gray-500 dark:text-gray-400">
+                      {{ t('admin.firstRecharge.productUrlHint') }}
+                    </p>
+                  </div>
+
+                  <div
+                    v-else-if="!internalPaymentEnabled"
+                    class="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm leading-6 text-amber-800 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-200"
+                  >
+                    {{ t('admin.firstRecharge.internalPaymentDisabledHint') }}
+                  </div>
+                </div>
+              </div>
             </section>
 
-            <section class="card p-5 sm:p-6">
+            <section v-if="form.purchase_mode === 'internal_payment'" class="card p-5 sm:p-6">
               <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <div>
                   <h2 class="text-lg font-black text-gray-950 dark:text-white">
@@ -328,6 +365,7 @@ import type {
   FirstRechargeEligibilityScope,
   FirstRechargeOffer,
   FirstRechargeOfferInput,
+  FirstRechargePurchaseMode,
   FirstRechargeSpecifiedUser,
   PaymentOrder,
 } from '@/types/payment'
@@ -349,6 +387,7 @@ const { t } = useI18n()
 const appStore = useAppStore()
 
 const maxOffers = 20
+const internalPaymentEnabled = ref(false)
 const loading = ref(true)
 const saving = ref(false)
 const lookupLoading = ref(false)
@@ -373,11 +412,15 @@ let orderSearchTimer: ReturnType<typeof setTimeout> | null = null
 const form = reactive<{
   enabled: boolean
   eligibility_scope: FirstRechargeEligibilityScope
+  purchase_mode: FirstRechargePurchaseMode
+  product_url: string
   eligible_since: string
   offers: OfferForm[]
 }>({
   enabled: false,
   eligibility_scope: 'new_users_after_enabled',
+  purchase_mode: 'internal_payment',
+  product_url: '',
   eligible_since: '',
   offers: [],
 })
@@ -393,6 +436,22 @@ const scopeHint = computed(() => {
   if (form.eligibility_scope === 'specified_users') return t('admin.firstRecharge.scopeSpecifiedUsersHint')
   return t('admin.firstRecharge.scopeNewUsersHint')
 })
+
+const purchaseModeOptions = computed(() => [
+  {
+    value: 'product_link',
+    label: t('admin.firstRecharge.purchaseModeProductLink'),
+  },
+  {
+    value: 'internal_payment',
+    label: t('admin.firstRecharge.purchaseModeInternalPayment'),
+    disabled: !internalPaymentEnabled.value,
+  },
+])
+
+const purchaseModeHint = computed(() => form.purchase_mode === 'product_link'
+  ? t('admin.firstRecharge.purchaseModeProductLinkHint')
+  : t('admin.firstRecharge.purchaseModeInternalPaymentHint'))
 
 function toOfferForm(offer: FirstRechargeOffer): OfferForm {
   return {
@@ -434,7 +493,10 @@ async function loadConfig(force = false) {
     const payload = configResponse.data
     form.enabled = payload.config.enabled
     form.eligibility_scope = payload.config.eligibility_scope
+    form.purchase_mode = payload.config.purchase_mode || 'internal_payment'
+    form.product_url = payload.config.product_url || ''
     form.eligible_since = payload.config.eligible_since || ''
+    internalPaymentEnabled.value = payload.internal_payment_enabled
     form.offers = [...payload.offers]
       .sort((a, b) => {
         if (a.sort_order === b.sort_order) return a.id - b.id
@@ -538,12 +600,24 @@ function buildOfferPayload(): FirstRechargeOfferInput[] {
 }
 
 function validateForm(): boolean {
+  if (
+    form.purchase_mode === 'product_link'
+    && (form.enabled || !!form.product_url.trim())
+    && !isValidProductURL(form.product_url)
+  ) {
+    appStore.showError(t('admin.firstRecharge.productUrlInvalid'))
+    return false
+  }
+  if (form.enabled && form.purchase_mode === 'internal_payment' && !internalPaymentEnabled.value) {
+    appStore.showError(t('admin.firstRecharge.internalPaymentDisabled'))
+    return false
+  }
   if (form.offers.length > maxOffers) {
     appStore.showError(t('admin.firstRecharge.maxOffersError', { count: maxOffers }))
     return false
   }
   const offers = buildOfferPayload()
-  if (form.enabled && !offers.some((offer) => offer.enabled)) {
+  if (form.enabled && form.purchase_mode === 'internal_payment' && !offers.some((offer) => offer.enabled)) {
     appStore.showError(t('admin.firstRecharge.enabledOfferRequired'))
     return false
   }
@@ -555,6 +629,20 @@ function validateForm(): boolean {
   return true
 }
 
+function isValidProductURL(value: string): boolean {
+  const normalized = value.trim()
+  if (!normalized || normalized.length > 2048) return false
+  try {
+    const parsed = new URL(normalized)
+    return (parsed.protocol === 'http:' || parsed.protocol === 'https:')
+      && !!parsed.hostname
+      && !parsed.username
+      && !parsed.password
+  } catch {
+    return false
+  }
+}
+
 async function saveConfig() {
   if (saving.value || !validateForm()) return
   saving.value = true
@@ -562,8 +650,13 @@ async function saveConfig() {
     const response = await adminActivitiesAPI.updateFirstRecharge({
       enabled: form.enabled,
       eligibility_scope: form.eligibility_scope,
+      purchase_mode: form.purchase_mode,
+      product_url: form.purchase_mode === 'product_link' ? form.product_url.trim() : '',
       offers: buildOfferPayload(),
     })
+    internalPaymentEnabled.value = response.data.internal_payment_enabled
+    form.purchase_mode = response.data.config.purchase_mode
+    form.product_url = response.data.config.product_url || ''
     form.eligible_since = response.data.config.eligible_since || ''
     form.offers = response.data.offers.map(toOfferForm)
     appStore.showSuccess(t('admin.firstRecharge.saveSuccess'))

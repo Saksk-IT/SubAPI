@@ -43,6 +43,8 @@ export default {
     },
     errors: {
       FIRST_RECHARGE_CONFIG_INVALID: '首充活动配置无效',
+      FIRST_RECHARGE_PRODUCT_URL_INVALID: '首充商品链接无效',
+      FIRST_RECHARGE_INTERNAL_PAYMENT_DISABLED: '系统支付未开启，无法启用站内首充支付',
       FIRST_RECHARGE_OFFER_INVALID: '首充档位配置无效',
       FIRST_RECHARGE_OFFER_NOT_FOUND: '首充档位不存在或已停用',
       FIRST_RECHARGE_UNAVAILABLE: '当前账号暂无首充权益',
@@ -135,6 +137,7 @@ export default {
       subtitle: '完成首充即可获得活动额度。',
       cta: '去首充',
       offerSummary: '低至 {price}，可获得 {amount} 额度',
+      productLinkSummary: '前往活动商品页完成首充购买。',
     },
   },
 }
