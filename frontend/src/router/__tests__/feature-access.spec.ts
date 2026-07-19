@@ -218,4 +218,15 @@ describe('activity route access', () => {
     expect(nextRoute).toBeGreaterThan(routeStart)
     expect(routerSource.slice(routeStart, nextRoute)).not.toContain('requiresPayment')
   })
+
+  it('keeps daily check-in management behind admin auth without a payment gate', () => {
+    const routeStart = routerSource.indexOf("name: 'AdminDailyCheckIn'")
+    const nextRoute = routerSource.indexOf("name: 'AdminProxies'", routeStart)
+
+    expect(routeStart).toBeGreaterThan(-1)
+    expect(nextRoute).toBeGreaterThan(routeStart)
+    const routeBlock = routerSource.slice(routeStart, nextRoute)
+    expect(routeBlock).toContain('requiresAdmin: true')
+    expect(routeBlock).not.toContain('requiresPayment')
+  })
 })

@@ -5,6 +5,7 @@ import type {
   FirstRechargeOfferInput,
   FirstRechargePurchaseMode,
   FirstRechargeSpecifiedUser,
+  DailyCheckInConfig,
 } from '@/types/payment'
 import type { BasePaginationResponse } from '@/types'
 
@@ -20,6 +21,11 @@ export interface FirstRechargeUserLookupItem {
   id: number
   email: string
   username: string
+}
+
+export interface UpdateDailyCheckInConfigRequest {
+  enabled: boolean
+  reward_amount: number
 }
 
 export const adminActivitiesAPI = {
@@ -53,6 +59,14 @@ export const adminActivitiesAPI = {
 
   removeFirstRechargeUser(userId: number) {
     return apiClient.delete<{ user_id: number }>(`/admin/activities/first-recharge/users/${userId}`)
+  },
+
+  getDailyCheckIn() {
+    return apiClient.get<DailyCheckInConfig>('/admin/activities/daily-check-in')
+  },
+
+  updateDailyCheckIn(data: UpdateDailyCheckInConfigRequest) {
+    return apiClient.put<DailyCheckInConfig>('/admin/activities/daily-check-in', data)
   },
 }
 

@@ -104,6 +104,7 @@ const showPopup = computed(() =>
 
 function activityTitle(activity: UserActivity): string {
   if (activity.type === 'first_recharge') return t('activities.firstRecharge.title')
+  if (activity.type === 'daily_check_in') return t('activities.dailyCheckIn.title')
   return t('activities.unknownTitle')
 }
 
@@ -113,6 +114,7 @@ function activitySummary(activity: UserActivity): string {
       ? t('activities.firstRecharge.productLinkSummary')
       : t('activities.firstRecharge.internalPaymentSummary')
   }
+  if (activity.type === 'daily_check_in') return t('activities.dailyCheckIn.summary')
   return t('activities.unknownSummary')
 }
 

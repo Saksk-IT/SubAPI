@@ -14,12 +14,18 @@ import (
 // ActivityHandler handles admin activity management endpoints.
 type ActivityHandler struct {
 	firstRechargeService *service.FirstRechargeActivityService
+	dailyCheckInService  *service.DailyCheckInActivityService
 	adminService         service.AdminService
 }
 
-func NewActivityHandler(firstRechargeService *service.FirstRechargeActivityService, adminService service.AdminService) *ActivityHandler {
+func NewActivityHandler(
+	firstRechargeService *service.FirstRechargeActivityService,
+	dailyCheckInService *service.DailyCheckInActivityService,
+	adminService service.AdminService,
+) *ActivityHandler {
 	return &ActivityHandler{
 		firstRechargeService: firstRechargeService,
+		dailyCheckInService:  dailyCheckInService,
 		adminService:         adminService,
 	}
 }
@@ -34,6 +40,11 @@ type UpdateFirstRechargeRequest struct {
 
 type AddFirstRechargeUserRequest struct {
 	UserID int64 `json:"user_id"`
+}
+
+type UpdateDailyCheckInRequest struct {
+	Enabled      bool    `json:"enabled"`
+	RewardAmount float64 `json:"reward_amount"`
 }
 
 type FirstRechargeUserSummary struct {
@@ -124,6 +135,33 @@ func (h *ActivityHandler) RemoveFirstRechargeUser(c *gin.Context) {
 		return
 	}
 	response.Success(c, gin.H{"user_id": userID})
+}
+
+// GetDailyCheckIn returns the daily check-in activity config.
+// GET /api/v1/admin/activities/daily-check-in
+func (h *ActivityHandler) GetDailyCheckIn(c *gin.Context) {
+	config, err := h.dailyCheckInService.GetAdminConfig(c.Request.Context())
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	response.Success(c, config)
+}
+
+// UpdateDailyCheckIn updates the daily check-in activity switch and reward.
+// PUT /api/v1/admin/activities/daily-check-in
+func (h *ActivityHandler) UpdateDailyCheckIn(c *gin.Context) {
+	var req UpdateDailyCheckInRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "Invalid request: "+err.Error())
+		return
+	}
+	config, err := h.dailyCheckInService.UpdateAdminConfig(c.Request.Context(), req.Enabled, req.RewardAmount)
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	response.Success(c, config)
 }
 
 // LookupUsers searches users for the add specified-user selector.

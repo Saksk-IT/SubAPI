@@ -11,6 +11,7 @@ export default {
     activityManagement: '活动管理',
     activities: '活动',
     firstRechargeManagement: '首充管理',
+    dailyCheckInManagement: '每日签到',
   },
   activities: {
     title: '活动中心',
@@ -39,6 +40,23 @@ export default {
       pay: '支付',
       credit: '到账',
       productLinkHint: '该活动使用外部商品链接；离开本站前请确认商品信息和支付页面地址。',
+    },
+    dailyCheckIn: {
+      title: '每日签到送额度',
+      summary: '每天签到一次，即可领取管理员配置的活动额度。',
+      description: '每天完成一次签到，即可获得 {amount} 额度；奖励会立即发放到账号余额。',
+      checkIn: '立即签到',
+      checkedIn: '今日已签到',
+      todayReward: '今日签到奖励',
+      totalCheckIns: '累计签到',
+      totalCheckInsValue: '{count} 天',
+      success: '签到成功，已获得 {amount} 额度',
+      failed: '签到失败，请稍后重试',
+    },
+    errors: {
+      DAILY_CHECK_IN_CONFIG_INVALID: '每日签到活动配置无效',
+      DAILY_CHECK_IN_UNAVAILABLE: '每日签到活动当前未开启',
+      DAILY_CHECK_IN_ALREADY_DONE: '今日已经签到，请明天再来',
     },
   },
   payment: {

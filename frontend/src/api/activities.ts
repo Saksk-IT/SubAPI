@@ -1,5 +1,5 @@
 import { apiClient } from './client'
-import type { FirstRechargeStatus, UserActivity } from '@/types/payment'
+import type { DailyCheckInClaim, FirstRechargeStatus, UserActivity } from '@/types/payment'
 
 export const activitiesAPI = {
   list() {
@@ -8,6 +8,10 @@ export const activitiesAPI = {
 
   markViewed(activityId: string) {
     return apiClient.post<{ message: string }>(`/activities/${encodeURIComponent(activityId)}/view`)
+  },
+
+  checkIn() {
+    return apiClient.post<DailyCheckInClaim>('/activities/daily-check-in/check-in')
   },
 }
 

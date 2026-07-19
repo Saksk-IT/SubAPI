@@ -11,6 +11,7 @@ export default {
     activityManagement: 'Activities',
     activities: 'Activities',
     firstRechargeManagement: 'First Recharge',
+    dailyCheckInManagement: 'Daily Check-in',
   },
   activities: {
     title: 'Activity Center',
@@ -39,6 +40,23 @@ export default {
       pay: 'Pay',
       credit: 'Credit',
       productLinkHint: 'This activity uses an external product link. Confirm the product and payment URL before leaving this site.',
+    },
+    dailyCheckIn: {
+      title: 'Daily Check-in Credits',
+      summary: 'Check in once per day to receive the configured activity credits.',
+      description: 'Check in once today to receive {amount}. The reward is added to your account balance immediately.',
+      checkIn: 'Check In',
+      checkedIn: 'Checked In Today',
+      todayReward: 'Today’s reward',
+      totalCheckIns: 'Total check-ins',
+      totalCheckInsValue: '{count} days',
+      success: 'Check-in successful. {amount} has been credited.',
+      failed: 'Check-in failed. Please try again later.',
+    },
+    errors: {
+      DAILY_CHECK_IN_CONFIG_INVALID: 'Invalid daily check-in activity config.',
+      DAILY_CHECK_IN_UNAVAILABLE: 'The daily check-in activity is currently unavailable.',
+      DAILY_CHECK_IN_ALREADY_DONE: 'You have already checked in today. Please come back tomorrow.',
     },
   },
   payment: {

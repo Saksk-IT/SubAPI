@@ -24,7 +24,7 @@ func TestUserActivityServiceListsVisibleFirstRechargeAndTracksView(t *testing.T)
 		&firstRechargeUserRepoFake{users: map[int64]*User{}},
 		newFirstRechargePaymentConfig(false),
 	)
-	svc := NewUserActivityService(firstRechargeService)
+	svc := NewUserActivityService(firstRechargeService, nil)
 
 	activities, err := svc.ListForUser(context.Background(), 7)
 	require.NoError(t, err)
@@ -48,7 +48,7 @@ func TestUserActivityServiceHidesUnavailableActivities(t *testing.T) {
 		repo,
 		&firstRechargeUserRepoFake{users: map[int64]*User{}},
 		newFirstRechargePaymentConfig(true),
-	))
+	), nil)
 
 	activities, err := svc.ListForUser(context.Background(), 8)
 	require.NoError(t, err)
@@ -56,4 +56,23 @@ func TestUserActivityServiceHidesUnavailableActivities(t *testing.T) {
 
 	err = svc.MarkViewed(context.Background(), 8, "unknown")
 	require.Equal(t, "USER_ACTIVITY_NOT_FOUND", infraerrors.Reason(err))
+}
+
+func TestUserActivityServiceListsDailyCheckInAndTracksView(t *testing.T) {
+	repo := newDailyCheckInMemoryRepo()
+	repo.config.Enabled = true
+	dailyService := NewDailyCheckInActivityService(repo, nil, nil)
+	svc := NewUserActivityService(nil, dailyService)
+
+	activities, err := svc.ListForUser(context.Background(), 9)
+	require.NoError(t, err)
+	require.Len(t, activities, 1)
+	require.Equal(t, UserActivityDailyCheckIn, activities[0].ID)
+	require.NotNil(t, activities[0].DailyCheckIn)
+	require.Nil(t, activities[0].ViewedAt)
+
+	require.NoError(t, svc.MarkViewed(context.Background(), 9, UserActivityDailyCheckIn))
+	activities, err = svc.ListForUser(context.Background(), 9)
+	require.NoError(t, err)
+	require.NotNil(t, activities[0].ViewedAt)
 }

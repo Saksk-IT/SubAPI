@@ -134,6 +134,11 @@ func registerActivityRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
 			firstRecharge.POST("/users", h.Admin.Activity.AddFirstRechargeUser)
 			firstRecharge.DELETE("/users/:user_id", h.Admin.Activity.RemoveFirstRechargeUser)
 		}
+		dailyCheckIn := activities.Group("/daily-check-in")
+		{
+			dailyCheckIn.GET("", h.Admin.Activity.GetDailyCheckIn)
+			dailyCheckIn.PUT("", h.Admin.Activity.UpdateDailyCheckIn)
+		}
 	}
 }
 

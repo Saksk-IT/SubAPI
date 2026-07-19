@@ -8,6 +8,7 @@ vi.mock('@/api/activities', () => ({
   activitiesAPI: {
     list: vi.fn(),
     markViewed: vi.fn(),
+    checkIn: vi.fn(),
   },
 }))
 

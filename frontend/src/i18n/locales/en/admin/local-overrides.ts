@@ -254,6 +254,20 @@ export default {
     offerInvalid: 'Enter an offer name and make sure price and credited amount are both greater than 0.',
     maxOffersError: 'You can configure at most {count} first recharge offers.',
   },
+  dailyCheckIn: {
+    title: 'Daily Check-in Management',
+    description: 'Configure the daily check-in activity and the balance credited for each check-in.',
+    activitySwitch: 'Activity switch',
+    activitySwitchHint: 'When disabled, daily check-in is hidden from the activity center and rewards cannot be claimed.',
+    rewardAmount: 'Daily reward amount',
+    rewardAmountHint: 'Each account can claim once per calendar day. Rewards increase balance and do not count as recharge.',
+    rewardInvalid: 'The reward must be greater than 0 and no more than 1,000,000.',
+    ruleTitle: 'Check-in cycle',
+    ruleDescription: 'Calendar days use the {timezone} timezone. A database unique constraint prevents duplicate claims.',
+    saveSuccess: 'Daily check-in activity saved.',
+    loadFailed: 'Failed to load daily check-in config',
+    saveFailed: 'Failed to save daily check-in config',
+  },
   settings: {
     customMenu: {
       openInNewTab: 'Open in New Tab',

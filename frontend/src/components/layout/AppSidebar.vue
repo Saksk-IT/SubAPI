@@ -836,6 +836,7 @@ const adminNavItems = computed((): NavItem[] => {
       expandOnly: true,
       children: [
         { path: '/admin/activities/first-recharge', label: t('nav.firstRechargeManagement'), icon: GiftIcon },
+        { path: '/admin/activities/daily-check-in', label: t('nav.dailyCheckInManagement'), icon: ActivityIcon },
       ],
     },
     { path: '/admin/proxies', label: t('nav.proxies'), icon: ServerIcon },

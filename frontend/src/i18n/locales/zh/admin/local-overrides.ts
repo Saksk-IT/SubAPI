@@ -254,6 +254,20 @@ export default {
     offerInvalid: '请填写档位名称，并确保价格和到账额度均大于 0',
     maxOffersError: '最多只能配置 {count} 个首充档位',
   },
+  dailyCheckIn: {
+    title: '每日签到管理',
+    description: '配置用户每日签到活动，并自定义每次签到发放的余额额度。',
+    activitySwitch: '活动开关',
+    activitySwitchHint: '关闭后活动中心不再展示每日签到，用户也不能领取签到奖励。',
+    rewardAmount: '每日奖励额度',
+    rewardAmountHint: '每个账号每个自然日最多领取一次；奖励直接增加账号余额，不计入累计充值。',
+    rewardInvalid: '奖励额度必须大于 0 且不超过 1,000,000',
+    ruleTitle: '签到周期规则',
+    ruleDescription: '签到自然日统一按 {timezone} 时区计算，数据库唯一约束会阻止同一账号重复领取。',
+    saveSuccess: '每日签到活动配置已保存',
+    loadFailed: '加载每日签到配置失败',
+    saveFailed: '保存每日签到配置失败',
+  },
   settings: {
     customMenu: {
       openInNewTab: '新标签页打开',

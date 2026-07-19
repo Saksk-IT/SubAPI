@@ -115,6 +115,10 @@ func RegisterUserRoutes(
 				firstRecharge.GET("/status", h.Activity.GetFirstRechargeStatus)
 				firstRecharge.POST("/dismiss-popup", h.Activity.DismissFirstRechargePopup)
 			}
+			dailyCheckIn := activities.Group("/daily-check-in")
+			{
+				dailyCheckIn.POST("/check-in", h.Activity.CheckInDaily)
+			}
 		}
 
 		// 卡密兑换

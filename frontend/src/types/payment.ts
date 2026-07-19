@@ -138,7 +138,29 @@ export interface FirstRechargeStatus {
   offers: FirstRechargeOffer[]
 }
 
-export type UserActivityType = 'first_recharge'
+export interface DailyCheckInConfig {
+  enabled: boolean
+  reward_amount: number
+  timezone: string
+  created_at: string
+  updated_at: string
+}
+
+export interface DailyCheckInStatus extends DailyCheckInConfig {
+  checked_in_today: boolean
+  total_check_ins: number
+  last_checked_in_at?: string
+  viewed_at?: string
+}
+
+export interface DailyCheckInClaim {
+  reward_amount: number
+  balance_after: number
+  check_in_date: string
+  checked_in_at: string
+}
+
+export type UserActivityType = 'first_recharge' | 'daily_check_in'
 
 export interface UserActivity {
   id: string
@@ -147,6 +169,7 @@ export interface UserActivity {
   created_at: string
   updated_at: string
   first_recharge?: FirstRechargeStatus
+  daily_check_in?: DailyCheckInStatus
 }
 
 export interface FirstRechargeConfig {

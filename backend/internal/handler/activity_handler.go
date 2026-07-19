@@ -12,12 +12,18 @@ import (
 type ActivityHandler struct {
 	activityService      *service.UserActivityService
 	firstRechargeService *service.FirstRechargeActivityService
+	dailyCheckInService  *service.DailyCheckInActivityService
 }
 
-func NewActivityHandler(activityService *service.UserActivityService, firstRechargeService *service.FirstRechargeActivityService) *ActivityHandler {
+func NewActivityHandler(
+	activityService *service.UserActivityService,
+	firstRechargeService *service.FirstRechargeActivityService,
+	dailyCheckInService *service.DailyCheckInActivityService,
+) *ActivityHandler {
 	return &ActivityHandler{
 		activityService:      activityService,
 		firstRechargeService: firstRechargeService,
+		dailyCheckInService:  dailyCheckInService,
 	}
 }
 
@@ -81,4 +87,20 @@ func (h *ActivityHandler) DismissFirstRechargePopup(c *gin.Context) {
 		return
 	}
 	response.Success(c, gin.H{"message": "ok"})
+}
+
+// CheckInDaily checks in the authenticated user and credits today's configured reward.
+// POST /api/v1/activities/daily-check-in/check-in
+func (h *ActivityHandler) CheckInDaily(c *gin.Context) {
+	subject, ok := middleware2.GetAuthSubjectFromContext(c)
+	if !ok {
+		response.Unauthorized(c, "User not authenticated")
+		return
+	}
+	claim, err := h.dailyCheckInService.CheckIn(c.Request.Context(), subject.UserID)
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	response.Success(c, claim)
 }
