@@ -57,7 +57,10 @@ describe('AffiliateView', () => {
       effective_rebate_rate_percent: 10,
       effective_first_rebate_rate_percent: 10,
       effective_repeat_rebate_rate_percent: 5,
-      invitees: []
+      invitees: [],
+      leaderboard: [
+        { rank: 1, display_name: 'a***@example.com', total_rebate: 29.86 }
+      ]
     })
   })
 
@@ -78,6 +81,16 @@ describe('AffiliateView', () => {
 
     expect(wrapper.text()).toContain('affiliate.stats.firstRebateRate')
     expect(wrapper.text()).toContain('affiliate.stats.repeatRebateRate')
+  })
+
+  it('shows the top rebate leaderboard below the transfer card', async () => {
+    const wrapper = mountView()
+    await flushPromises()
+
+    const text = wrapper.text()
+    expect(text).toContain('a***@example.com')
+    expect(text.indexOf('affiliate.transfer.title')).toBeLessThan(text.indexOf('affiliate.leaderboard.title'))
+    expect(text.indexOf('affiliate.leaderboard.title')).toBeLessThan(text.indexOf('affiliate.invitees.title'))
   })
 
   it('shows redeem-code rebate guidance when the public setting is enabled', async () => {

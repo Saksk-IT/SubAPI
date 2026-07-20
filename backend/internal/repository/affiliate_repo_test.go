@@ -26,3 +26,15 @@ func TestAffiliateRecordQueriesUseLedgerAuditFields(t *testing.T) {
 	require.NotContains(t, content, "parseAffiliateRebateAmount")
 	require.NotContains(t, content, `"current_balance": "u.balance"`)
 }
+
+func TestAffiliateLeaderboardQueryAggregatesAccruedRebates(t *testing.T) {
+	source, err := os.ReadFile("affiliate_repo.go")
+	require.NoError(t, err)
+	content := string(source)
+
+	require.Contains(t, content, "ListAffiliateLeaderboard")
+	require.Contains(t, content, "ual.action = 'accrue'")
+	require.Contains(t, content, "HAVING SUM(ual.amount) > 0")
+	require.Contains(t, content, "ORDER BY total_rebate DESC, ual.user_id ASC")
+	require.Contains(t, content, "u.deleted_at IS NULL")
+}

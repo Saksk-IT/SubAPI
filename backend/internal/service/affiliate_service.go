@@ -20,7 +20,8 @@ var (
 )
 
 const (
-	affiliateInviteesLimit = 100
+	affiliateInviteesLimit    = 100
+	affiliateLeaderboardLimit = 10
 	// AffiliateCodeMinLength / AffiliateCodeMaxLength bound both system-generated
 	// 12-char codes and admin-customized codes (e.g. "VIP2026").
 	AffiliateCodeMinLength = 4
@@ -79,6 +80,14 @@ type AffiliateInvitee struct {
 	TotalRebate float64    `json:"total_rebate"`
 }
 
+// AffiliateLeaderboardEntry is a privacy-safe public leaderboard row.
+// DisplayName is masked by the service before it is returned to the client.
+type AffiliateLeaderboardEntry struct {
+	Rank        int     `json:"rank"`
+	DisplayName string  `json:"display_name"`
+	TotalRebate float64 `json:"total_rebate"`
+}
+
 type AffiliateDetail struct {
 	UserID          int64   `json:"user_id"`
 	AffCode         string  `json:"aff_code"`
@@ -88,10 +97,15 @@ type AffiliateDetail struct {
 	AffFrozenQuota  float64 `json:"aff_frozen_quota"`
 	AffHistoryQuota float64 `json:"aff_history_quota"`
 	// EffectiveRebateRatePercent 保留为首次付费比例的兼容字段。
-	EffectiveRebateRatePercent       float64            `json:"effective_rebate_rate_percent"`
-	EffectiveFirstRebateRatePercent  float64            `json:"effective_first_rebate_rate_percent"`
-	EffectiveRepeatRebateRatePercent float64            `json:"effective_repeat_rebate_rate_percent"`
-	Invitees                         []AffiliateInvitee `json:"invitees"`
+	EffectiveRebateRatePercent       float64                     `json:"effective_rebate_rate_percent"`
+	EffectiveFirstRebateRatePercent  float64                     `json:"effective_first_rebate_rate_percent"`
+	EffectiveRepeatRebateRatePercent float64                     `json:"effective_repeat_rebate_rate_percent"`
+	Invitees                         []AffiliateInvitee          `json:"invitees"`
+	Leaderboard                      []AffiliateLeaderboardEntry `json:"leaderboard"`
+}
+
+type affiliateLeaderboardRepository interface {
+	ListAffiliateLeaderboard(ctx context.Context, limit int) ([]AffiliateLeaderboardEntry, error)
 }
 
 type AffiliateRepository interface {
@@ -263,6 +277,7 @@ func (s *AffiliateService) GetAffiliateDetail(ctx context.Context, userID int64)
 		return nil, err
 	}
 	firstRate, repeatRate := s.resolveRebateRatePercents(ctx, summary)
+	leaderboard := s.listLeaderboard(ctx)
 	return &AffiliateDetail{
 		UserID:                           summary.UserID,
 		AffCode:                          summary.AffCode,
@@ -275,6 +290,7 @@ func (s *AffiliateService) GetAffiliateDetail(ctx context.Context, userID int64)
 		EffectiveFirstRebateRatePercent:  firstRate,
 		EffectiveRepeatRebateRatePercent: repeatRate,
 		Invitees:                         invitees,
+		Leaderboard:                      leaderboard,
 	}, nil
 }
 
@@ -461,6 +477,34 @@ func (s *AffiliateService) listInvitees(ctx context.Context, inviterID int64) ([
 		invitees[i].Email = maskEmail(invitees[i].Email)
 	}
 	return invitees, nil
+}
+
+func (s *AffiliateService) listLeaderboard(ctx context.Context) []AffiliateLeaderboardEntry {
+	repo, ok := s.repo.(affiliateLeaderboardRepository)
+	if !ok {
+		return []AffiliateLeaderboardEntry{}
+	}
+	entries, err := repo.ListAffiliateLeaderboard(ctx, affiliateLeaderboardLimit)
+	if err != nil {
+		logger.LegacyPrintf("service.affiliate", "failed to load affiliate leaderboard: %v", err)
+		return []AffiliateLeaderboardEntry{}
+	}
+	for i := range entries {
+		entries[i].Rank = i + 1
+		entries[i].DisplayName = maskAffiliateContact(entries[i].DisplayName)
+	}
+	return entries
+}
+
+func maskAffiliateContact(value string) string {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return "***"
+	}
+	if strings.Contains(value, "@") {
+		return maskEmail(value)
+	}
+	return maskSegment(value)
 }
 
 func roundTo(v float64, scale int) float64 {

@@ -541,6 +541,11 @@ export default {
       frozenQuotaHint: 'Recently earned rebates pending release',
       totalQuota: 'Historical Rebate Quota'
     },
+    leaderboard: {
+      title: 'Rebate Leaderboard',
+      topHint: 'Top 10 only',
+      empty: 'No rebate leaderboard data yet'
+    },
     transfer: {
       title: 'Transfer Rebate Quota',
       description: 'Move available rebate quota into your account balance',

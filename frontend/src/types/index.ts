@@ -135,6 +135,12 @@ export interface AffiliateInvitee {
   total_rebate: number
 }
 
+export interface AffiliateLeaderboardEntry {
+  rank: number
+  display_name: string
+  total_rebate: number
+}
+
 export interface UserAffiliateDetail {
   user_id: number
   aff_code: string
@@ -150,6 +156,7 @@ export interface UserAffiliateDetail {
   /** 当前用户作为邀请人时实际生效的持续复购返利比例。0-100。 */
   effective_repeat_rebate_rate_percent: number
   invitees: AffiliateInvitee[]
+  leaderboard: AffiliateLeaderboardEntry[]
 }
 
 export interface AffiliateTransferResponse {

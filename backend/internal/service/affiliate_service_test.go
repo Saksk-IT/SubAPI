@@ -118,6 +118,14 @@ func TestRepeatRateFallsBackToFirstRateForLegacySettings(t *testing.T) {
 	require.InDelta(t, 12.5, settings.GetAffiliateRepeatRebateRatePercent(context.Background()), 1e-9)
 }
 
+func TestMaskAffiliateContact(t *testing.T) {
+	t.Parallel()
+
+	require.Equal(t, "a***@e***.com", maskAffiliateContact("alice@example.com"))
+	require.Equal(t, "W***", maskAffiliateContact("Wang"))
+	require.Equal(t, "***", maskAffiliateContact(""))
+}
+
 // TestIsEnabled_NilSettingServiceReturnsDefault verifies that IsEnabled
 // safely handles a nil settingService dependency by returning the default
 // (off). This protects callers from nil-pointer crashes in misconfigured

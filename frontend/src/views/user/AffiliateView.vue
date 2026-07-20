@@ -129,6 +129,39 @@
         </div>
 
         <div class="card p-6">
+          <div class="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
+            <div class="flex items-center gap-3">
+              <Icon name="gift" size="lg" class="shrink-0 text-amber-500" />
+              <h3 class="text-base font-semibold text-gray-900 dark:text-white">{{ t('affiliate.leaderboard.title') }}</h3>
+            </div>
+            <span class="pl-9 text-sm text-gray-400 sm:pl-0 dark:text-dark-500">{{ t('affiliate.leaderboard.topHint') }}</span>
+          </div>
+          <div v-if="detail.leaderboard?.length" class="mt-4 divide-y divide-dotted divide-gray-300 dark:divide-dark-700">
+            <div
+              v-for="entry in detail.leaderboard"
+              :key="`${entry.rank}-${entry.display_name}`"
+              class="flex min-h-14 items-center justify-between gap-4 py-3"
+            >
+              <div class="flex min-w-0 items-center gap-3">
+                <span
+                  :class="[
+                    'flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-sm font-semibold',
+                    leaderboardRankClass(entry.rank)
+                  ]"
+                >
+                  {{ entry.rank }}
+                </span>
+                <span class="truncate text-sm font-medium text-gray-800 dark:text-gray-200">{{ entry.display_name }}</span>
+              </div>
+              <span class="shrink-0 text-base font-semibold text-orange-700 dark:text-orange-400">{{ formatCurrency(entry.total_rebate) }}</span>
+            </div>
+          </div>
+          <div v-else class="mt-4 rounded-xl border border-dashed border-gray-300 p-6 text-center text-sm text-gray-500 dark:border-dark-700 dark:text-dark-400">
+            {{ t('affiliate.leaderboard.empty') }}
+          </div>
+        </div>
+
+        <div class="card p-6">
           <h3 class="text-base font-semibold text-gray-900 dark:text-white">{{ t('affiliate.invitees.title') }}</h3>
           <div v-if="detail.invitees.length === 0" class="mt-4 rounded-xl border border-dashed border-gray-300 p-6 text-center text-sm text-gray-500 dark:border-dark-700 dark:text-dark-400">
             {{ t('affiliate.invitees.empty') }}
@@ -217,6 +250,13 @@ const redeemCodeRebateEnabled = computed(
 
 function formatCount(value: number): string {
   return value.toLocaleString()
+}
+
+function leaderboardRankClass(rank: number): string {
+  if (rank === 1) return 'bg-amber-400 text-white shadow-sm'
+  if (rank === 2) return 'bg-gray-300 text-white dark:bg-gray-600'
+  if (rank === 3) return 'bg-orange-300 text-white dark:bg-orange-700'
+  return 'bg-gray-100 text-gray-500 dark:bg-dark-700 dark:text-dark-300'
 }
 
 async function loadAffiliateDetail(silent = false): Promise<void> {

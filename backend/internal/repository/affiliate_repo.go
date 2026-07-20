@@ -419,6 +419,49 @@ LIMIT $2`, inviterID, limit)
 	return invitees, nil
 }
 
+func (r *affiliateRepository) ListAffiliateLeaderboard(ctx context.Context, limit int) ([]service.AffiliateLeaderboardEntry, error) {
+	if limit <= 0 {
+		limit = 10
+	}
+	client := clientFromContext(ctx, r.client)
+	rows, err := client.QueryContext(ctx, `
+SELECT COALESCE(u.email, ''),
+       COALESCE(u.username, ''),
+       SUM(ual.amount)::double precision AS total_rebate
+FROM user_affiliate_ledger ual
+JOIN user_affiliates ua ON ua.user_id = ual.user_id
+JOIN users u ON u.id = ual.user_id
+WHERE ual.action = 'accrue'
+  AND u.deleted_at IS NULL
+GROUP BY ual.user_id, u.email, u.username
+HAVING SUM(ual.amount) > 0
+ORDER BY total_rebate DESC, ual.user_id ASC
+LIMIT $1`, limit)
+	if err != nil {
+		return nil, fmt.Errorf("list affiliate leaderboard: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+
+	entries := make([]service.AffiliateLeaderboardEntry, 0, limit)
+	for rows.Next() {
+		var email, username string
+		var entry service.AffiliateLeaderboardEntry
+		if err := rows.Scan(&email, &username, &entry.TotalRebate); err != nil {
+			return nil, err
+		}
+		if strings.TrimSpace(email) != "" {
+			entry.DisplayName = email
+		} else {
+			entry.DisplayName = username
+		}
+		entries = append(entries, entry)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return entries, nil
+}
+
 func (r *affiliateRepository) ListAffiliateInviteRecords(ctx context.Context, filter service.AffiliateRecordFilter) ([]service.AffiliateInviteRecord, int64, error) {
 	client := clientFromContext(ctx, r.client)
 	where, args := buildAffiliateRecordWhere(filter, "ua.created_at", []string{

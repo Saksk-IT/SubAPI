@@ -546,6 +546,11 @@ export default {
       frozenQuotaHint: '新产生的返利正在冻结期中',
       totalQuota: '历史返利额度'
     },
+    leaderboard: {
+      title: '返利排行榜',
+      topHint: '仅展示 Top 10',
+      empty: '暂无返利排行榜数据'
+    },
     transfer: {
       title: '返利额度转余额',
       description: '将当前可用返利额度一键转入账户余额',
