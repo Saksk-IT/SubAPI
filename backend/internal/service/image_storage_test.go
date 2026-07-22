@@ -155,3 +155,69 @@ func TestImageTaskServiceCompleteOffloadFailureMarksFailed(t *testing.T) {
 	require.Contains(t, string(got.Error), "object storage")
 	require.NotContains(t, string(got.Result), "b64_json", "failed offload must not persist base64 to Redis")
 }
+
+func TestImageTaskServiceDynamicUploaderSnapshotSurvivesDisable(t *testing.T) {
+	store := &imageTaskMemoryStore{}
+	storage := &fakeImageStorage{url: "https://old-storage.test/image.png"}
+	acceptedUploader := NewImageResultUploader(storage, "accepted/", 0, nil)
+	enabled := true
+	svc := NewImageTaskServiceWithResolver(store, func() (*ImageResultUploader, bool) {
+		if !enabled {
+			return nil, false
+		}
+		return acceptedUploader, true
+	}, time.Hour, time.Minute)
+
+	owner := ImageTaskOwner{UserID: 1, APIKeyID: 2}
+	created, err := svc.Create(context.Background(), owner)
+	require.NoError(t, err)
+
+	// Simulate an admin disabling or switching storage while the upstream task is
+	// still running. Completion must use the binding captured by Create.
+	enabled = false
+	b64 := base64.StdEncoding.EncodeToString(pngBytes)
+	result := json.RawMessage(`{"data":[{"b64_json":"` + b64 + `"}]}`)
+	require.NoError(t, svc.Complete(context.Background(), created.ID, http.StatusOK, result))
+
+	got, err := svc.Get(context.Background(), owner, created.ID)
+	require.NoError(t, err)
+	require.Equal(t, ImageTaskStatusCompleted, got.Status)
+	require.Equal(t, "https://old-storage.test/image.png", got.ImageURL)
+	require.NotContains(t, string(got.Result), "b64_json")
+	require.NotContains(t, string(got.Result), b64)
+	require.Len(t, storage.saved, 1)
+	require.Equal(t, pngBytes, storage.saved[0].data)
+
+	svc.snapshotMu.Lock()
+	require.Empty(t, svc.taskUploaders, "terminal completion must release the uploader snapshot")
+	svc.snapshotMu.Unlock()
+}
+
+func TestImageTaskServiceDynamicMissingSnapshotFailsClosed(t *testing.T) {
+	store := &imageTaskMemoryStore{}
+	storage := &fakeImageStorage{}
+	uploader := NewImageResultUploader(storage, "images/", 0, nil)
+	svc := NewImageTaskServiceWithResolver(store, func() (*ImageResultUploader, bool) {
+		return uploader, true
+	}, time.Hour, time.Minute)
+
+	owner := ImageTaskOwner{UserID: 1, APIKeyID: 2}
+	created, err := svc.Create(context.Background(), owner)
+	require.NoError(t, err)
+
+	// Model a lost in-memory binding. A dynamic service must not consult the
+	// current resolver or persist the raw response when the accepted snapshot is
+	// absent.
+	svc.clearUploader(created.ID)
+	b64 := base64.StdEncoding.EncodeToString(pngBytes)
+	result := json.RawMessage(`{"data":[{"b64_json":"` + b64 + `"}]}`)
+	require.NoError(t, svc.Complete(context.Background(), created.ID, http.StatusOK, result))
+
+	got, err := svc.Get(context.Background(), owner, created.ID)
+	require.NoError(t, err)
+	require.Equal(t, ImageTaskStatusFailed, got.Status)
+	require.Equal(t, http.StatusBadGateway, got.HTTPStatus)
+	require.Contains(t, string(got.Error), "object storage")
+	require.Empty(t, got.Result)
+	require.Empty(t, storage.saved, "a missing snapshot must not fall back to the latest resolver")
+}

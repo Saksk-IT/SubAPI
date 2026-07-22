@@ -161,10 +161,14 @@ func runMainServer() {
 		app.OpenAIImageJobWorker,
 	); err != nil {
 		if app.PromptAudit != nil && app.PromptAudit.EffectiveMode() == securityaudit.ModeBlocking {
-			// Startup continues so unrelated APIs stay up. Prompt Audit remains
-			// fail-closed until a later reload installs a trusted snapshot.
+			// Startup continues so unrelated APIs stay up. A persisted blocking
+			// policy remains fail-closed until a later reload installs a trusted
+			// snapshot; guarded image jobs may still replay safely.
 			log.Printf("Prompt Audit started in degraded fail-closed state: %v", err)
 		} else {
+			// Without blocking intent Prompt Audit stays ModeOff, so the gateway
+			// remains usable and administrators can still disable the feature.
+			// The durable image worker remains stopped to avoid an audit bypass.
 			log.Printf("Prompt Audit failed to start; OpenAI Image Job worker remains stopped: %v", err)
 		}
 	}

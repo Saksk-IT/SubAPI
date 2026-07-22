@@ -413,13 +413,6 @@ func (s *AffiliateService) AccrueInviteRebateForOrder(ctx context.Context, invit
 	return rebate, nil
 }
 
-// resolveRebateRatePercent returns the inviter's exclusive rate when set,
-// otherwise the global setting value (clamped to [Min, Max]).
-func (s *AffiliateService) resolveRebateRatePercent(ctx context.Context, inviter *AffiliateSummary) float64 {
-	firstRate, _ := s.resolveRebateRatePercents(ctx, inviter)
-	return firstRate
-}
-
 // resolveRebateRatePercents returns the first-payment and repeat-purchase rates.
 // A per-inviter exclusive rate intentionally overrides both stages for backwards compatibility.
 func (s *AffiliateService) resolveRebateRatePercents(ctx context.Context, inviter *AffiliateSummary) (float64, float64) {

@@ -47,6 +47,19 @@ func TestCountTokensPromptAuditBlocksBeforeBillingSchedulingAndUpstream(t *testi
 				return h.CountTokens
 			},
 		},
+		{
+			name:     "grok local estimation",
+			platform: service.PlatformGrok,
+			handler: func(coordinator *securityaudit.Coordinator) gin.HandlerFunc {
+				h := &OpenAIGatewayHandler{
+					securityAuditCoordinator: coordinator,
+					cfg: &config.Config{Gateway: config.GatewayConfig{
+						MaxBodySize: 1024 * 1024,
+					}},
+				}
+				return h.GrokCountTokens
+			},
+		},
 	}
 
 	for _, tt := range tests {
@@ -66,24 +79,33 @@ func TestCountTokensPromptAuditBlocksBeforeBillingSchedulingAndUpstream(t *testi
 				c.Next()
 				_, selectedAccount = c.Get(opsAccountIDKey)
 			})
-			router.POST("/v1/messages/count_tokens", tt.handler(coordinator))
+			paths := []string{"/v1/messages/count_tokens"}
+			if tt.platform == service.PlatformGrok {
+				paths = append(paths, "/messages/count_tokens")
+			}
+			for _, path := range paths {
+				router.POST(path, tt.handler(coordinator))
+			}
 
 			body := `{"model":"claude-test","system":"blocked system prompt","messages":[{"role":"user","content":"blocked user prompt"}]}`
-			request := httptest.NewRequest(http.MethodPost, "/v1/messages/count_tokens", strings.NewReader(body))
-			request.Header.Set("Content-Type", "application/json")
-			recorder := httptest.NewRecorder()
-			require.NotPanics(t, func() { router.ServeHTTP(recorder, request) })
+			for requestIndex, path := range paths {
+				request := httptest.NewRequest(http.MethodPost, path, strings.NewReader(body))
+				request.Header.Set("Content-Type", "application/json")
+				recorder := httptest.NewRecorder()
+				require.NotPanics(t, func() { router.ServeHTTP(recorder, request) })
 
-			require.Equal(t, http.StatusForbidden, recorder.Code)
-			require.Contains(t, recorder.Body.String(), securityaudit.ErrorCodeBlocked)
-			require.False(t, selectedAccount, "blocking must happen before account scheduling")
-			evaluated, _, requests := engine.snapshot()
-			require.Equal(t, 1, evaluated)
-			require.Len(t, requests, 1)
-			require.Equal(t, service.ContentModerationProtocolAnthropicMessages, requests[0].Protocol)
-			require.Equal(t, "claude-test", requests[0].Model)
-			require.Contains(t, string(requests[0].Body), "blocked system prompt")
-			require.Contains(t, string(requests[0].Body), "blocked user prompt")
+				require.Equal(t, http.StatusForbidden, recorder.Code, "path=%s", path)
+				require.Contains(t, recorder.Body.String(), securityaudit.ErrorCodeBlocked, "path=%s", path)
+				require.False(t, selectedAccount, "blocking must happen before account scheduling")
+				evaluated, _, requests := engine.snapshot()
+				require.Equal(t, requestIndex+1, evaluated)
+				require.Len(t, requests, requestIndex+1)
+				latest := requests[requestIndex]
+				require.Equal(t, service.ContentModerationProtocolAnthropicMessages, latest.Protocol)
+				require.Equal(t, "claude-test", latest.Model)
+				require.Contains(t, string(latest.Body), "blocked system prompt")
+				require.Contains(t, string(latest.Body), "blocked user prompt")
+			}
 		})
 	}
 }

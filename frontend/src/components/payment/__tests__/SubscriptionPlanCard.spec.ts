@@ -1,6 +1,7 @@
 import { mount } from "@vue/test-utils";
 import { describe, expect, it, vi } from "vitest";
 import { createPinia } from "pinia";
+import { formatPaymentAmount } from "../currency";
 import SubscriptionPlanCard from "../SubscriptionPlanCard.vue";
 
 vi.mock("vue-i18n", async () => {
@@ -72,10 +73,12 @@ describe("SubscriptionPlanCard", () => {
     expect(mountPlanCard("openai", "months").text()).toContain("30months");
   });
 
-  it("keeps the customized price formatter and appends the display currency", () => {
-    const text = mountPlanCard("openai", "day", "NZD").text();
+  it("uses configured currencies while keeping the customized CNY legacy default", () => {
+    const nzdText = mountPlanCard("openai", "day", "NZD").text();
 
-    expect(text).toContain("¥10.00");
-    expect(text).toContain("NZD");
+    expect(nzdText).toContain(formatPaymentAmount(10, "NZD"));
+    expect(nzdText).toContain("NZD");
+    expect(mountPlanCard("openai", "day", "CNY").text()).toContain(formatPaymentAmount(10, "CNY"));
+    expect(mountPlanCard("openai").text()).toContain(formatPaymentAmount(10, "CNY"));
   });
 });

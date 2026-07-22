@@ -23,6 +23,7 @@ func TestPromptAuditGatePrecedesAccountBillingAndUpstreamSideEffects(t *testing.
 		{file: "gateway_handler.go", function: "Messages", auditToken: "checkSecurityAudit"},
 		{file: "gateway_handler.go", function: "CountTokens", auditToken: "checkSecurityAudit"},
 		{file: "openai_gateway_count_tokens.go", function: "CountTokens", auditToken: "checkSecurityAudit"},
+		{file: "openai_gateway_count_tokens.go", function: "GrokCountTokens", auditToken: "checkSecurityAudit"},
 		{file: "gateway_handler_chat_completions.go", function: "ChatCompletions", auditToken: "checkSecurityAudit"},
 		{file: "gateway_handler_responses.go", function: "Responses", auditToken: "checkSecurityAudit"},
 		{file: "gemini_v1beta_handler.go", function: "GeminiV1BetaModels", auditToken: "checkSecurityAudit"},
@@ -39,7 +40,7 @@ func TestPromptAuditGatePrecedesAccountBillingAndUpstreamSideEffects(t *testing.
 	sideEffectTokens := []string{
 		"CheckBillingEligibility(", "SelectAccount", ".Forward", "acquireResponsesUserSlot(",
 		"AcquireUserSlot", "TryAcquireUserSlot", "acquireImageGenerationSlot(",
-		"h.tasks.Create(", "h.service.Submit(",
+		"h.tasks.Create(", "h.service.Submit(", "EstimateGrokCountTokens(",
 	}
 	for _, tt := range tests {
 		t.Run(tt.file+"/"+tt.function, func(t *testing.T) {

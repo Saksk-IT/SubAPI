@@ -146,7 +146,7 @@ const discountText = computed(() => {
 })
 
 function formatPlanPrice(value: number): string {
-  return formatPaymentAmount(value, PLAN_PRICE_CURRENCY)
+  return formatPaymentAmount(value, props.plan.currency || PLAN_PRICE_CURRENCY)
 }
 
 const rateDisplay = computed(() => {

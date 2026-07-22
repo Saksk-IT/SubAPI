@@ -6,6 +6,7 @@ import (
 	"errors"
 	"net/http"
 	"strings"
+	"sync"
 	"time"
 
 	infraerrors "github.com/Wei-Shaw/sub2api/internal/pkg/errors"
@@ -69,12 +70,26 @@ type ImageTaskStore interface {
 	Get(ctx context.Context, id string) (*ImageTaskRecord, error)
 }
 
+// ImageStorageResolver reports the currently effective object-storage binding.
+// It exists so the async image feature can be switched on and off from the admin
+// UI without a restart: the wiring below is fixed at startup, but the answer to
+// "is object storage configured right now" is re-read (and cached) per call.
+type ImageStorageResolver func() (uploader *ImageResultUploader, enabled bool)
+
 type ImageTaskService struct {
 	store            ImageTaskStore
 	uploader         *ImageResultUploader
 	enabled          bool
+	resolve          ImageStorageResolver
 	ttl              time.Duration
 	executionTimeout time.Duration
+
+	// taskUploaders pins the object-storage binding that was active when a task
+	// was accepted. Admin settings can invalidate the resolver while the task is
+	// running; completion must still use the accepted binding instead of falling
+	// back to persisting the upstream base64 payload in Redis.
+	snapshotMu    sync.Mutex
+	taskUploaders map[string]*ImageResultUploader
 }
 
 func NewImageTaskService(store ImageTaskStore) *ImageTaskService {
@@ -88,7 +103,12 @@ func NewImageTaskServiceWithOptions(store ImageTaskStore, ttl, executionTimeout 
 	if executionTimeout <= 0 {
 		executionTimeout = defaultImageTaskExecutionTimeout
 	}
-	return &ImageTaskService{store: store, ttl: ttl, executionTimeout: executionTimeout}
+	return &ImageTaskService{
+		store:            store,
+		ttl:              ttl,
+		executionTimeout: executionTimeout,
+		taskUploaders:    make(map[string]*ImageResultUploader),
+	}
 }
 
 // NewImageTaskServiceWithUploader 构造一个已启用的图片任务服务：结果会先经 uploader
@@ -100,10 +120,43 @@ func NewImageTaskServiceWithUploader(store ImageTaskStore, uploader *ImageResult
 	return s
 }
 
+// NewImageTaskServiceWithResolver 构造一个由 resolver 决定启用状态的服务：
+// 开关与凭证来自后台设置，保存后立即生效，无需重启。
+func NewImageTaskServiceWithResolver(store ImageTaskStore, resolve ImageStorageResolver, ttl, executionTimeout time.Duration) *ImageTaskService {
+	s := NewImageTaskServiceWithOptions(store, ttl, executionTimeout)
+	s.resolve = resolve
+	return s
+}
+
+// current 返回当前生效的 uploader 与启用状态。
+// 注入了 resolver 时以 resolver 为准（后台设置可热切换），否则回落到构造时固定的值。
+func (s *ImageTaskService) current() (*ImageResultUploader, bool) {
+	if s == nil {
+		return nil, false
+	}
+	if s.resolve != nil {
+		return s.resolve()
+	}
+	return s.uploader, s.enabled
+}
+
 // Enabled 表示异步图片任务功能是否可用（总开关 + 凭证齐全）。
 // 关闭时 handler 直接返回 404，不创建任务、不写 Redis。
 func (s *ImageTaskService) Enabled() bool {
-	return s != nil && s.enabled && s.store != nil
+	if s == nil || s.store == nil {
+		return false
+	}
+	uploader, enabled := s.current()
+	if s.resolve != nil {
+		return enabled && uploader != nil
+	}
+	return enabled
+}
+
+// Pollable 表示已创建的任务能否被查询。
+// 比 Enabled 弱：只要 store 可用即可，从而在功能被关掉后仍能取回进行中的任务结果。
+func (s *ImageTaskService) Pollable() bool {
+	return s != nil && s.store != nil
 }
 
 func (s *ImageTaskService) ExecutionTimeout() time.Duration {
@@ -115,6 +168,13 @@ func (s *ImageTaskService) ExecutionTimeout() time.Duration {
 
 func (s *ImageTaskService) Create(ctx context.Context, owner ImageTaskOwner) (*ImageTask, error) {
 	if s == nil || s.store == nil {
+		return nil, ErrImageTaskUnavailable
+	}
+	uploader, enabled := s.current()
+	if s.resolve != nil && (!enabled || uploader == nil) {
+		// Enabled() is only an early HTTP gate. Resolve again at acceptance time so
+		// an admin-side disable between the gate and Create cannot admit a task
+		// without a usable object-storage binding.
 		return nil, ErrImageTaskUnavailable
 	}
 	now := time.Now().UTC()
@@ -129,6 +189,7 @@ func (s *ImageTaskService) Create(ctx context.Context, owner ImageTaskOwner) (*I
 	if err := s.store.Save(ctx, task, s.ttl); err != nil {
 		return nil, ErrImageTaskUnavailable.WithCause(err)
 	}
+	s.rememberUploader(task.ID, uploader)
 	return imageTaskToPublic(task), nil
 }
 
@@ -154,8 +215,22 @@ func (s *ImageTaskService) Complete(ctx context.Context, id string, statusCode i
 	if !json.Valid(result) {
 		return s.Fail(ctx, id, http.StatusBadGateway, imageTaskErrorJSON("api_error", "upstream returned a non-JSON image response"))
 	}
-	if s.uploader != nil {
-		rewritten, err := s.uploader.Rewrite(ctx, id, result)
+	uploader, snapshotted := s.takeUploader(id)
+	if s != nil && s.resolve != nil && (!snapshotted || uploader == nil) {
+		// Dynamic storage is an explicit no-base64 contract. A missing acceptance
+		// snapshot must fail closed rather than consult the latest (possibly
+		// disabled) resolver and accidentally write the raw response to Redis.
+		logger.L().Error("image_task.storage_snapshot_missing", zap.String("task_id", id))
+		return s.Fail(ctx, id, http.StatusBadGateway, imageTaskErrorJSON("api_error", "failed to store generated image to object storage"))
+	}
+	if !snapshotted {
+		// Preserve compatibility for fixed services and records created before this
+		// process knew about task-level bindings. Dynamic services never take this
+		// fallback because they must fail closed above.
+		uploader, _ = s.current()
+	}
+	if uploader != nil {
+		rewritten, err := uploader.Rewrite(ctx, id, result)
 		if err != nil {
 			// 转存失败不回退存 base64，避免大 blob 撑爆 Redis：直接把任务标记为失败。
 			logger.L().Error("image_task.offload_failed", zap.String("task_id", id), zap.Error(err))
@@ -167,10 +242,43 @@ func (s *ImageTaskService) Complete(ctx context.Context, id string, statusCode i
 }
 
 func (s *ImageTaskService) Fail(ctx context.Context, id string, statusCode int, taskErr json.RawMessage) error {
+	s.clearUploader(id)
 	if !json.Valid(taskErr) {
 		taskErr = imageTaskErrorJSON("api_error", "image generation failed")
 	}
 	return s.finish(ctx, id, ImageTaskStatusFailed, statusCode, nil, taskErr)
+}
+
+func (s *ImageTaskService) rememberUploader(id string, uploader *ImageResultUploader) {
+	if s == nil {
+		return
+	}
+	s.snapshotMu.Lock()
+	if s.taskUploaders == nil {
+		s.taskUploaders = make(map[string]*ImageResultUploader)
+	}
+	s.taskUploaders[id] = uploader
+	s.snapshotMu.Unlock()
+}
+
+func (s *ImageTaskService) takeUploader(id string) (*ImageResultUploader, bool) {
+	if s == nil {
+		return nil, false
+	}
+	s.snapshotMu.Lock()
+	uploader, ok := s.taskUploaders[id]
+	delete(s.taskUploaders, id)
+	s.snapshotMu.Unlock()
+	return uploader, ok
+}
+
+func (s *ImageTaskService) clearUploader(id string) {
+	if s == nil {
+		return
+	}
+	s.snapshotMu.Lock()
+	delete(s.taskUploaders, id)
+	s.snapshotMu.Unlock()
 }
 
 func (s *ImageTaskService) finish(ctx context.Context, id, status string, statusCode int, result, taskErr json.RawMessage) error {

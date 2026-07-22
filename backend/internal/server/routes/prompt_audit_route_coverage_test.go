@@ -81,6 +81,28 @@ func TestEveryGatewayPOSTRouteIsClassifiedForPromptAuditCoverage(t *testing.T) {
 	}
 }
 
+func TestVersionedAndRootCountTokensRoutesUseAuditedDispatcher(t *testing.T) {
+	routeSource, err := os.ReadFile("gateway.go")
+	require.NoError(t, err)
+	source := string(routeSource)
+
+	require.Regexp(t,
+		regexp.MustCompile(`gateway\.POST\("/messages/count_tokens"[^\n]*countTokensHandler\)`),
+		source,
+		"/v1/messages/count_tokens must use the audited platform dispatcher",
+	)
+	require.Regexp(t,
+		regexp.MustCompile(`r\.POST\("/messages/count_tokens"[^\n]*countTokensHandler\)`),
+		source,
+		"/messages/count_tokens must use the audited platform dispatcher",
+	)
+	require.Regexp(t,
+		regexp.MustCompile(`(?s)countTokensHandler := func\(c \*gin\.Context\).*?case service\.PlatformGrok:.*?h\.OpenAIGateway\.GrokCountTokens\(c\)`),
+		source,
+		"Grok count_tokens must dispatch to the Prompt Audit-protected handler",
+	)
+}
+
 func TestResponsesWebSocketHasFirstAndSubsequentTurnPromptGates(t *testing.T) {
 	routeSource, err := os.ReadFile("gateway.go")
 	require.NoError(t, err)

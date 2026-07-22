@@ -156,9 +156,9 @@
           </template>
           <template #cell-price="{ value, row }">
             <div class="text-sm">
-              <span class="font-medium text-gray-900 dark:text-white">¥{{ (value ?? 0).toFixed(2) }}</span>
+              <span class="font-medium text-gray-900 dark:text-white">{{ planCurrencySymbol(row.currency) }}{{ (value ?? 0).toFixed(2) }}</span>
               <span v-if="row.currency" class="ml-1 text-xs text-gray-400">{{ row.currency }}</span>
-              <span v-if="row.original_price" class="ml-1 text-xs text-gray-400 line-through">¥{{ row.original_price.toFixed(2) }}</span>
+              <span v-if="row.original_price" class="ml-1 text-xs text-gray-400 line-through">{{ planCurrencySymbol(row.currency) }}{{ row.original_price.toFixed(2) }}</span>
             </div>
           </template>
           <template #cell-validity_days="{ value, row }">
@@ -297,7 +297,7 @@
                       />
                       <span v-else class="text-xs text-gray-400">#{{ plan.group_id }}</span>
                       <span class="text-xs text-gray-500 dark:text-gray-400">
-                        ¥{{ (plan.price ?? 0).toFixed(2) }}<template v-if="plan.currency"> {{ plan.currency }}</template>
+                        {{ planCurrencySymbol(plan.currency) }}{{ (plan.price ?? 0).toFixed(2) }}<template v-if="plan.currency"> {{ plan.currency }}</template>
                       </span>
                     </div>
                   </div>
@@ -357,6 +357,7 @@ import PlanEditDialog from './PlanEditDialog.vue'
 import PlanBulkEditDialog from './PlanBulkEditDialog.vue'
 import BalanceProductEditDialog from './BalanceProductEditDialog.vue'
 import BalanceProductBulkEditDialog from './BalanceProductBulkEditDialog.vue'
+import { currencySymbol } from '@/components/payment/currency'
 import { platformLabel, platformTextClass } from '@/utils/platformColors'
 
 const { t } = useI18n()
@@ -370,6 +371,10 @@ type PlanPlatformSortGroup = {
 
 const activeProductTab = ref<ProductTab>('balance')
 const activeLoading = computed(() => activeProductTab.value === 'balance' ? balanceProductsLoading.value : plansLoading.value)
+
+function planCurrencySymbol(currency?: string): string {
+  return currencySymbol(currency || 'CNY')
+}
 
 // ==================== Groups ====================
 
@@ -458,7 +463,7 @@ const planColumns = computed((): Column[] => [
   { key: 'group_id', label: t('payment.admin.group') },
   { key: 'price_multiplier', label: t('payment.admin.planPriceMultiplier') },
   { key: 'price', label: t('payment.admin.price') },
-  { key: 'validity_days', label: t('payment.admin.validityDays') },
+  { key: 'validity_days', label: t('payment.admin.validity') },
   { key: 'sales_count', label: t('payment.admin.salesCount') },
   { key: 'for_sale', label: t('payment.admin.forSale') },
   { key: 'actions', label: t('common.actions') },

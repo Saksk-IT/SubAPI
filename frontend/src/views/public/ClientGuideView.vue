@@ -268,7 +268,7 @@ const isParentGuide = computed(() => page.value.active === 'registration')
     <header class="codex-doc-header">
       <nav class="codex-doc-nav" aria-label="页面导航">
         <a class="codex-doc-brand" href="/" aria-label="返回 GPT Team 服务台首页">
-          <img src="/logo.png" alt="Logo">
+          <img src="/logo.svg" alt="Logo">
           <span>
             <strong>GPT Team</strong>
             <small>{{ isParentGuide ? '中转接入父教程' : '客户端配置子教程' }}</small>

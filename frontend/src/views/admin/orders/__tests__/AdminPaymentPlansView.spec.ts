@@ -119,4 +119,21 @@ describe('AdminPaymentPlansView', () => {
     expect(balanceColumns[2].class).toContain('w-16')
     expect(wrapper.findComponent({ name: 'DataTable' }).props('stickyFirstColumn')).toBe(false)
   })
+
+  it('按订阅商品币种显示符号并保留二开 CNY 默认值', () => {
+    const wrapper = mount(AdminPaymentPlansView, {
+      global: {
+        stubs: {
+          RouterLink: true,
+        },
+      },
+    })
+
+    const vm = wrapper.vm as any
+    expect(vm.planCurrencySymbol('NZD')).toBe('NZ$')
+    expect(vm.planCurrencySymbol('CNY')).toBe('¥')
+    expect(vm.planCurrencySymbol('')).toBe('¥')
+    expect(vm.planColumns.find((column: { key: string }) => column.key === 'validity_days').label)
+      .toBe('payment.admin.validity')
+  })
 })

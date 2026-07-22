@@ -55,33 +55,37 @@ func (r *affiliateRateAccrualRepo) AccrueQuota(_ context.Context, _, _ int64, fi
 // SettingService is left nil here so globalRebateRatePercent returns the
 // documented default (AffiliateRebateRateDefault = 20%) — this exercises the
 // fallback path without spinning up a settings stub.
-func TestResolveRebateRatePercent_PerUserOverride(t *testing.T) {
+func TestResolveRebateRatePercents_PerUserOverride(t *testing.T) {
 	t.Parallel()
 	svc := &AffiliateService{}
+	resolve := func(summary *AffiliateSummary) float64 {
+		firstRate, _ := svc.resolveRebateRatePercents(context.Background(), summary)
+		return firstRate
+	}
 
 	// nil exclusive rate → falls back to global default (20%)
 	require.InDelta(t, AffiliateRebateRateDefault,
-		svc.resolveRebateRatePercent(context.Background(), &AffiliateSummary{}), 1e-9)
+		resolve(&AffiliateSummary{}), 1e-9)
 
 	// exclusive rate set → overrides global
 	rate := 50.0
 	require.InDelta(t, 50.0,
-		svc.resolveRebateRatePercent(context.Background(), &AffiliateSummary{AffRebateRatePercent: &rate}), 1e-9)
+		resolve(&AffiliateSummary{AffRebateRatePercent: &rate}), 1e-9)
 
 	// exclusive rate 0 → returns 0 (no rebate, intentional)
 	zero := 0.0
 	require.InDelta(t, 0.0,
-		svc.resolveRebateRatePercent(context.Background(), &AffiliateSummary{AffRebateRatePercent: &zero}), 1e-9)
+		resolve(&AffiliateSummary{AffRebateRatePercent: &zero}), 1e-9)
 
 	// exclusive rate above max → clamped to Max
 	tooHigh := 250.0
 	require.InDelta(t, AffiliateRebateRateMax,
-		svc.resolveRebateRatePercent(context.Background(), &AffiliateSummary{AffRebateRatePercent: &tooHigh}), 1e-9)
+		resolve(&AffiliateSummary{AffRebateRatePercent: &tooHigh}), 1e-9)
 
 	// exclusive rate below min → clamped to Min
 	tooLow := -5.0
 	require.InDelta(t, AffiliateRebateRateMin,
-		svc.resolveRebateRatePercent(context.Background(), &AffiliateSummary{AffRebateRatePercent: &tooLow}), 1e-9)
+		resolve(&AffiliateSummary{AffRebateRatePercent: &tooLow}), 1e-9)
 }
 
 func TestAccrueInviteRebateUsesFirstThenRepeatRate(t *testing.T) {

@@ -102,7 +102,7 @@ describe('local locale overrides', () => {
     ].sort()
 
     expect(enPaths).toEqual(zhPaths)
-    expect(enPaths).toHaveLength(382)
+    expect(enPaths).toHaveLength(412)
   })
 
   it.each([

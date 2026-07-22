@@ -143,3 +143,48 @@ func TestAsyncImageHandlerDisabledReturns404(t *testing.T) {
 	// No task was created / persisted.
 	require.Empty(t, store.tasks)
 }
+
+func TestAsyncImageHandlerCreateRechecksDynamicStorage(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	store := &asyncImageMemoryStore{tasks: make(map[string]*service.ImageTaskRecord)}
+	uploader := service.NewImageResultUploader(nil, "", 0, nil)
+	resolverCalls := 0
+	tasks := service.NewImageTaskServiceWithResolver(store, func() (*service.ImageResultUploader, bool) {
+		resolverCalls++
+		if resolverCalls == 1 {
+			// Enabled() sees the feature as available, then an admin-side update
+			// invalidates it before Create accepts the task.
+			return uploader, true
+		}
+		return nil, false
+	}, time.Hour, time.Minute)
+
+	executeCalls := 0
+	h := &AsyncImageHandler{tasks: tasks}
+	h.execute = func(_ string, _ *gin.Context) { executeCalls++ }
+
+	router := gin.New()
+	router.Use(func(c *gin.Context) {
+		groupID := int64(3)
+		c.Set(string(middleware2.ContextKeyAPIKey), &service.APIKey{
+			ID:      9,
+			UserID:  7,
+			GroupID: &groupID,
+			Group:   &service.Group{ID: groupID, Platform: service.PlatformOpenAI, AllowImageGeneration: true},
+		})
+		c.Next()
+	})
+	router.POST("/v1/images/generations/async", h.Submit)
+
+	req := httptest.NewRequest(http.MethodPost, "/v1/images/generations/async",
+		strings.NewReader(`{"model":"gpt-image-1","prompt":"cat"}`))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusServiceUnavailable, rec.Code)
+	require.Contains(t, rec.Body.String(), "IMAGE_TASK_UNAVAILABLE")
+	require.Equal(t, 2, resolverCalls, "Create must resolve storage again after the early Enabled gate")
+	require.Zero(t, executeCalls)
+	require.Empty(t, store.tasks, "the raced disable must not create a Redis task")
+}
